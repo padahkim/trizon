@@ -1,0 +1,15 @@
+# 개인 자산 데이터 — 절대 커밋하지 않는다
+/data
+
+/node_modules
+/.next
+/out
+next-env.d.ts
+*.tsbuildinfo
+.DS_Store
+npm-debug.log*
+*.pem
+
+# 환경변수 — 예시 파일(.env.example)만 커밋한다
+.env*
+!.env.example
