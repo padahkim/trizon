@@ -1,0 +1,354 @@
+/* 색 토큰 — 라이트/다크 각각 따로 고른 값 (dataviz 기본 팔레트 기반).
+   손익색은 한국·일본 관례를 따른다: 상승 빨강, 하락 파랑. 부호(+/−)를 항상 같이 써서 색만으로 구분하지 않는다. */
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --surface-2: #f1f0ec;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #7a7873;
+  --hairline: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.1);
+  --accent: #2a78d6;
+  --accent-ink: #1c5cab;
+  --up: #c9302c;
+  --down: #1f63c6;
+  --warn-bg: #fff4d6;
+  --warn-ink: #6b4a00;
+  --danger-bg: #fde8e8;
+  --danger-ink: #a61f1f;
+  --mk-KR: #2a78d6;
+  --mk-JP: #eb6834;
+  --mk-US: #1baf7a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #242422;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #9a988f;
+    --hairline: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.1);
+    --accent: #3987e5;
+    --accent-ink: #86b6ef;
+    --up: #ff6b6b;
+    --down: #6aa5ff;
+    --warn-bg: #3a2e10;
+    --warn-ink: #f5c865;
+    --danger-bg: #3a1a1a;
+    --danger-ink: #ff8a8a;
+    --mk-KR: #3987e5;
+    --mk-JP: #d95926;
+    --mk-US: #199e70;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --surface-2: #242422;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --muted: #9a988f;
+  --hairline: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.1);
+  --accent: #3987e5;
+  --accent-ink: #86b6ef;
+  --up: #ff6b6b;
+  --down: #6aa5ff;
+  --warn-bg: #3a2e10;
+  --warn-ink: #f5c865;
+  --danger-bg: #3a1a1a;
+  --danger-ink: #ff8a8a;
+  --mk-KR: #3987e5;
+  --mk-JP: #d95926;
+  --mk-US: #199e70;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Hiragino Sans", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent-ink);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: 1.05rem;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── 공용 조각 ───────────────────────────────────────────── */
+
+.shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px 64px;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.secondary {
+  color: var(--ink-2);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+.pill {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  vertical-align: middle;
+}
+
+.pill-warn {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+
+.pill-danger {
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+}
+
+.notice {
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+
+.notice-danger {
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.88rem;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.btn:hover {
+  background: var(--surface-2);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--accent-ink);
+}
+
+.btn-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-2);
+  padding: 4px 8px;
+}
+
+.btn-danger-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--danger-ink);
+  padding: 4px 8px;
+}
+
+/* 세그먼트 토글 (원/엔/달러, 간략/정확) */
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  gap: 2px;
+}
+
+.segmented a,
+.segmented button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 7px;
+  font-size: 0.86rem;
+  text-decoration: none;
+  color: var(--ink-2);
+}
+
+.segmented a[aria-current="true"],
+.segmented button[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+/* 표 */
+.table-wrap {
+  overflow-x: auto;
+}
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+table.data th,
+table.data td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--hairline);
+  text-align: left;
+  vertical-align: top;
+}
+
+table.data th {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+table.data th a {
+  color: inherit;
+  text-decoration: none;
+}
+
+table.data th a[aria-current="true"] {
+  color: var(--ink);
+}
+
+table.data td.r,
+table.data th.r {
+  text-align: right;
+}
+
+table.data tr:last-child td {
+  border-bottom: none;
+}
+
+.sub {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* 폼 */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.field label,
+.field .label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.field input[type="text"],
+.field select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--page);
+}
+
+.field .hint {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.field .error {
+  font-size: 0.78rem;
+  color: var(--danger-ink);
+}

@@ -1,0 +1,229 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── 헤드라인 ── */
+.heroPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.refresh {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  flex-wrap: wrap;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.heroLabel {
+  font-size: 0.85rem;
+  color: var(--ink-2);
+}
+
+.heroValue {
+  font-size: clamp(2.2rem, 6vw, 3.4rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.heroOthers {
+  color: var(--ink-2);
+  font-size: 0.98rem;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1px;
+  background: var(--hairline);
+  border-top: 1px solid var(--hairline);
+  margin: 0 -20px -20px;
+  border-radius: 0 0 12px 12px;
+  overflow: hidden;
+}
+
+.kpi {
+  background: var(--surface);
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kpiLabel {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.kpiValue {
+  font-size: 1.25rem;
+  font-weight: 620;
+}
+
+.kpiUnit {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--ink-2);
+  margin-left: 2px;
+}
+
+.notices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notices p {
+  margin: 0;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+
+/* ── 시장별 비중: 가로 누적 막대 (세그먼트 사이 2px 표면색 간격, 양 끝만 둥글게) ── */
+.allocBar {
+  display: flex;
+  gap: 2px;
+  height: 20px;
+}
+
+.allocSeg {
+  position: relative;
+  min-width: 4px;
+  outline-offset: 2px;
+}
+
+.allocSeg:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.allocSeg:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.allocSeg:only-child {
+  border-radius: 4px;
+}
+
+.allocSeg:hover,
+.allocSeg:focus-visible {
+  filter: brightness(1.12);
+}
+
+.allocSeg:hover::after,
+.allocSeg:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.legend {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: flex;
+  gap: 8px 24px;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex: none;
+}
+
+/* ── 계좌 카드 ── */
+.accounts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.accountCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+}
+
+.accountTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.accountName {
+  font-weight: 650;
+  font-size: 0.95rem;
+}
+
+.accountValue {
+  font-size: 1.35rem;
+  font-weight: 640;
+  letter-spacing: -0.02em;
+}
+
+.accountPnl {
+  font-size: 0.88rem;
+}
+
+.stockName {
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.fx {
+  font-size: 0.84rem;
+  color: var(--ink-2);
+}
+
+.fx p {
+  margin: 0 0 6px;
+}

@@ -1,0 +1,125 @@
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.formHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.basis {
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.basis legend {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0 4px;
+}
+
+.basis p {
+  margin: 0;
+}
+
+.basisRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.basisRow .field {
+  flex: 1 1 200px;
+  max-width: 280px;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.86rem;
+  color: var(--ink-2);
+}
+
+.formFoot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.accountHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.accountHead h2 {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.actions {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.actions form {
+  display: inline;
+}
+
+.empty {
+  margin: 4px 0 0;
+  font-size: 0.88rem;
+}
+
+.accountForm {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+.accountSubmit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 2px;
+}
