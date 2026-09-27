@@ -1,16 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useState, type FormEvent } from "react";
 import { MARKET_LABEL, MARKETS, TRADE_CURRENCY, type Currency, type Market } from "@/lib/domain/model.ts";
 import type { Account, Holding } from "@/lib/domain/schema.ts";
+import { quoteSymbolCandidates } from "@/lib/domain/symbols.ts";
 import { CURRENCY_SUFFIX, formatMoney, formatUnitPrice } from "@/lib/format/money.ts";
 import { impliedFxRate, isFxRateSuspicious, scaleCostBasis } from "@/lib/portfolio/cost-basis.ts";
 import { crossRate, type FxRates } from "@/lib/portfolio/fx.ts";
 import { saveHolding, type FormState } from "../actions.ts";
 import styles from "./holdings.module.css";
-
-const CODE_PLACEHOLDER: Record<Market, string> = { KR: "005930", JP: "7203", US: "AAPL" };
+import { SymbolSearch, type PickedSymbol } from "./SymbolSearch.tsx";
 
 /** 폼 입력 문자열 → 숫자 (서버 스키마와 같은 규칙: 콤마·공백 제거, 빈 칸은 undefined) */
 function num(s: string): number | undefined {
@@ -29,7 +29,12 @@ export function HoldingForm(props: { accounts: Account[]; rates: FxRates | null;
   const firstAccount = accounts.find((a) => a.id === initial?.accountId) ?? accounts[0];
   const [accountId, setAccountId] = useState(firstAccount?.id ?? "");
   const [market, setMarket] = useState<Market>(initial?.market ?? (firstAccount?.homeCurrency === "JPY" ? "JP" : "KR"));
-  const [code, setCode] = useState(initial?.code ?? "");
+  // 검색 목록에서 고르면 picked 의 코드를, 고르지 않았으면 입력값을 그대로 코드로 보낸다
+  const [query, setQuery] = useState(initial?.name ?? "");
+  const [picked, setPicked] = useState<PickedSymbol | null>(
+    initial ? { market: initial.market, code: initial.code, name: initial.name, exchange: "" } : null,
+  );
+  const [symbolError, setSymbolError] = useState<string>();
   const [name, setName] = useState(initial?.name ?? "");
   const [quantity, setQuantity] = useState(initial ? plain(initial.quantity) : "");
   const [avgCost, setAvgCost] = useState(initial ? plain(initial.avgCost) : "");
@@ -68,11 +73,21 @@ export function HoldingForm(props: { accounts: Account[]; rates: FxRates | null;
       ? scaleCostBasis(initial.costBasisHome, initial.quantity, qty)
       : null;
 
+  // 이름을 쳐 놓고 목록에서 고르지 않은 채 저장하면 서버의 "6자리입니다" 대신 여기서 알려 준다
+  function checkSymbol(ev: FormEvent<HTMLFormElement>) {
+    if (picked) return;
+    const q = query.trim();
+    const asCode = quoteSymbolCandidates(market, q);
+    if (asCode.ok) return;
+    ev.preventDefault();
+    setSymbolError(q === "" ? "종목을 검색해 고르세요" : /^[0-9A-Za-z.\-]+$/.test(q) ? asCode.error : "검색 결과에서 종목을 고르세요");
+  }
+
   const rateText = (r: number) =>
     `${r.toLocaleString("ko-KR", { maximumFractionDigits: tradeCurrency === "JPY" ? 4 : 2 })}${CURRENCY_SUFFIX[homeCurrency]}/${CURRENCY_SUFFIX[tradeCurrency]}`;
 
   return (
-    <form action={action} className={`panel ${styles.form}`}>
+    <form action={action} onSubmit={checkSymbol} className={`panel ${styles.form}`}>
       <div className={styles.formHead}>
         <h2>{initial ? `종목 수정 — ${initial.name}` : "종목 추가"}</h2>
         {initial && (
@@ -82,6 +97,7 @@ export function HoldingForm(props: { accounts: Account[]; rates: FxRates | null;
         )}
       </div>
       {initial && <input type="hidden" name="id" value={initial.id} />}
+      <input type="hidden" name="code" value={picked?.code ?? query} />
 
       <div className={styles.grid}>
         <div className="field">
@@ -96,9 +112,42 @@ export function HoldingForm(props: { accounts: Account[]; rates: FxRates | null;
           {e.accountId && <span className="error">{e.accountId[0]}</span>}
         </div>
 
+        <SymbolSearch
+          preferMarket={market}
+          query={query}
+          picked={picked}
+          error={symbolError ?? e.code?.[0]}
+          onQueryChange={(q) => {
+            setQuery(q);
+            setPicked(null);
+            setSymbolError(undefined);
+            // 고른 종목이 채운 이름은 같이 비운다 (직접 고친 이름은 둔다)
+            if (picked && name === picked.name) setName("");
+          }}
+          onPick={(hit) => {
+            setQuery(hit.name);
+            setPicked(hit);
+            setMarket(hit.market);
+            setName(hit.name);
+            setSymbolError(undefined);
+          }}
+        />
+
         <div className="field">
           <label htmlFor="f-market">시장</label>
-          <select id="f-market" name="market" value={market} onChange={(ev) => setMarket(ev.target.value as Market)}>
+          <select
+            id="f-market"
+            name="market"
+            value={market}
+            onChange={(ev) => {
+              const m = ev.target.value as Market;
+              setMarket(m);
+              if (picked && picked.market !== m) {
+                setPicked(null);
+                if (name === picked.name) setName("");
+              }
+            }}
+          >
             {MARKETS.map((m) => (
               <option key={m} value={m}>
                 {MARKET_LABEL[m]} ({TRADE_CURRENCY[m]})
@@ -108,22 +157,9 @@ export function HoldingForm(props: { accounts: Account[]; rates: FxRates | null;
         </div>
 
         <div className="field">
-          <label htmlFor="f-code">종목코드</label>
-          <input
-            id="f-code"
-            type="text"
-            name="code"
-            autoComplete="off"
-            placeholder={CODE_PLACEHOLDER[market]}
-            value={code}
-            onChange={(ev) => setCode(ev.target.value)}
-          />
-          {e.code ? <span className="error">{e.code[0]}</span> : <span className="hint">저장할 때 시세를 조회해 확인합니다</span>}
-        </div>
-
-        <div className="field">
           <label htmlFor="f-name">종목명 (선택)</label>
           <input id="f-name" type="text" name="name" placeholder="비우면 자동으로 채움" value={name} onChange={(ev) => setName(ev.target.value)} />
+          <span className="hint">화면에 보일 이름 — 고쳐도 됩니다</span>
         </div>
 
         <div className="field">
