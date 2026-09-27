@@ -9,7 +9,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"lib/**/*.test.ts\"",
-    "quote:smoke": "node scripts/quote-smoke.ts"
+    "quote:smoke": "node scripts/quote-smoke.ts",
+    "symbols:smoke": "node scripts/symbols-smoke.ts"
   },
   "engines": {
     "node": ">=22.18"
