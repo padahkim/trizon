@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # trizon
 
-한국(KB·NH나무·토스)·일본(SBI証券) 계좌의 주식을 모아 총자산·수익률을 원/엔/달러로 보여 주는 **로컬 전용** Next.js 앱. DB·로그인·배포가 없고, 서버 컴포넌트와 Server Actions가 `data/`의 파일을 직접 읽고 쓴다. 보유종목은 사용자가 증권사 잔고 화면을 보고 직접 입력한다.
+한국(KB·NH나무·토스)·일본(SBI証券) 계좌의 주식을 모아 총자산·수익률을 원/엔/달러로 보여 주는 **로컬 전용** Next.js 앱. DB·로그인·배포가 없고, 서버 컴포넌트와 Server Actions가 `data/`의 파일을 직접 읽고 쓴다. 보유종목은 사용자가 증권사 잔고 화면을 보고 직접 입력한다. SBI는 CSV를 끌어다 놓아 가져올 수도 있다(`/sbi`).
 
 ## 명령
 
@@ -46,6 +46,7 @@ npm run symbols:smoke -- 삼성전자 トヨタ      # 실제 종목 목록을 �
 - 시세·환율(Yahoo, Frankfurter), 종목 추가 시 심볼 확정: lib/quotes/AGENTS.md
 - 종목명 검색 목록(한국투자증권 종목 마스터, JPX): lib/symbols/AGENTS.md
 - 종목 자동완성 API `GET /api/symbols`: app/api/AGENTS.md
+- SBI証券 CSV 가져오기(실현손익·포트폴리오·배당, 누적손익): lib/sbi/AGENTS.md
 
 폴더별 지침은 그 폴더를 작업할 때만 읽히도록 여기서 `@`로 불러오지 않는다. 폴더별 지침을 새로 만들면 이 목록에 경로를 적는다.
 
