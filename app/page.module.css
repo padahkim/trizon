@@ -227,3 +227,15 @@
 .fx p {
   margin: 0 0 6px;
 }
+
+.emptyActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.accountLink {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  text-decoration: none;
+}
