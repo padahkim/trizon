@@ -1,0 +1,787 @@
+/* 항목별 색: 실현손익 파랑 · 평가손익 주황 · 배당 초록 (공용 토큰을 빌려 쓴다) */
+.card[data-kind="realized"],
+.term[data-kind="realized"],
+.panelTitle[data-kind="realized"] {
+  --tone: var(--accent);
+}
+
+.card[data-kind="portfolio"],
+.term[data-kind="portfolio"],
+.panelTitle[data-kind="portfolio"] {
+  --tone: var(--mk-JP);
+}
+
+.card[data-kind="dividends"],
+.term[data-kind="dividends"],
+.panelTitle[data-kind="dividends"] {
+  --tone: var(--mk-US);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 넓은 표가 패널을 밀어 페이지가 가로로 넘치지 않게 (스크롤은 .table-wrap 안에서만) */
+.stack > *,
+.detailGrid > *,
+.cards > * {
+  min-width: 0;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+
+.jp {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* ── 총 누적손익 ── */
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.refresh {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  flex-wrap: wrap;
+}
+
+.heroMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.heroLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.heroValue {
+  font-size: clamp(2.2rem, 6vw, 3.4rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.heroOthers {
+  color: var(--ink-2);
+  font-size: 0.98rem;
+}
+
+.lead {
+  margin: 6px 0 0;
+  max-width: 44em;
+  color: var(--ink-2);
+}
+
+/* 실현손익 + 평가손익 + 배당·분배금 */
+.formula {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.term {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  box-shadow: inset 3px 0 0 var(--tone);
+}
+
+.term[data-empty] {
+  background: transparent;
+  border: 1.5px dashed var(--axis);
+  box-shadow: none;
+}
+
+.termLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.termLabel i,
+.panelTitle i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tone);
+  flex: none;
+}
+
+.termValue {
+  font-size: 1.2rem;
+  font-weight: 620;
+}
+
+.termEmpty {
+  font-size: 0.9rem;
+  color: var(--muted);
+  padding: 3px 0;
+}
+
+.termNote {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.op {
+  align-self: center;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .formula {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .op {
+    line-height: 1;
+  }
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1px;
+  background: var(--hairline);
+  border-top: 1px solid var(--hairline);
+  margin: 0 -20px -20px;
+  border-radius: 0 0 12px 12px;
+  overflow: hidden;
+}
+
+.kpi {
+  background: var(--surface);
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kpiLabel {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.kpiValue {
+  font-size: 1.25rem;
+  font-weight: 620;
+}
+
+.kpiUnit {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--ink-2);
+  margin-left: 2px;
+}
+
+.notices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notices p {
+  margin: 0;
+}
+
+/* ── CSV 넣기 ── */
+.importSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.importArea {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: inset 0 3px 0 var(--tone);
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+
+.card[data-hover] {
+  border-color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 7%, var(--surface));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .card[data-fresh] {
+    animation: fresh 1.4s ease-out;
+  }
+}
+
+@keyframes fresh {
+  from {
+    background: color-mix(in srgb, var(--tone) 18%, var(--surface));
+  }
+  to {
+    background: var(--surface);
+  }
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.step {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--tone);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex: none;
+}
+
+.cardTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.cardTitle h3 {
+  font-size: 1.02rem;
+}
+
+.done {
+  margin-left: auto;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 12%, transparent);
+}
+
+.meaning {
+  margin: 0;
+  font-weight: 600;
+}
+
+.detail {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--ink-2);
+}
+
+.headline {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.metaLines,
+.cardWarnings {
+  overflow-wrap: anywhere;
+  list-style: none;
+  margin: -4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.cardWarnings {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.again summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--ink-2);
+}
+
+.again[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 받는 곳: 口座管理 › My資産 › … › CSVダウンロード */
+.howto {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.howtoLabel {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.path {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 6px;
+}
+
+.path li {
+  display: inline-flex;
+  align-items: center;
+}
+
+.path li + li::before {
+  content: "›";
+  margin: 0 6px;
+  color: var(--muted);
+}
+
+.path li span {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.path li:last-child span {
+  background: var(--tone);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+
+.tip {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+}
+
+.tip::before {
+  content: "Tip ";
+  font-weight: 700;
+  color: var(--tone);
+}
+
+.dropZone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: 18px 12px;
+  border: 1.5px dashed var(--axis);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+
+.dropZone span {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.dropZone:hover,
+.card[data-hover] .dropZone {
+  border-color: var(--tone);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--tone) 6%, transparent);
+}
+
+.dropZone:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.uploadIcon {
+  color: var(--tone, var(--accent));
+  margin-bottom: 4px;
+}
+
+/* 화면 전체 드롭 안내 — 이벤트는 창이 받으므로 아래 카드 강조가 보이도록 통과시킨다 */
+.dropOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--page) 55%, transparent);
+  pointer-events: none;
+}
+
+.dropOverlayCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: 360px;
+  padding: 24px 32px;
+  text-align: center;
+  border: 2px dashed var(--accent);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+
+.dropOverlayCard strong {
+  font-size: 1.05rem;
+}
+
+.dropOverlayCard span {
+  font-size: 0.85rem;
+  color: var(--ink-2);
+}
+
+.results {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 0.88rem;
+}
+
+.results ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.results li {
+  display: flex;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.resultIcon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--mk-US);
+}
+
+.results li[data-ok="false"] .resultIcon {
+  background: var(--danger-ink);
+}
+
+.resultWarnings {
+  display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: var(--warn-ink);
+}
+
+.resultPending {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--hairline);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── 항목별 ── */
+.panelTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 실현손익·배당은 펼치면 표가 들어가므로 한 줄에 하나씩 */
+.detailGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+
+/* 좁은 화면에서 첫 열(구분·상품·종목)이 한 글자씩 접히지 않게 — 넘치면 .table-wrap 이 가로로 스크롤한다 */
+.stack tbody td:first-child,
+.stack tfoot th:first-child {
+  min-width: 9em;
+}
+
+/* 합계 줄 (table.data 는 전역 클래스라 요소 선택자로 잡는다) */
+.stack tfoot th,
+.stack tfoot td {
+  border-top: 1px solid var(--axis);
+  border-bottom: none;
+  font-weight: 620;
+}
+
+.compare {
+  margin: 10px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.stockName {
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.subTitle {
+  margin: 18px 0 10px;
+  font-size: 0.85rem;
+  color: var(--ink-2);
+}
+
+.years {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.86rem;
+}
+
+.years li {
+  display: grid;
+  grid-template-columns: 56px 1fr 7.5em;
+  align-items: center;
+  gap: 10px;
+}
+
+.yearLabel {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.years li > .num {
+  text-align: right;
+}
+
+.yearBar {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.yearBar i {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 5px;
+  background: var(--mk-US);
+}
+
+.footnotes {
+  font-size: 0.84rem;
+  color: var(--ink-2);
+}
+
+.footnotes p {
+  margin: 0 0 6px;
+}
+
+/* ── 펼치는 줄 (상세 · 입금 내역) ── */
+.expandCell {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.expandName {
+  min-width: 0;
+}
+
+/* 좁은 화면: 토글을 이름 아래로 (이름이 한두 글자씩 접히지 않게) */
+@media (max-width: 640px) {
+  .expandCell {
+    flex-direction: column;
+    gap: 6px;
+  }
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  margin-top: 1px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.toggle svg {
+  transition: transform 0.15s;
+}
+
+.toggle[aria-expanded="true"] {
+  background: var(--ink);
+  border-color: transparent;
+  color: var(--surface);
+}
+
+.toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.expandHead[data-open] > td {
+  border-bottom-color: transparent;
+}
+
+.expandBody > td {
+  padding: 0 0 12px 12px;
+}
+
+/* 펼친 표: 한 단계 들여 쓰고 옅은 바탕 */
+.nested {
+  font-size: 0.84rem;
+  background: var(--surface-2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.nested th,
+.nested td {
+  padding: 7px 10px;
+}
+
+.nested .nested {
+  background: var(--surface);
+}
+
+/* 입금 내역은 한 줄씩 (좁은 화면에서는 가로로 스크롤) */
+.payments td {
+  white-space: nowrap;
+}
+
+.expandNote {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 0.82rem;
+  color: var(--ink-2);
+}

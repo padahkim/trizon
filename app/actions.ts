@@ -8,7 +8,12 @@ import { TRADE_CURRENCY } from "@/lib/domain/model.ts";
 import { accountFormSchema, formDataToObject, holdingFormSchema, type Holding } from "@/lib/domain/schema.ts";
 import { quoteSymbolCandidates } from "@/lib/domain/symbols.ts";
 import { resolveCostBasisHome } from "@/lib/portfolio/cost-basis.ts";
-import { getQuoteService, getStore } from "@/lib/server.ts";
+import { decodeCsvBytes } from "@/lib/sbi/csv.ts";
+import { SBI_GUIDE } from "@/lib/sbi/guide.ts";
+import { detectKind, PARSERS } from "@/lib/sbi/parse.ts";
+import type { SbiImports } from "@/lib/sbi/store.ts";
+import { isSbiKind, type SbiKind } from "@/lib/sbi/types.ts";
+import { getQuoteService, getSbiStore, getStore } from "@/lib/server.ts";
 
 export type FormState = {
   ok: boolean;
@@ -126,4 +131,73 @@ export async function deleteAccount(formData: FormData): Promise<void> {
 export async function refreshQuotes(): Promise<void> {
   await getQuoteService().invalidate();
   refresh();
+}
+
+// ── SBI CSV 가져오기 ──────────────────────────────────────────
+
+export type SbiImportResult = { fileName: string; ok: boolean; kind?: SbiKind; message: string; warnings: string[] };
+
+/** Server Action 본문 한도(1MB) 안에 여러 개가 들어가도록. SBI CSV 는 수십 KB 다 */
+const MAX_SBI_CSV_BYTES = 300_000;
+
+/** 떨군 파일들을 내용으로 가려(실현손익·포트폴리오·배당) 종류마다 마지막 CSV 로 저장한다 */
+export async function importSbiCsv(formData: FormData): Promise<SbiImportResult[]> {
+  const files = formData.getAll("files").filter((f): f is File => f instanceof File);
+  // File 의 수정 시각은 multipart 로 오지 않아서 클라이언트가 따로 보낸다 (= SBI 에서 받은 시각)
+  const modified = formData.getAll("lastModified").map((v) => Number(v));
+  const importedAt = new Date().toISOString();
+  const results: SbiImportResult[] = [];
+  const entries: SbiImports = {};
+
+  for (const [i, file] of files.entries()) {
+    const fileName = file.name || `파일 ${i + 1}`;
+    const fail = (message: string) => results.push({ fileName, ok: false, message, warnings: [] });
+    if (file.size > MAX_SBI_CSV_BYTES) {
+      fail("파일이 너무 큽니다. SBI에서 받은 CSV가 맞는지 확인하세요");
+      continue;
+    }
+    const text = decodeCsvBytes(new Uint8Array(await file.arrayBuffer()));
+    const kind = detectKind(text);
+    if (!kind) {
+      fail("실현손익·포트폴리오·배당 CSV가 아닙니다. SBI에서 받은 CSV를 그대로 넣어 주세요");
+      continue;
+    }
+    const parsed = PARSERS[kind](text);
+    if (!parsed.ok) {
+      fail(`${SBI_GUIDE[kind].jpTitle} CSV로 보이지만 읽지 못했습니다: ${parsed.error}`);
+      continue;
+    }
+    const ms = modified[i];
+    const fileModifiedAt = Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : null;
+    // 같은 종류를 한 번에 여러 개 넣으면 SBI 에서 더 나중에 받은 쪽을 쓴다
+    const earlier = entries[kind];
+    const duplicate = (newer: string) => `같은 종류의 CSV가 여러 개라 더 최근 파일(${newer})을 썼습니다`;
+    if (earlier && (earlier.fileModifiedAt ?? "") > (fileModifiedAt ?? "")) {
+      results.push({ fileName, ok: false, kind, message: duplicate(earlier.fileName), warnings: [] });
+      continue;
+    }
+    if (earlier) {
+      const j = results.findIndex((r) => r.ok && r.kind === kind);
+      results[j] = { ...results[j], ok: false, message: duplicate(fileName), warnings: [] };
+    }
+    entries[kind] = { fileName, fileModifiedAt, importedAt, text };
+    results.push({ fileName, ok: true, kind, message: `${SBI_GUIDE[kind].title}(${SBI_GUIDE[kind].jpTitle})으로 읽었습니다`, warnings: parsed.warnings });
+  }
+
+  if (Object.keys(entries).length > 0) {
+    await getSbiStore().put(entries);
+    revalidatePath("/");
+    revalidatePath("/sbi");
+    revalidatePath("/holdings");
+  }
+  return results;
+}
+
+export async function clearSbiImport(formData: FormData): Promise<void> {
+  const kind = formData.get("kind");
+  if (!isSbiKind(kind)) return;
+  await getSbiStore().remove(kind);
+  revalidatePath("/");
+  revalidatePath("/sbi");
+  revalidatePath("/holdings");
 }

@@ -20,6 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <nav className={styles.nav}>
               <Link href="/">대시보드</Link>
               <Link href="/holdings">보유종목 관리</Link>
+              <Link href="/sbi">SBI 손익</Link>
             </nav>
           </div>
         </header>
