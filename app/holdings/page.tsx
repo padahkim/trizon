@@ -70,7 +70,15 @@ export default async function HoldingsPage({ searchParams }: { searchParams: Pro
           <section key={account.id} className="panel">
             <div className={styles.accountHead}>
               <h2>
-                {account.label} <span className="pill">{account.homeCurrency}</span>
+                {account.broker === "SBI" ? (
+                  <Link href="/sbi" className={styles.accountLink} title="SBI 손익 보기">
+                    {account.label}
+                    <span aria-hidden>→</span>
+                  </Link>
+                ) : (
+                  account.label
+                )}{" "}
+                <span className="pill">{account.homeCurrency}</span>
                 <span className="muted" style={{ fontSize: "0.85rem", fontWeight: 400 }}>
                   {own.length}종목
                 </span>
