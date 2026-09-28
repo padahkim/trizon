@@ -9,7 +9,8 @@ import { convert, type FxRates } from "./fx.ts";
 //   표시 통화를 무엇으로 바꿔도 같다. 대신 원↔엔 교차환율 변동은 수익률에 들어가지 않는다.
 // - 이 모델은 증권사 화면의 사본이므로 평가손익(미실현)만 다룬다.
 
-export type PriceStatus = "ok" | "stale" | "missing";
+/** imported = 시세 서버가 아니라 가져온 파일의 가격 (SBI CSV 의 투자신탁 기준가 등). 날짜가 지나도 stale 로 보지 않는다 */
+export type PriceStatus = "ok" | "stale" | "missing" | "imported";
 
 export type HoldingEval = {
   holding: Holding;
@@ -55,7 +56,7 @@ export type PortfolioView = {
   accounts: AccountView[];
   /** 표시 통화 기준 시장별 평가액과 비중(0~1) */
   byMarket: MarketShare[];
-  counts: { missing: number; stale: number; fxNotIncluded: number };
+  counts: { missing: number; stale: number; fxNotIncluded: number; imported: number };
 };
 
 /** 시세가 이 영업일 수보다 오래됐으면 stale (상장폐지·거래정지 의심) */
@@ -94,8 +95,9 @@ export function evaluateHolding(
   const homeCurrency = account.homeCurrency;
   const foreign = tradeCurrency !== homeCurrency;
   const hasBasis = foreign && holding.costBasisHome !== undefined;
+  const unit = holding.priceUnit ?? 1;
 
-  const costTrade = holding.quantity * holding.avgCost;
+  const costTrade = (holding.quantity * holding.avgCost) / unit;
   const costHome = !foreign
     ? costTrade
     : hasBasis
@@ -121,14 +123,14 @@ export function evaluateHolding(
     };
   }
 
-  const valueTrade = holding.quantity * usable.price;
+  const valueTrade = (holding.quantity * usable.price) / unit;
   const valueHome = convert(valueTrade, tradeCurrency, homeCurrency, rates);
   const pnlHome = valueHome - costHome;
   return {
     ...base,
     quote: usable,
     price: usable.price,
-    priceStatus: isQuoteStale(usable, now) ? "stale" : "ok",
+    priceStatus: usable.imported ? "imported" : isQuoteStale(usable, now) ? "stale" : "ok",
     valueTrade,
     returnTrade: costTrade > 0 ? valueTrade / costTrade - 1 : null,
     valueHome,
@@ -203,6 +205,7 @@ export function buildPortfolioView(input: {
       missing: evals.filter((e) => e.priceStatus === "missing").length,
       stale: evals.filter((e) => e.priceStatus === "stale").length,
       fxNotIncluded: evals.filter((e) => !e.fxEffectIncluded).length,
+      imported: evals.filter((e) => e.priceStatus === "imported").length,
     },
   };
 }

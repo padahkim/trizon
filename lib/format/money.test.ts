@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatMoney, formatPercent, formatUnitPrice } from "./money.ts";
+import { formatMoney, formatPercent, formatUnitPrice, perUnitsLabel } from "./money.ts";
 
 test("간략: 1만 미만은 그대로", () => {
   assert.equal(formatMoney(9_999, "KRW"), "9,999원");
@@ -49,4 +49,11 @@ test("수익률·단가", () => {
   assert.equal(formatUnitPrice(71_500, "KRW"), "71,500원");
   assert.equal(formatUnitPrice(187.2, "USD"), "187.20달러");
   assert.equal(formatUnitPrice(0.12345, "USD"), "0.1235달러");
+});
+
+test("N좌당 가격 꼬리표", () => {
+  assert.equal(perUnitsLabel(10_000), "/1만좌");
+  assert.equal(perUnitsLabel(1_000), "/1,000좌");
+  assert.equal(perUnitsLabel(1), "");
+  assert.equal(perUnitsLabel(undefined), "");
 });

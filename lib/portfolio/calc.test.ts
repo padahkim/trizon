@@ -98,6 +98,21 @@ test("stale: 캐시 폴백이거나 5영업일 넘게 지난 시세", () => {
   assert.equal(businessDaysBetween(new Date("2026-09-25T00:00:00Z"), new Date("2026-09-28T00:00:00Z")), 1); // 금→월
 });
 
+test("투자신탁: 기준가가 1만좌당이면 priceUnit 으로 나눈다", () => {
+  const fund = holding({ id: "f1", accountId: "sbi", market: "JP", quoteSymbol: "sbi-fund:x", quantity: 200_000, avgCost: 20_000, priceUnit: 10_000 });
+  const e = evaluateHolding(fund, sbi, quote("sbi-fund:x", 25_000, "JPY"), rates, now);
+  assert.equal(e.costHome, 400_000);
+  assert.equal(e.valueHome, 500_000);
+  close(e.returnHome, 0.25);
+});
+
+test("가져온 가격(imported)은 날짜가 지나도 stale 이 아니라 따로 표시한다", () => {
+  const old = quote("7203.T", 3_000, "JPY", { marketTime: "2026-08-01T00:00:00Z", imported: true });
+  const e = evaluateHolding(rewardShare, sbi, old, rates, now);
+  assert.equal(e.priceStatus, "imported");
+  assert.equal(e.valueHome, 300_000);
+});
+
 test("포트폴리오 합계: 표시 통화를 바꿔도 총수익률(%)은 같다", () => {
   const input = {
     accounts: [kb, sbi],
@@ -117,7 +132,7 @@ test("포트폴리오 합계: 표시 통화를 바꿔도 총수익률(%)은 같�
   // KB 계좌(원) 합계: 770,000 + 2,227,500 + 500,000
   const kbView = krw.accounts.find((a) => a.account.id === "kb");
   assert.equal(kbView?.home.value, 3_497_500);
-  assert.deepEqual(krw.counts, { missing: 1, stale: 0, fxNotIncluded: 1 });
+  assert.deepEqual(krw.counts, { missing: 1, stale: 0, fxNotIncluded: 1, imported: 0 });
 
   const weightSum = krw.byMarket.reduce((s, m) => s + m.weight, 0);
   close(weightSum, 1);

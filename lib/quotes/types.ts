@@ -11,6 +11,8 @@ export type Quote = {
   name?: string;
   /** 이번 조회가 실패해서 이전에 저장해 둔 값을 쓰는 중 */
   fromCache?: boolean;
+  /** 시세 서버가 아니라 사용자가 가져온 파일의 값 (SBI CSV 의 투자신탁 기준가 등). provider 는 쓰지 않는다 */
+  imported?: boolean;
 };
 
 export type FxQuote = {
