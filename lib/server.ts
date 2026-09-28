@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { createFrankfurterProvider } from "./quotes/frankfurter.ts";
 import { createQuoteService, type QuoteService } from "./quotes/service.ts";
 import { createYahooProvider } from "./quotes/yahoo.ts";
+import { createSbiImportStore, type SbiImportStore } from "./sbi/store.ts";
 import { createJsonFileStore } from "./store/json-file.ts";
 import { seedPortfolio } from "./store/seed.ts";
 import type { PortfolioStore } from "./store/types.ts";
@@ -16,7 +17,7 @@ import { downloadSymbolIndex } from "./symbols/sources.ts";
 export const DATA_DIR = process.env.TRIZON_DATA_DIR || join(process.cwd(), "data");
 export const SNAPSHOTS_PATH = join(DATA_DIR, "snapshots.jsonl");
 
-type Singletons = { store: PortfolioStore; quotes: QuoteService; symbols: SymbolService };
+type Singletons = { store: PortfolioStore; quotes: QuoteService; symbols: SymbolService; sbi: SbiImportStore };
 const g = globalThis as typeof globalThis & { __trizon?: Singletons };
 
 function singletons(): Singletons {
@@ -33,11 +34,15 @@ function singletons(): Singletons {
         cachePath: join(DATA_DIR, "symbols.json"),
         download: () => downloadSymbolIndex(),
       }),
+      sbi: createSbiImportStore(join(DATA_DIR, "sbi-imports.json")),
     };
   }
+  // 싱글턴이 늘어난 코드로 핫리로드되면 globalThis 에 남은 옛 객체에는 새 키가 없다
+  g.__trizon.sbi ??= createSbiImportStore(join(DATA_DIR, "sbi-imports.json"));
   return g.__trizon;
 }
 
 export const getStore = () => singletons().store;
 export const getQuoteService = () => singletons().quotes;
 export const getSymbolService = () => singletons().symbols;
+export const getSbiStore = () => singletons().sbi;
