@@ -295,7 +295,7 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
           {market?.fx.fromCache && <p className="notice">환율을 새로 받지 못해 저장된 환율({timeText(market.fx.asOf)} 기준)을 씁니다.</p>}
           {market?.errors.map((e) => (
             <p key={e} className="notice">
-              {e} — 이 종목은 CSV의 현재가로 계산했습니다.
+              {e} — 시세가 없는 종목은 CSV 현재가가 있으면 그 가격을 사용하고, 없으면 매입금액으로 평가했습니다.
             </p>
           ))}
         </div>
@@ -405,7 +405,7 @@ function usTradeCard(entry: LoadedUsTrades | null): ImportCardView {
       warnings:
         warnings.length <= 2
           ? warnings
-          : [warnings[0], `매도수량이 더 많은 계좌별 종목 ${warnings.length - 1}개 — 아래 확인 화면에서 자세히 보세요`],
+          : [warnings[0], `추가 확인 사항 ${warnings.length - 1}건 — 아래 확인 화면에서 자세히 보세요`],
     },
   };
 }
