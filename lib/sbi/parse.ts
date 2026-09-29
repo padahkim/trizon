@@ -1,6 +1,8 @@
 import { formatMoney } from "../format/money.ts";
 import { findColumn, parseAmount, parseCsv, parseDate, parsePeriod } from "./csv.ts";
 import type { SbiImport, SbiImports } from "./store.ts";
+import type { SbiUsTradeState } from "./store.ts";
+import { inferUsHoldings, mergeUsTrades, type MergedUsTrades } from "./us-trades.ts";
 import type {
   DividendByProduct,
   DividendItem,
@@ -12,9 +14,14 @@ import type {
   RealizedRow,
   SbiDataByKind,
   SbiDividends,
+  SbiDataByImportKind,
+  SbiImportKind,
   SbiKind,
   SbiPortfolio,
   SbiRealized,
+  SbiUsTrade,
+  SbiUsHolding,
+  SbiUsTrades,
 } from "./types.ts";
 
 // SBI証券 CSV 3종의 파서. 열은 위치가 아니라 머리글 이름으로 찾는다 (셀은 parseCsv 가 NFKC 로 맞춰 둔다).
@@ -23,9 +30,11 @@ import type {
 const yen = (n: number) => formatMoney(n, "JPY", "exact");
 
 /** 파일 내용으로 종류를 가린다. SBI CSV 가 아니면 null */
-export function detectKind(text: string): SbiKind | null {
+export function detectKind(text: string): SbiImportKind | null {
   for (const row of parseCsv(text)) {
     const [first] = row;
+    if (first === "約定履歴") return "usTrades";
+    if (first === "国内約定日" && row.includes("銘柄コード") && row.includes("約定数量") && row.includes("約定単価")) return "usTrades";
     if (first === "ポートフォリオ一覧") return "portfolio";
     if ((first === "銘柄(コード)" || first === "ファンド名") && row.includes("取得単価")) return "portfolio";
     if (first === "商品" && row.some((c) => c.startsWith("実現損益"))) return "realized";
@@ -33,6 +42,128 @@ export function detectKind(text: string): SbiKind | null {
     if (first === "受渡日" && row.includes("銘柄名")) return "dividends";
   }
   return null;
+}
+
+// ── 米国株式 約定履歴 ──────────────────────────────────────
+
+const US_TRADE_REQUIRED = ["国内約定日", "銘柄", "銘柄コード", "商品区分", "取引", "預り区分", "約定数量", "約定単価"] as const;
+
+export function parseUsTrades(text: string): Parsed<SbiUsTrades> {
+  const rows = parseCsv(text);
+  const h = rows.findIndex((r) => r[0] === "国内約定日" && r.includes("銘柄コード"));
+  if (h < 0) return { ok: false, error: "미국주식 약정이력 표(国内約定日 · 銘柄コード)를 찾지 못했습니다" };
+
+  const header = rows[h];
+  const missing = US_TRADE_REQUIRED.filter((name) => findColumn(header, name) < 0);
+  if (missing.length > 0) return { ok: false, error: `필수 열이 없습니다: ${missing.join(", ")}` };
+
+  const col = {
+    date: findColumn(header, "国内約定日"),
+    name: findColumn(header, "銘柄"),
+    ticker: findColumn(header, "銘柄コード"),
+    market: findColumn(header, "市場"),
+    product: findColumn(header, "商品区分"),
+    side: findColumn(header, "取引"),
+    account: findColumn(header, "預り区分"),
+    quantity: findColumn(header, "約定数量"),
+    price: findColumn(header, "約定単価"),
+    settlementDate: findColumn(header, "国内受渡日"),
+    settlement: findColumn(header, "受渡金額/決済損益"),
+    tradeId: findColumn(header, (cell) => ["約定番号", "注文番号", "取引番号"].includes(cell)),
+  };
+  const warnings: string[] = [];
+  const trades: SbiUsTrade[] = [];
+  const occurrences = new Map<string, number>();
+  let sourceRowCount = 0;
+
+  for (const row of rows.slice(h + 1)) {
+    if (row.length === 0) continue;
+    sourceRowCount++;
+    const date = parseDate(row[col.date]);
+    const ticker = normalizeUsTicker(row[col.ticker] ?? "");
+    const side = row[col.side] === "現買" ? "buy" : row[col.side] === "現売" ? "sell" : null;
+    const quantity = cell(row, col.quantity);
+    const price = currencyAmount(row[col.price]);
+    const settlement = currencyAmount(row[col.settlement]);
+    const product = row[col.product] ?? "";
+
+    if (product !== "米国株式") {
+      warnings.push(`미국주식이 아닌 행을 제외했습니다: ${product || "상품구분 없음"}`);
+      continue;
+    }
+    if (!date || !ticker || !side || quantity === null || !(quantity > 0) || !price || price.currency !== "USD") {
+      warnings.push(`읽지 못한 약정 행: ${row.slice(0, 10).join(" / ")}`);
+      continue;
+    }
+    if (settlement && settlement.currency !== "USD") {
+      warnings.push(`${ticker} ${date}: USD가 아닌 결제금액은 수수료 추정에서 제외했습니다`);
+    }
+
+    const tradeId = col.tradeId >= 0 ? row[col.tradeId] || null : null;
+    const accountType = row[col.account] ?? "";
+    const baseKey = tradeId
+      ? `id:${tradeId}`
+      : [date, ticker, side, quantity, price.amount, accountType, row[col.settlementDate] ?? "", settlement?.amount ?? ""].join("|");
+    const occurrence = (occurrences.get(baseKey) ?? 0) + 1;
+    occurrences.set(baseKey, occurrence);
+    const gross = quantity * price.amount;
+    const settledUsd = settlement?.currency === "USD" ? settlement.amount : null;
+    const estimatedFee = settledUsd === null ? null : cleanMoney(side === "buy" ? settledUsd - gross : gross - settledUsd);
+
+    trades.push({
+      dedupeKey: `${baseKey}#${occurrence}`,
+      tradeId,
+      date,
+      settlementDate: parseDate(row[col.settlementDate]),
+      ticker,
+      name: row[col.name] ?? ticker,
+      market: row[col.market] ?? "",
+      side,
+      accountType,
+      quantity,
+      unitPrice: price.amount,
+      priceCurrency: "USD",
+      settlementAmount: settledUsd,
+      settlementCurrency: settledUsd === null ? null : "USD",
+      estimatedFee: estimatedFee !== null && estimatedFee >= -0.01 ? Math.max(0, estimatedFee) : null,
+    });
+  }
+
+  if (trades.length === 0) return { ok: false, error: "읽을 수 있는 미국주식 현물 매수·매도 약정이 없습니다" };
+  if (sourceRowCount >= 1_000) warnings.push("이 파일은 1,000건 한도에 닿았습니다 — SBI에서 기간을 나눠 받은 CSV도 함께 넣어 주세요");
+  if (trades.length !== sourceRowCount) warnings.push(`${sourceRowCount}행 중 ${trades.length}건의 미국주식 현물 약정을 읽었습니다`);
+
+  return { ok: true, data: { period: usTradePeriod(rows.slice(0, h)), trades, sourceRowCount }, warnings: [...new Set(warnings)] };
+}
+
+function normalizeUsTicker(value: string): string {
+  const ticker = value.trim().toUpperCase().replace(/[\s/]+/g, ".");
+  return /^[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)?$/.test(ticker) && ticker.length <= 10 ? ticker : "";
+}
+
+function currencyAmount(value: string | undefined): { amount: number; currency: string } | null {
+  const match = value?.replace(/\s/g, "").match(/^([+-]?(?:\d[\d,]*(?:\.\d*)?|\.\d+))([A-Z]{3})$/);
+  if (!match) return null;
+  const amount = parseAmount(match[1]);
+  return amount === null ? null : { amount, currency: match[2] };
+}
+
+function cleanMoney(value: number): number {
+  return Number(value.toFixed(10));
+}
+
+function usTradePeriod(rows: readonly string[][]): Period | null {
+  const h = rows.findIndex((r) => r.includes("約定開始年月日") && r.includes("約定終了年月日"));
+  if (h < 0) return null;
+  const values = rows[h + 1] ?? [];
+  const from = parseJapaneseDate(values[findColumn(rows[h], "約定開始年月日")]);
+  const to = parseJapaneseDate(values[findColumn(rows[h], "約定終了年月日")]);
+  return from && to ? { from, to } : null;
+}
+
+function parseJapaneseDate(value: string | undefined): string | null {
+  const match = value?.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日$/);
+  return match ? `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}` : null;
 }
 
 // ── 実現損益 ────────────────────────────────────────────────
@@ -382,10 +513,11 @@ function periodFrom(rows: readonly string[][], label: string): Period | null {
   return null;
 }
 
-export const PARSERS: { [K in SbiKind]: (text: string) => Parsed<SbiDataByKind[K]> } = {
+export const PARSERS: { [K in SbiImportKind]: (text: string) => Parsed<SbiDataByImportKind[K]> } = {
   realized: parseRealized,
   portfolio: parsePortfolio,
   dividends: parseDividends,
+  usTrades: parseUsTrades,
 };
 
 export type LoadedImport<T> = {
@@ -394,7 +526,17 @@ export type LoadedImport<T> = {
   asOf: string;
   parsed: Parsed<T>;
 };
-export type LoadedSbi = { [K in SbiKind]: LoadedImport<SbiDataByKind[K]> | null };
+export type LoadedUsTrades = {
+  files: Omit<SbiImport, "text">[];
+  asOf: string;
+  parsed: Parsed<MergedUsTrades>;
+  holdings: SbiUsHolding[];
+  needsReview: boolean;
+  confirmedAt: string | null;
+  closedCount: number;
+};
+
+export type LoadedSbi = { [K in SbiKind]: LoadedImport<SbiDataByKind[K]> | null } & { usTrades: LoadedUsTrades | null };
 
 /** 저장해 둔 CSV 원문을 읽을 때마다 다시 파싱한다 — 파서를 고치면 CSV 를 다시 넣지 않아도 반영된다 */
 export function parseImports(imports: SbiImports): LoadedSbi {
@@ -404,5 +546,39 @@ export function parseImports(imports: SbiImports): LoadedSbi {
     const { text, ...meta } = entry;
     return { meta, asOf: entry.fileModifiedAt ?? entry.importedAt, parsed: PARSERS[kind](text) };
   }
-  return { realized: load("realized"), portfolio: load("portfolio"), dividends: load("dividends") };
+  return { realized: load("realized"), portfolio: load("portfolio"), dividends: load("dividends"), usTrades: loadUsTrades(imports.usTrades) };
+}
+
+function loadUsTrades(state: SbiUsTradeState | undefined): LoadedUsTrades | null {
+  if (!state || state.files.length === 0) return null;
+  const parsedFiles = state.files.map((file) => parseUsTrades(file.text));
+  const failed = parsedFiles.filter((result): result is Extract<Parsed<SbiUsTrades>, { ok: false }> => !result.ok);
+  const metas = state.files.map(({ text: _text, fingerprint: _fingerprint, ...meta }) => meta);
+  const asOf = metas
+    .map((meta) => meta.fileModifiedAt ?? meta.importedAt)
+    .sort()
+    .at(-1) as string;
+  if (failed.length === parsedFiles.length) {
+    return {
+      files: metas,
+      asOf,
+      parsed: { ok: false, error: `저장한 약정이력 CSV를 읽지 못했습니다: ${failed.map((result) => result.error).join("; ")}` },
+      holdings: state.holdings,
+      needsReview: state.needsReview,
+      confirmedAt: state.confirmedAt,
+      closedCount: 0,
+    };
+  }
+  const merged = mergeUsTrades(parsedFiles);
+  const inferred = inferUsHoldings(merged.trades);
+  const warnings = [...new Set([...merged.warnings, ...inferred.warnings, ...(failed.length > 0 ? [`${failed.length}개 파일을 읽지 못해 제외했습니다`] : [])])];
+  return {
+    files: metas,
+    asOf,
+    parsed: { ok: true, data: merged, warnings },
+    holdings: state.holdings,
+    needsReview: state.needsReview,
+    confirmedAt: state.confirmedAt,
+    closedCount: inferred.closedCount,
+  };
 }
