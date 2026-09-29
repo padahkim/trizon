@@ -101,6 +101,11 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
   ];
   const present = terms.filter((t) => t.value !== null);
   const cumulative = present.length > 0 ? present.reduce((s, t) => s + toCcy(t.value as number, t.from), 0) : null;
+  // 실현손익·배당 CSV 는 따로 넣으므로 기간이 어긋날 수 있다. 그대로 더하면 한쪽 기간 밖의 손익이 빠진다
+  const periodGap =
+    realized?.period && dividends?.period && (realized.period.from !== dividends.period.from || realized.period.to !== dividends.period.to)
+      ? { realized: realized.period, dividends: dividends.period }
+      : null;
 
   const cards: ImportCardView[] = [
     card("realized", loaded.realized, (d) => ({
@@ -166,6 +171,7 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
           <h1 className={styles.heroLabel}>
             SBI証券 총 누적손익
             {present.length > 0 && present.length < 3 && <span className="pill">3개 중 {present.length}개 반영</span>}
+            {periodGap && <span className="pill pill-warn">CSV 기간 다름</span>}
           </h1>
           {cumulative === null ? (
             <>
@@ -257,8 +263,14 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
       </section>
 
       {/* ── 경고 ─────────────────────────────────── */}
-      {(noFx || (market && (market.errors.length > 0 || market.fx.fromCache)) || (holdings && !target)) && (
+      {(periodGap || noFx || (market && (market.errors.length > 0 || market.fx.fromCache)) || (holdings && !target)) && (
         <div className={styles.notices}>
+          {periodGap && (
+            <p className="notice">
+              실현손익({periodText(periodGap.realized)})과 배당·분배금({periodText(periodGap.dividends)})의 기간이 달라, 총 누적손익은 서로 다른
+              기간의 금액을 더한 값입니다. 두 CSV를 같은 기간(가장 처음부터 오늘까지)으로 받아 다시 넣으세요.
+            </p>
+          )}
           {noFx && (
             <p className="notice notice-danger">
               시세·환율을 받지 못해 평가손익은 CSV를 받은 시점의 값으로 보여 줍니다. 네트워크를 확인한 뒤 새로고침하세요. ({noFx})
