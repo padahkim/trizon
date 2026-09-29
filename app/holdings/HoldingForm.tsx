@@ -22,6 +22,10 @@ function num(s: string): number | undefined {
 
 const plain = (n: number) => String(Math.round(n * 1e6) / 1e6);
 
+type BasisMode = "total" | "perShare";
+// SBI 는 取得単価(円換算)을 1주당으로 보여주고, 한국 증권사는 원화 매입금액을 총액으로 보여준다
+const defaultBasisMode = (c: Currency): BasisMode => (c === "JPY" ? "perShare" : "total");
+
 export function HoldingForm(props: { accounts: Account[]; rates: FxRates | null; initial?: Holding }) {
   const { accounts, rates, initial } = props;
   const [state, action, pending] = useActionState<FormState, FormData>(saveHolding, { ok: true });
@@ -38,17 +42,23 @@ export function HoldingForm(props: { accounts: Account[]; rates: FxRates | null;
   const [name, setName] = useState(initial?.name ?? "");
   const [quantity, setQuantity] = useState(initial ? plain(initial.quantity) : "");
   const [avgCost, setAvgCost] = useState(initial ? plain(initial.avgCost) : "");
-  const account = accounts.find((a) => a.id === accountId) ?? firstAccount;
-  const homeCurrency: Currency = account?.homeCurrency ?? "KRW";
+  const currencyOf = (id: string): Currency => (accounts.find((a) => a.id === id) ?? firstAccount)?.homeCurrency ?? "KRW";
+  const homeCurrency = currencyOf(accountId);
   const tradeCurrency = TRADE_CURRENCY[market];
   const foreign = tradeCurrency !== homeCurrency;
 
-  // SBI 는 取得単価(円換算)을 1주당으로 보여주고, 한국 증권사는 원화 매입금액을 총액으로 보여준다
-  const [mode, setMode] = useState<"total" | "perShare">(
-    initial?.costBasisHome !== undefined ? "total" : homeCurrency === "JPY" ? "perShare" : "total",
-  );
+  const [mode, setMode] = useState<BasisMode>(initial?.costBasisHome !== undefined ? "total" : defaultBasisMode(homeCurrency));
   const [basis, setBasis] = useState(initial?.costBasisHome !== undefined ? plain(initial.costBasisHome) : "");
   const [unknown, setUnknown] = useState(initial !== undefined && foreign && initial.costBasisHome === undefined);
+
+  // 계좌통화가 바뀌면 적어 둔 매입금액은 다른 통화의 금액이 되므로 비우고, 입력 단위도 새 계좌의 증권사 화면에 맞춘다
+  function changeAccount(id: string) {
+    setAccountId(id);
+    const next = currencyOf(id);
+    if (next === homeCurrency) return;
+    setMode(defaultBasisMode(next));
+    setBasis("");
+  }
 
   const e = state.fieldErrors ?? {};
   const qty = num(quantity);
@@ -102,7 +112,7 @@ export function HoldingForm(props: { accounts: Account[]; rates: FxRates | null;
       <div className={styles.grid}>
         <div className="field">
           <label htmlFor="f-account">계좌</label>
-          <select id="f-account" name="accountId" value={accountId} onChange={(ev) => setAccountId(ev.target.value)}>
+          <select id="f-account" name="accountId" value={accountId} onChange={(ev) => changeAccount(ev.target.value)}>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.label} ({a.homeCurrency})
