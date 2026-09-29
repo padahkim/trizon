@@ -5,7 +5,7 @@ import { makeRates } from "../portfolio/fx.ts";
 import type { Quote } from "../quotes/types.ts";
 import { evaluateMargin, pickSbiAccount, sbiForDashboard, sbiHoldings, sbiUsHoldings, valueSbiHoldings, withFallback } from "./evaluate.ts";
 import { PORTFOLIO_CSV } from "./fixtures.ts";
-import { parsePortfolio, type LoadedImport } from "./parse.ts";
+import { parsePortfolio, type LoadedImport, type LoadedUsTrades } from "./parse.ts";
 import type { SbiPortfolio, SbiUsHolding } from "./types.ts";
 
 const rates = makeRates(1_350, 150);
@@ -24,6 +24,21 @@ const loaded = (): LoadedImport<SbiPortfolio> => ({
   meta: { fileName: "New_file.csv", fileModifiedAt: asOf, importedAt: asOf },
   asOf,
   parsed: { ok: true, data: portfolio(), warnings: [] },
+});
+const loadedUs = (needsReview: boolean): LoadedUsTrades => ({
+  files: [{ fileName: "us-trades.csv", fileModifiedAt: asOf, importedAt: asOf }],
+  asOf,
+  parsed: {
+    ok: true,
+    data: { period: null, trades: [], duplicateCount: 0, sourceRowCount: 0, warnings: [] },
+    warnings: [],
+  },
+  holdings: [
+    { id: "sbi-us:AAPL:特定", ticker: "AAPL", name: "Apple", quantity: 2, avgCost: 100, costCurrency: "USD", accountType: "特定", source: "inferred" },
+  ],
+  needsReview,
+  confirmedAt: needsReview ? null : asOf,
+  closedCount: 0,
 });
 
 test("대시보드용은 預り 구분을 합쳐 한 줄로 (평균단가는 가중평균), SBI 화면용은 預り 구분마다", () => {
@@ -159,4 +174,16 @@ test("대시보드: SBI 계좌가 없거나 CSV 가 깨졌으면 넣지 않고 �
   assert.equal(broken.warnings.length, 1);
 
   assert.equal(sbiForDashboard(null, [sbi], []).holdings.length, 0);
+});
+
+test("대시보드: 미국주식 추정 잔고는 사용자가 확인한 뒤에만 반영한다", () => {
+  const pending = sbiForDashboard(null, [sbi], [], loadedUs(true), rates);
+  assert.equal(pending.holdings.length, 0);
+  assert.equal(pending.asOf, null);
+  assert.ok(pending.warnings.some((warning) => warning.includes("대시보드에서 제외")));
+
+  const confirmed = sbiForDashboard(null, [sbi], [], loadedUs(false), rates);
+  assert.equal(confirmed.holdings.length, 1);
+  assert.equal(confirmed.holdings[0].code, "AAPL");
+  assert.equal(confirmed.asOf, asOf);
 });

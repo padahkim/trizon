@@ -315,8 +315,8 @@ export function sbiForDashboard(
     if (loaded.parsed.warnings.length > 0) warnings.push(`SBI 포트폴리오 CSV 확인 필요 ${loaded.parsed.warnings.length}건 — SBI 손익 화면에서 볼 수 있습니다`);
   }
   if (usTrades) {
-    parts.push(sbiUsHoldings(usTrades.holdings, account, usTrades.asOf, rates));
-    if (usTrades.needsReview) warnings.push("SBI 미국주식 추정 잔고를 아직 확인하지 않았습니다 — SBI 손익 화면에서 수량과 평균단가를 확인하세요");
+    if (usTrades.needsReview) warnings.push("SBI 미국주식 추정 잔고를 아직 확인하지 않아 대시보드에서 제외했습니다 — SBI 손익 화면에서 수량과 평균단가를 확인하세요");
+    else parts.push(sbiUsHoldings(usTrades.holdings, account, usTrades.asOf, rates));
     if (usTrades.parsed.ok && usTrades.parsed.warnings.length > 1) {
       warnings.push(`SBI 미국주식 약정이력 확인 필요 ${usTrades.parsed.warnings.length - 1}건 — SBI 손익 화면에서 볼 수 있습니다`);
     }
@@ -329,6 +329,9 @@ export function sbiForDashboard(
       `${account.label}에 CSV로 가져온 종목과 직접 입력한 종목이 겹쳐 두 번 더해졌습니다: ${overlap.map((h) => h.name).join(", ")} — 보유종목 관리에서 직접 입력한 쪽을 지우세요`,
     );
   }
-  const asOf = [loaded?.asOf, usTrades?.asOf].filter((value): value is string => Boolean(value)).sort().at(-1) ?? null;
+  const asOf = [loaded?.asOf, usTrades && !usTrades.needsReview ? usTrades.asOf : null]
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1) ?? null;
   return { account, asOf, holdings: sbi.holdings, fundQuotes: sbi.fundQuotes, csvQuotes: sbi.csvQuotes, warnings };
 }
