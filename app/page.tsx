@@ -1,32 +1,27 @@
 import Link from "next/link";
 import { after, connection } from "next/server";
 import { CURRENCIES, isCurrency, MARKET_LABEL, type Currency } from "@/lib/domain/model.ts";
-import { CURRENCY_SUFFIX, formatMoney, formatPercent, formatQuantity, formatUnitPrice, type FormatMode } from "@/lib/format/money.ts";
+import { formatMonthDay } from "@/lib/format/date.ts";
+import { CURRENCY_SUFFIX, formatMoney, formatPercent, formatQuantity, formatUnitPrice, perUnitsLabel, type FormatMode } from "@/lib/format/money.ts";
 import { buildPortfolioView, type HoldingEval } from "@/lib/portfolio/calc.ts";
 import { convert, crossRate } from "@/lib/portfolio/fx.ts";
 import { NoFxError } from "@/lib/quotes/service.ts";
-import { getQuoteService, getStore, SNAPSHOTS_PATH } from "@/lib/server.ts";
+import { EMPTY_SBI_DASHBOARD, isSbiFundSymbol, sbiForDashboard, withFallback, type SbiDashboard } from "@/lib/sbi/evaluate.ts";
+import { parseImports } from "@/lib/sbi/parse.ts";
+import { SbiImportFileError } from "@/lib/sbi/store.ts";
+import { getQuoteService, getSbiStore, getStore, SNAPSHOTS_PATH } from "@/lib/server.ts";
 import { appendDailySnapshot, snapshotFromView } from "@/lib/store/snapshots.ts";
 import { PortfolioFileError } from "@/lib/store/types.ts";
 import { FileErrorPanel } from "./_components/FileErrorPanel.tsx";
+import { hrefWith, type SearchParams } from "./_components/href.ts";
 import { Money, Pct } from "./_components/figures.tsx";
 import { RefreshButton } from "./_components/RefreshButton.tsx";
 import styles from "./page.module.css";
 
-type SearchParams = Record<string, string | string[] | undefined>;
 const SORTS = ["account", "value", "pnl", "returnHome", "returnTrade"] as const;
 type Sort = (typeof SORTS)[number];
 
 const CURRENCY_NAME: Record<Currency, string> = { KRW: "원", JPY: "엔", USD: "달러" };
-
-function hrefWith(sp: SearchParams, patch: Record<string, string | undefined>): string {
-  const params = new URLSearchParams();
-  for (const [k, v] of Object.entries({ ...sp, ...patch })) {
-    if (typeof v === "string" && v !== "") params.set(k, v);
-  }
-  const q = params.toString();
-  return q ? `/?${q}` : "/";
-}
 
 const timeText = (iso: string) =>
   iso
@@ -48,9 +43,20 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     throw err;
   }
 
+  // SBI 포트폴리오 CSV 의 보유종목 (portfolio.json 에는 쓰지 않고 여기서 합친다). 저장 파일이 깨져도 대시보드는 뜬다
+  let sbi: SbiDashboard = EMPTY_SBI_DASHBOARD;
+  try {
+    sbi = sbiForDashboard(parseImports(await getSbiStore().load()).portfolio, file.accounts, file.holdings);
+  } catch (err) {
+    if (!(err instanceof SbiImportFileError)) throw err;
+    sbi = { ...EMPTY_SBI_DASHBOARD, warnings: ["SBI CSV 저장 파일을 읽을 수 없어 SBI 보유종목을 빼고 보여 줍니다 — SBI 손익 화면에서 확인하세요"] };
+  }
+  const holdings = [...file.holdings, ...sbi.holdings];
+
   let market;
   try {
-    market = await getQuoteService().get(file.holdings.map((h) => h.quoteSymbol));
+    // 투자신탁은 시세 서버에 없으므로 CSV 기준가를 쓰고 조회하지 않는다
+    market = await getQuoteService().get(holdings.map((h) => h.quoteSymbol).filter((s) => !sbi.fundQuotes[s]));
   } catch (err) {
     if (err instanceof NoFxError) {
       return (
@@ -66,23 +72,25 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   const now = new Date();
   const rates = market.fx.rates;
+  const quotes = { ...withFallback(market.quotes, sbi.csvQuotes), ...sbi.fundQuotes };
   const view = buildPortfolioView({
     accounts: file.accounts,
-    holdings: file.holdings,
-    quotes: market.quotes,
+    holdings,
+    quotes,
     rates,
     now,
     displayCurrency: ccy,
   });
 
   // 하루 한 줄 스냅샷 — 응답을 보낸 뒤 기록한다
-  if (file.holdings.length > 0) {
+  if (holdings.length > 0) {
     after(() => appendDailySnapshot(SNAPSHOTS_PATH, snapshotFromView(view, rates, now)).catch((e) => console.error("snapshot", e)));
   }
 
   const toDisplay = (e: HoldingEval, amount: number) => convert(amount, e.homeCurrency, ccy, rates);
   const rows = sortRows(view.holdings, sort, toDisplay);
   const quoteTimes = Object.values(market.quotes).map((q) => q.marketTime).filter(Boolean).sort();
+  const fundCount = view.holdings.filter((e) => isSbiFundSymbol(e.holding.quoteSymbol)).length;
   const others = CURRENCIES.filter((c) => c !== ccy);
 
   return (
@@ -92,16 +100,16 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <div className={styles.controls}>
           <nav className="segmented" aria-label="표시 통화">
             {CURRENCIES.map((c) => (
-              <Link key={c} href={hrefWith(sp, { ccy: c === "KRW" ? undefined : c })} aria-current={c === ccy}>
+              <Link key={c} href={hrefWith("/", sp, { ccy: c === "KRW" ? undefined : c })} aria-current={c === ccy}>
                 {CURRENCY_NAME[c]}
               </Link>
             ))}
           </nav>
           <nav className="segmented" aria-label="표시 형식">
-            <Link href={hrefWith(sp, { fmt: undefined })} aria-current={fmt === "compact"}>
+            <Link href={hrefWith("/", sp, { fmt: undefined })} aria-current={fmt === "compact"}>
               간략
             </Link>
-            <Link href={hrefWith(sp, { fmt: "exact" })} aria-current={fmt === "exact"}>
+            <Link href={hrefWith("/", sp, { fmt: "exact" })} aria-current={fmt === "exact"}>
               정확
             </Link>
           </nav>
@@ -157,8 +165,18 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       </section>
 
       {/* ── 경고 ─────────────────────────────────── */}
-      {(view.counts.missing > 0 || view.counts.stale > 0 || view.counts.fxNotIncluded > 0 || market.errors.length > 0 || market.fx.fromCache) && (
+      {(view.counts.missing > 0 ||
+        view.counts.stale > 0 ||
+        view.counts.fxNotIncluded > 0 ||
+        market.errors.length > 0 ||
+        market.fx.fromCache ||
+        sbi.warnings.length > 0) && (
         <div className={styles.notices}>
+          {sbi.warnings.map((w) => (
+            <p key={w} className="notice">
+              {w} <Link href="/sbi">SBI 손익</Link>
+            </p>
+          ))}
           {view.counts.missing > 0 && (
             <p className="notice notice-danger">
               가격 미확인 {view.counts.missing}종목 — 평가액을 매입금액으로 계산해 합계에 넣었습니다 (손익 0).
@@ -188,9 +206,14 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <section className="panel">
           <h2>아직 보유종목이 없습니다</h2>
           <p className="secondary">증권사 앱의 잔고 화면을 보면서 종목·수량·평균단가를 넣으면 여기서 한 번에 모아 봅니다.</p>
-          <Link href="/holdings" className="btn btn-primary">
-            보유종목 추가하기
-          </Link>
+          <div className={styles.emptyActions}>
+            <Link href="/holdings" className="btn btn-primary">
+              보유종목 추가하기
+            </Link>
+            <Link href="/sbi" className="btn">
+              SBI証券은 CSV로 가져오기
+            </Link>
+          </div>
         </section>
       ) : (
         <>
@@ -246,6 +269,11 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                 <span className={styles.accountPnl}>
                   <Money amount={a.home.pnl} currency={a.account.homeCurrency} mode={fmt} signed colored /> <Pct rate={a.home.returnRate} />
                 </span>
+                {a.account.id === sbi.account?.id && (
+                  <Link href="/sbi" className={styles.accountLink}>
+                    CSV로 가져옴 · 누적손익 보기 →
+                  </Link>
+                )}
               </div>
             ))}
           </section>
@@ -296,13 +324,20 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                         <span className={styles.stockName}>{e.holding.name}</span>
                         <PriceBadge e={e} />
                         <span className="sub">
-                          {e.holding.quoteSymbol} · {e.account.label}
+                          {isSbiFundSymbol(e.holding.quoteSymbol) ? "투자신탁" : e.holding.quoteSymbol} · {e.account.label}
                         </span>
                       </td>
-                      <td className="r num">{formatQuantity(e.holding.quantity)}</td>
                       <td className="r num">
-                        {e.price !== null ? formatUnitPrice(e.price, e.tradeCurrency) : <span className="muted">—</span>}
-                        <span className="sub">{formatUnitPrice(e.holding.avgCost, e.tradeCurrency)}</span>
+                        {formatQuantity(e.holding.quantity)}
+                        {e.holding.priceUnit ? "좌" : ""}
+                      </td>
+                      <td className="r num">
+                        {e.price !== null ? (
+                          formatUnitPrice(e.price, e.tradeCurrency) + perUnitsLabel(e.holding.priceUnit)
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                        <span className="sub">{formatUnitPrice(e.holding.avgCost, e.tradeCurrency) + perUnitsLabel(e.holding.priceUnit)}</span>
                       </td>
                       <td className="r">
                         <Money amount={toDisplay(e, e.valueHome)} currency={ccy} mode={fmt} />
@@ -340,6 +375,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           {formatUnitPrice(rates.KRW, "KRW")} · 1달러 = {formatUnitPrice(rates.JPY, "JPY")} · 100엔 ={" "}
           {formatUnitPrice(crossRate("JPY", "KRW", rates) * 100, "KRW")}
         </p>
+        {fundCount > 0 && sbi.asOf && (
+          <p>
+            투자신탁 {fundCount}종목은 시세를 받을 수 없어 SBI 포트폴리오 CSV({timeText(sbi.asOf)}에 받음)의 기준가로 계산합니다. 사고팔았을 때{" "}
+            <Link href="/sbi">CSV를 다시 넣으세요</Link>.
+          </p>
+        )}
         <p className="muted">
           계좌마다 계좌통화({CURRENCY_SUFFIX.KRW}·{CURRENCY_SUFFIX.JPY}) 기준으로 평가한 뒤 현재 환율로 합칩니다. 그래서 총수익률은 표시 통화와
           관계없이 같고, 원↔엔 환율 변동은 총수익률에 들어가지 않습니다. 미국 주식 평가액은 증권사가 쓰는 환율과 0.5% 안팎 차이 날 수
@@ -352,6 +393,13 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
 function PriceBadge({ e }: { e: HoldingEval }) {
   if (e.priceStatus === "missing") return <span className="pill pill-danger">가격 미확인</span>;
+  if (e.priceStatus === "imported") {
+    return (
+      <span className="pill" title="시세 대신 SBI 포트폴리오 CSV의 가격을 씁니다">
+        CSV {formatMonthDay(e.quote?.marketTime ?? "")}
+      </span>
+    );
+  }
   if (e.priceStatus === "stale") {
     return (
       <span className="pill pill-warn" title={`시세 시각 ${e.quote?.marketTime ?? "알 수 없음"}`}>
@@ -365,7 +413,7 @@ function PriceBadge({ e }: { e: HoldingEval }) {
 function SortLink(props: { sp: SearchParams; sort: Sort; value: Sort; children: React.ReactNode }) {
   const active = props.sort === props.value;
   return (
-    <Link href={hrefWith(props.sp, { sort: props.value === "account" ? undefined : props.value })} aria-current={active}>
+    <Link href={hrefWith("/", props.sp, { sort: props.value === "account" ? undefined : props.value })} aria-current={active}>
       {props.children}
       {active && props.value !== "account" ? " ↓" : ""}
     </Link>

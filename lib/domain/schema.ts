@@ -25,6 +25,8 @@ export const holdingSchema = z.object({
   avgCost: z.number().nonnegative(),
   /** 계좌통화 기준 "총" 매입금액. 거래통화 ≠ 계좌통화일 때만 쓴다. 없으면 환율효과 미반영 */
   costBasisHome: z.number().nonnegative().optional(),
+  /** 시세·평균단가가 가리키는 수량. 투자신탁 기준가는 1만좌당이라 10000. 없으면 1 */
+  priceUnit: z.number().positive().optional(),
   updatedAt: z.string(),
 });
 

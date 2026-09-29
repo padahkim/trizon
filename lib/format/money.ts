@@ -81,6 +81,12 @@ export function formatUnitPrice(price: number, currency: Currency): string {
   return text + CURRENCY_SUFFIX[currency];
 }
 
+/** 투자신탁 기준가처럼 여러 좌당 가격일 때 붙이는 꼬리표: 10000 → "/1만좌". 없거나 1 이면 "" */
+export function perUnitsLabel(units: number | undefined): string {
+  if (!units || units === 1) return "";
+  return units % MAN === 0 ? `/${grouped(units / MAN)}만좌` : `/${grouped(units)}좌`;
+}
+
 /** 수량: 소수점 주식 대비 6자리까지 */
 export function formatQuantity(q: number): string {
   return grouped(q, 6);

@@ -4,7 +4,9 @@ import { CURRENCY_SUFFIX, formatMoney, formatQuantity, formatUnitPrice } from "@
 import { MARKET_LABEL, TRADE_CURRENCY } from "@/lib/domain/model.ts";
 import { impliedFxRate, isFxRateSuspicious } from "@/lib/portfolio/cost-basis.ts";
 import { crossRate, type FxRates } from "@/lib/portfolio/fx.ts";
-import { getQuoteService, getStore } from "@/lib/server.ts";
+import { pickSbiAccount } from "@/lib/sbi/evaluate.ts";
+import { parseImports } from "@/lib/sbi/parse.ts";
+import { getQuoteService, getSbiStore, getStore } from "@/lib/server.ts";
 import { localDate } from "@/lib/store/snapshots.ts";
 import { PortfolioFileError } from "@/lib/store/types.ts";
 import { deleteAccount, deleteHolding } from "../actions.ts";
@@ -37,6 +39,16 @@ export default async function HoldingsPage({ searchParams }: { searchParams: Pro
 
   const editing = editId ? file.holdings.find((h) => h.id === editId) : undefined;
 
+  // SBI 포트폴리오 CSV 로 가져온 종목 수 — 여기에 또 넣으면 두 번 더해진다
+  const sbiAccountId = pickSbiAccount(file.accounts)?.id;
+  let sbiCsvCount = 0;
+  try {
+    const parsed = parseImports(await getSbiStore().load()).portfolio?.parsed;
+    if (parsed?.ok) sbiCsvCount = new Set([...parsed.data.stocks.map((s) => s.code), ...parsed.data.funds.map((f) => f.name)]).size;
+  } catch {
+    // 저장 파일이 깨졌으면 SBI 손익 화면이 알려 준다
+  }
+
   return (
     <div className={styles.stack}>
       <div className={styles.head}>
@@ -58,7 +70,15 @@ export default async function HoldingsPage({ searchParams }: { searchParams: Pro
           <section key={account.id} className="panel">
             <div className={styles.accountHead}>
               <h2>
-                {account.label} <span className="pill">{account.homeCurrency}</span>
+                {account.broker === "SBI" ? (
+                  <Link href="/sbi" className={styles.accountLink} title="SBI 손익 보기">
+                    {account.label}
+                    <span aria-hidden>→</span>
+                  </Link>
+                ) : (
+                  account.label
+                )}{" "}
+                <span className="pill">{account.homeCurrency}</span>
                 <span className="muted" style={{ fontSize: "0.85rem", fontWeight: 400 }}>
                   {own.length}종목
                 </span>
@@ -74,8 +94,14 @@ export default async function HoldingsPage({ searchParams }: { searchParams: Pro
                 </ConfirmSubmit>
               </form>
             </div>
+            {account.id === sbiAccountId && sbiCsvCount > 0 && (
+              <p className={`notice ${styles.csvNote}`}>
+                SBI 포트폴리오 CSV로 가져온 {sbiCsvCount}종목이 대시보드의 이 계좌에 들어갑니다. 여기에는 CSV에 없는 종목만 넣으세요.{" "}
+                <Link href="/sbi">SBI 손익에서 관리</Link>
+              </p>
+            )}
             {own.length === 0 ? (
-              <p className={`muted ${styles.empty}`}>아직 종목이 없습니다.</p>
+              <p className={`muted ${styles.empty}`}>{account.id === sbiAccountId && sbiCsvCount > 0 ? "직접 입력한 종목은 없습니다." : "아직 종목이 없습니다."}</p>
             ) : (
               <div className="table-wrap">
                 <table className="data">

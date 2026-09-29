@@ -1,5 +1,7 @@
 # 개인 자산 데이터 — 절대 커밋하지 않는다
 /data
+# 증권사에서 받은 CSV 를 잠깐 두는 곳 — 개인 자산 데이터다
+/download
 
 /node_modules
 /.next
