@@ -1,7 +1,7 @@
 import type { Account, Holding } from "../domain/schema.ts";
 import { quoteSymbolCandidates } from "../domain/symbols.ts";
 import { evaluateHolding, isQuoteStale, sumTotals, type HoldingEval, type PriceStatus } from "../portfolio/calc.ts";
-import type { FxRates } from "../portfolio/fx.ts";
+import { convert, type FxRates } from "../portfolio/fx.ts";
 import type { Quote } from "../quotes/types.ts";
 import type { LoadedImport } from "./parse.ts";
 import type { PortfolioMargin, SbiPortfolio } from "./types.ts";
@@ -180,8 +180,10 @@ export function valueSbiHoldings(
   }));
   const margins = sbi.margins.map((m) => evaluateMargin(m, quotes[m.symbol], now));
   const totals = sumTotals(evals, account.homeCurrency, rates);
-  const marginPnl = margins.reduce((s, m) => s + m.pnl, 0);
-  const marginOpen = margins.reduce((s, m) => s + m.position.openPrice * m.position.quantity, 0);
+  // 신용 금액은 엔이다. 계좌통화가 엔이 아닌 SBI 계좌도 있으므로 바꿔서 더한다
+  const toHome = (jpy: number) => convert(jpy, "JPY", account.homeCurrency, rates);
+  const marginPnl = toHome(margins.reduce((s, m) => s + m.pnl, 0));
+  const marginOpen = toHome(margins.reduce((s, m) => s + m.position.openPrice * m.position.quantity, 0));
   const pnl = totals.pnl + marginPnl;
   return {
     stocks: evals.filter((e) => !isSbiFundSymbol(e.holding.quoteSymbol)),

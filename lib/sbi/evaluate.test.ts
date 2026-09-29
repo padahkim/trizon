@@ -104,6 +104,16 @@ test("CSV 값으로만 평가하면 SBI 総合計와 같다 (평가액에 신용
   assert.ok(v.stocks.every((e) => e.priceStatus === "imported"));
 });
 
+test("계좌통화가 엔이 아니면 신용 손익도 계좌통화로 바꿔 더한다", () => {
+  const h = sbiHoldings(portfolio(), "sbi-usd", asOf);
+  const quotes = withFallback(h.fundQuotes, h.csvQuotes);
+  const jpy = valueSbiHoldings(h, sbi, quotes, rates, now);
+  const usd = valueSbiHoldings(h, { ...sbi, id: "sbi-usd", homeCurrency: "USD" }, quotes, rates, now);
+  // 含み損益 156,000엔 (신용 19,000엔 포함) ÷ 150엔/달러
+  assert.ok(Math.abs(usd.pnl - 156_000 / 150) < 1e-9, `${usd.pnl}`);
+  assert.ok(Math.abs((usd.returnRate ?? 0) - (jpy.returnRate ?? 0)) < 1e-12);
+});
+
 test("대시보드: 엔화 SBI 계좌에 넣고, 직접 입력과 겹치면 알린다", () => {
   assert.equal(pickSbiAccount([kb, { ...sbi, id: "sbi-usd", homeCurrency: "USD" }, sbi])?.id, "sbi");
   assert.equal(pickSbiAccount([kb]), null);
