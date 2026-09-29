@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import type { Account, Holding } from "../domain/schema.ts";
 import { makeRates } from "../portfolio/fx.ts";
 import type { Quote } from "../quotes/types.ts";
-import { evaluateMargin, pickSbiAccount, sbiForDashboard, sbiHoldings, valueSbiHoldings, withFallback } from "./evaluate.ts";
+import { evaluateMargin, pickSbiAccount, sbiForDashboard, sbiHoldings, sbiUsHoldings, valueSbiHoldings, withFallback } from "./evaluate.ts";
 import { PORTFOLIO_CSV } from "./fixtures.ts";
 import { parsePortfolio, type LoadedImport } from "./parse.ts";
-import type { SbiPortfolio } from "./types.ts";
+import type { SbiPortfolio, SbiUsHolding } from "./types.ts";
 
 const rates = makeRates(1_350, 150);
 const now = new Date("2026-09-28T06:00:00Z");
@@ -102,6 +102,28 @@ test("CSV 값으로만 평가하면 SBI 総合計와 같다 (평가액에 신용
   assert.equal(v.funds.length, 1);
   assert.equal(v.margins.length, 1);
   assert.ok(v.stocks.every((e) => e.priceStatus === "imported"));
+});
+
+test("미국주식은 預り 구분별 lot을 유지하고 JPY 취득단가는 엔 총매입액으로 평가한다", () => {
+  const rows: SbiUsHolding[] = [
+    { id: "a", ticker: "AAPL", name: "Apple", quantity: 1, avgCost: 100, costCurrency: "USD", accountType: "特定", source: "inferred" },
+    { id: "b", ticker: "AAPL", name: "Apple", quantity: 2, avgCost: 15_000, costCurrency: "JPY", accountType: "NISA", source: "manual" },
+  ];
+  const holdings = sbiUsHoldings(rows, sbi, asOf, rates);
+  assert.equal(holdings.lots.length, 2);
+  assert.deepEqual(holdings.lots.map((lot) => [lot.accountType, lot.holding.quantity, lot.holding.avgCost, lot.holding.costBasisHome]), [
+    ["特定", 1, 100, undefined],
+    ["NISA", 2, 100, 30_000],
+  ]);
+  assert.equal(holdings.holdings.length, 1);
+  assert.equal(holdings.holdings[0].quantity, 3);
+  assert.equal(holdings.holdings[0].costBasisHome, 45_000);
+
+  const quote: Quote = { symbol: "AAPL", price: 120, currency: "USD", marketTime: "2026-09-28T05:00:00Z" };
+  const valuation = valueSbiHoldings(holdings, sbi, { AAPL: quote }, rates, now);
+  assert.equal(valuation.value, 54_000);
+  assert.equal(valuation.cost, 45_000);
+  assert.equal(valuation.pnl, 9_000);
 });
 
 test("대시보드: 엔화 SBI 계좌에 넣고, 직접 입력과 겹치면 알린다", () => {
