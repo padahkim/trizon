@@ -137,6 +137,44 @@ export function inferUsHoldings(trades: readonly SbiUsTrade[]): InferredUsHoldin
   return { holdings, closedCount, warnings: unique(warnings) };
 }
 
+/**
+ * 확인을 마친 잔고에 새 CSV 추정치를 합친다.
+ * - 손대지 않은 CSV 추정 행은 새 거래를 반영한다.
+ * - 수정·직접 추가·삭제한 행은 사용자의 선택을 보존한다.
+ * 새 CSV를 넣은 뒤에는 다시 확인받으므로, 보정한 행에 거래 증분을 임의로 적용하지 않는다.
+ */
+export function reconcileReviewedUsHoldings(
+  previousInferred: readonly SbiUsHolding[],
+  nextInferred: readonly SbiUsHolding[],
+  reviewed: readonly SbiUsHolding[],
+): SbiUsHolding[] {
+  const previousById = new Map(previousInferred.map((holding) => [holding.id, holding]));
+  const nextById = new Map(nextInferred.map((holding) => [holding.id, holding]));
+  const previousIds = new Set(previousById.keys());
+  const reconciled: SbiUsHolding[] = [];
+
+  for (const holding of reviewed) {
+    const previous = previousById.get(holding.id);
+    if (holding.source === "inferred" && previous && sameHolding(holding, previous)) {
+      const next = nextById.get(holding.id);
+      if (next) reconciled.push(next);
+      continue;
+    }
+    reconciled.push(holding);
+  }
+
+  const ids = new Set(reconciled.map((holding) => holding.id));
+  const pairs = new Set(reconciled.map(holdingPair));
+  for (const holding of nextInferred) {
+    if (ids.has(holding.id) || pairs.has(holdingPair(holding))) continue;
+    // 이전 추정 행이 확인 화면에서 삭제되었다면 새 가져오기에서도 되살리지 않는다.
+    if (previousIds.has(holding.id)) continue;
+    reconciled.push(holding);
+  }
+
+  return reconciled.sort((a, b) => a.ticker.localeCompare(b.ticker) || a.accountType.localeCompare(b.accountType));
+}
+
 export const inferredId = (ticker: string, accountType: string) =>
   `sbi-us:${encodeURIComponent(ticker.toUpperCase())}:${encodeURIComponent(accountType || "-")}`;
 
@@ -152,4 +190,21 @@ function compareForAverage(a: SbiUsTrade, b: SbiUsTrade): number {
 
 function unique(values: readonly string[]): string[] {
   return [...new Set(values)];
+}
+
+function holdingPair(holding: SbiUsHolding): string {
+  return `${holding.ticker}\u0000${holding.accountType}`;
+}
+
+function sameHolding(a: SbiUsHolding, b: SbiUsHolding): boolean {
+  return (
+    a.id === b.id &&
+    a.ticker === b.ticker &&
+    a.name === b.name &&
+    a.quantity === b.quantity &&
+    a.avgCost === b.avgCost &&
+    a.costCurrency === b.costCurrency &&
+    a.accountType === b.accountType &&
+    a.source === b.source
+  );
 }

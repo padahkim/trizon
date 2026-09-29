@@ -12,7 +12,7 @@ import { decodeCsvBytes } from "@/lib/sbi/csv.ts";
 import { SBI_GUIDE } from "@/lib/sbi/guide.ts";
 import { detectKind, PARSERS, parseUsTrades } from "@/lib/sbi/parse.ts";
 import { sbiUsHoldingsSchema, type SbiCoreImports, type SbiUsTradeFile } from "@/lib/sbi/store.ts";
-import { inferUsHoldings, mergeUsTrades } from "@/lib/sbi/us-trades.ts";
+import { inferUsHoldings, mergeUsTrades, reconcileReviewedUsHoldings } from "@/lib/sbi/us-trades.ts";
 import { isSbiImportKind, type SbiImportKind } from "@/lib/sbi/types.ts";
 import { getQuoteService, getSbiStore, getStore } from "@/lib/server.ts";
 
@@ -223,7 +223,15 @@ export async function importSbiCsv(formData: FormData): Promise<SbiImportResult[
       });
       const merged = mergeUsTrades(files.map((file) => parseUsTrades(file.text)));
       const inferred = inferUsHoldings(merged.trades);
-      return { files, holdings: inferred.holdings, needsReview: true, confirmedAt: null };
+      const previousInferred =
+        current && !current.needsReview
+          ? inferUsHoldings(mergeUsTrades(current.files.map((file) => parseUsTrades(file.text))).trades).holdings
+          : [];
+      const holdings =
+        current && !current.needsReview
+          ? reconcileReviewedUsHoldings(previousInferred, inferred.holdings, current.holdings)
+          : inferred.holdings;
+      return { files, holdings, needsReview: true, confirmedAt: null };
     });
   }
   if (Object.keys(entries).length > 0 || usFiles.length > 0) {
