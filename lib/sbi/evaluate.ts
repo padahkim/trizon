@@ -206,9 +206,19 @@ export type SbiDashboard = Pick<SbiHoldings, "holdings" | "fundQuotes" | "csvQuo
   /** CSV 를 받은 시각 */
   asOf: string | null;
   warnings: string[];
+  /** 합계가 틀린 줄 아는 상태 (CSV 종목과 직접 입력이 겹침, 넣은 CSV 를 읽지 못함). 그날 스냅샷을 남기지 않는다 */
+  unreliable: boolean;
 };
 
-export const EMPTY_SBI_DASHBOARD: SbiDashboard = { account: null, asOf: null, holdings: [], fundQuotes: {}, csvQuotes: {}, warnings: [] };
+export const EMPTY_SBI_DASHBOARD: SbiDashboard = {
+  account: null,
+  asOf: null,
+  holdings: [],
+  fundQuotes: {},
+  csvQuotes: {},
+  warnings: [],
+  unreliable: false,
+};
 
 export function sbiForDashboard(
   loaded: LoadedImport<SbiPortfolio> | null,
@@ -217,7 +227,11 @@ export function sbiForDashboard(
 ): SbiDashboard {
   if (!loaded) return EMPTY_SBI_DASHBOARD;
   if (!loaded.parsed.ok) {
-    return { ...EMPTY_SBI_DASHBOARD, warnings: [`SBI 포트폴리오 CSV를 읽지 못해 대시보드에 넣지 않았습니다: ${loaded.parsed.error}`] };
+    return {
+      ...EMPTY_SBI_DASHBOARD,
+      unreliable: true,
+      warnings: [`SBI 포트폴리오 CSV를 읽지 못해 대시보드에 넣지 않았습니다: ${loaded.parsed.error}`],
+    };
   }
   const account = pickSbiAccount(accounts);
   if (!account) {
@@ -236,5 +250,13 @@ export function sbiForDashboard(
       `${account.label}에 CSV로 가져온 종목과 직접 입력한 종목이 겹쳐 두 번 더해졌습니다: ${overlap.map((h) => h.name).join(", ")} — 보유종목 관리에서 직접 입력한 쪽을 지우세요`,
     );
   }
-  return { account, asOf: loaded.asOf, holdings: sbi.holdings, fundQuotes: sbi.fundQuotes, csvQuotes: sbi.csvQuotes, warnings };
+  return {
+    account,
+    asOf: loaded.asOf,
+    holdings: sbi.holdings,
+    fundQuotes: sbi.fundQuotes,
+    csvQuotes: sbi.csvQuotes,
+    warnings,
+    unreliable: overlap.length > 0,
+  };
 }

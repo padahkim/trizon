@@ -125,6 +125,9 @@ test("대시보드: 엔화 SBI 계좌에 넣고, 직접 입력과 겹치면 알�
   assert.ok(d.holdings.every((h) => h.accountId === "sbi"));
   assert.equal(d.warnings.length, 1);
   assert.ok(d.warnings[0].includes("トヨタ"));
+  // 두 번 더해진 합계가 그날 스냅샷으로 남지 않게 한다
+  assert.equal(d.unreliable, true);
+  assert.equal(sbiForDashboard(loaded(), [kb, sbi], []).unreliable, false);
 });
 
 test("대시보드: SBI 계좌가 없거나 CSV 가 깨졌으면 넣지 않고 알린다", () => {
@@ -135,6 +138,9 @@ test("대시보드: SBI 계좌가 없거나 CSV 가 깨졌으면 넣지 않고 �
   const broken = sbiForDashboard({ ...loaded(), parsed: { ok: false, error: "x" } }, [sbi], []);
   assert.equal(broken.holdings.length, 0);
   assert.equal(broken.warnings.length, 1);
+  // 넣은 CSV 를 읽지 못하면 합계에서 빠진 것이므로 스냅샷을 남기지 않는다. 계좌가 없는 것은 설정이라 괜찮다
+  assert.equal(broken.unreliable, true);
+  assert.equal(noAccount.unreliable, false);
 
   assert.equal(sbiForDashboard(null, [sbi], []).holdings.length, 0);
 });
