@@ -7,7 +7,7 @@ import { buildPortfolioView, type HoldingEval } from "@/lib/portfolio/calc.ts";
 import { convert, crossRate } from "@/lib/portfolio/fx.ts";
 import { NoFxError } from "@/lib/quotes/service.ts";
 import { EMPTY_SBI_DASHBOARD, isSbiFundSymbol, sbiForDashboard, withFallback, type SbiDashboard } from "@/lib/sbi/evaluate.ts";
-import { parseImports } from "@/lib/sbi/parse.ts";
+import { parseImports, type LoadedSbi } from "@/lib/sbi/parse.ts";
 import { SbiImportFileError } from "@/lib/sbi/store.ts";
 import { getQuoteService, getSbiStore, getStore, SNAPSHOTS_PATH } from "@/lib/server.ts";
 import { appendDailySnapshot, snapshotFromView } from "@/lib/store/snapshots.ts";
@@ -45,8 +45,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   // SBI 포트폴리오 CSV 의 보유종목 (portfolio.json 에는 쓰지 않고 여기서 합친다). 저장 파일이 깨져도 대시보드는 뜬다
   let sbi: SbiDashboard = EMPTY_SBI_DASHBOARD;
+  let loadedSbi: LoadedSbi | null = null;
   try {
-    sbi = sbiForDashboard(parseImports(await getSbiStore().load()).portfolio, file.accounts, file.holdings);
+    loadedSbi = parseImports(await getSbiStore().load());
+    sbi = sbiForDashboard(loadedSbi.portfolio, file.accounts, file.holdings, loadedSbi.usTrades);
   } catch (err) {
     if (!(err instanceof SbiImportFileError)) throw err;
     sbi = {
@@ -55,12 +57,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       warnings: ["SBI CSV 저장 파일을 읽을 수 없어 SBI 보유종목을 빼고 보여 줍니다 — SBI 손익 화면에서 확인하세요"],
     };
   }
-  const holdings = [...file.holdings, ...sbi.holdings];
+  const holdingsBeforeFx = [...file.holdings, ...sbi.holdings];
 
   let market;
   try {
     // 투자신탁은 시세 서버에 없으므로 CSV 기준가를 쓰고 조회하지 않는다
-    market = await getQuoteService().get(holdings.map((h) => h.quoteSymbol).filter((s) => !sbi.fundQuotes[s]));
+    market = await getQuoteService().get(holdingsBeforeFx.map((h) => h.quoteSymbol).filter((symbol) => !sbi.fundQuotes[symbol]));
   } catch (err) {
     if (err instanceof NoFxError) {
       return (
@@ -76,6 +78,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   const now = new Date();
   const rates = market.fx.rates;
+  if (loadedSbi) sbi = sbiForDashboard(loadedSbi.portfolio, file.accounts, file.holdings, loadedSbi.usTrades, rates);
+  const holdings = [...file.holdings, ...sbi.holdings];
   const quotes = { ...withFallback(market.quotes, sbi.csvQuotes), ...sbi.fundQuotes };
   const view = buildPortfolioView({
     accounts: file.accounts,

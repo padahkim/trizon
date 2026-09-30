@@ -2,14 +2,14 @@
 
 import { startTransition, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { SBI_GUIDE, type SbiGuide } from "@/lib/sbi/guide.ts";
-import type { SbiKind } from "@/lib/sbi/types.ts";
+import type { SbiImportKind } from "@/lib/sbi/types.ts";
 import { clearSbiImport, importSbiCsv, type SbiImportResult } from "../actions.ts";
 import { ConfirmSubmit } from "../_components/ConfirmSubmit.tsx";
 import styles from "./sbi.module.css";
 
 /** 서버가 만들어 주는 카드 내용. loaded 가 없으면 아직 넣지 않은 CSV */
 export type ImportCardView = {
-  kind: SbiKind;
+  kind: SbiImportKind;
   loaded: null | {
     headline: string;
     headlineClass: string;
@@ -20,21 +20,22 @@ export type ImportCardView = {
   };
 };
 
-const CLEAR_MESSAGE: Record<SbiKind, string> = {
+const CLEAR_MESSAGE: Record<SbiImportKind, string> = {
   realized: "실현손익 CSV를 지울까요?",
   portfolio: "평가손익(ポートフォリオ) CSV를 지울까요? 대시보드의 SBI 보유종목도 함께 빠집니다.",
+  usTrades: "미국주식 약정이력 CSV와 확인·수정한 미국주식 보유정보를 모두 지울까요?",
   dividends: "배당·분배금 CSV를 지울까요?",
 };
 
 /**
- * CSV 3종을 넣는 카드. 화면 어디에 떨궈도 받고, 종류는 서버가 내용으로 가린다
+ * SBI CSV를 넣는 카드. 화면 어디에 떨궈도 받고, 종류는 서버가 내용으로 가린다
  * (카드를 잘못 골라 떨궈도 맞는 칸에 들어간다).
  */
 export function SbiImport({ cards }: { cards: ImportCardView[] }) {
   const [pending, startUpload] = useTransition();
   const [results, setResults] = useState<SbiImportResult[] | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [hover, setHover] = useState<SbiKind | null>(null);
+  const [hover, setHover] = useState<SbiImportKind | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const depth = useRef(0);
 
@@ -121,7 +122,7 @@ export function SbiImport({ cards }: { cards: ImportCardView[] }) {
           <div className={styles.dropOverlayCard}>
             <UploadIcon />
             <strong>놓으면 바로 읽어요</strong>
-            <span>세 파일을 한꺼번에 놓아도 종류를 알아서 나눠 담아요</span>
+            <span>여러 파일을 한꺼번에 놓아도 종류를 알아서 나눠 담아요</span>
           </div>
         </div>
       )}

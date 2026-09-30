@@ -5,6 +5,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // yahoo-finance2 는 Node 전용 의존성(tough-cookie 등)을 쓰므로 번들하지 않고 런타임에 require 한다.
   serverExternalPackages: ["yahoo-finance2"],
+  // SBI 약정이력은 1,000건씩 기간을 나눈 여러 CSV를 한 번에 올릴 수 있다.
+  experimental: { serverActions: { bodySizeLimit: "4mb" } },
 };
 
 export default nextConfig;

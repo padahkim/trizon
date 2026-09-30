@@ -3,8 +3,8 @@ import { quoteSymbolCandidates } from "../domain/symbols.ts";
 import { evaluateHolding, isQuoteStale, sumTotals, type HoldingEval, type PriceStatus } from "../portfolio/calc.ts";
 import { convert, type FxRates } from "../portfolio/fx.ts";
 import type { Quote } from "../quotes/types.ts";
-import type { LoadedImport } from "./parse.ts";
-import type { PortfolioMargin, SbiPortfolio } from "./types.ts";
+import type { LoadedImport, LoadedUsTrades } from "./parse.ts";
+import type { PortfolioMargin, SbiPortfolio, SbiUsHolding } from "./types.ts";
 
 // SBI 포트폴리오 CSV → 평가. CSV 에서는 수량·취득단가만 쓰고 현재가는 시세 서버에서 받는다.
 // - 주식: Yahoo 시세. 못 받으면 저장된 시세, 그것도 없으면 CSV 의 현재가.
@@ -31,6 +31,20 @@ export type SbiHoldings = {
   csvQuotes: Record<string, Quote>;
   margins: SbiMarginPosition[];
 };
+
+const emptySbiHoldings = (): SbiHoldings => ({ holdings: [], lots: [], fundQuotes: {}, csvQuotes: {}, margins: [] });
+
+export function mergeSbiHoldings(...parts: readonly SbiHoldings[]): SbiHoldings {
+  const out = emptySbiHoldings();
+  for (const part of parts) {
+    out.holdings.push(...part.holdings);
+    out.lots.push(...part.lots);
+    out.margins.push(...part.margins);
+    Object.assign(out.fundQuotes, part.fundQuotes);
+    Object.assign(out.csvQuotes, part.csvQuotes);
+  }
+  return out;
+}
 
 type Amount = { quantity: number; cost: number };
 type Group = Amount & { name: string; price: number | null; unitSize: number; lots: Map<string, Amount> };
@@ -70,7 +84,7 @@ function jpSymbol(code: string): string | null {
 
 /** CSV 보유종목 → 가상 보유종목 (accountId 계좌에 넣는다). asOf = CSV 를 받은 시각 */
 export function sbiHoldings(portfolio: SbiPortfolio, accountId: string, asOf: string): SbiHoldings {
-  const out: SbiHoldings = { holdings: [], lots: [], fundQuotes: {}, csvQuotes: {}, margins: [] };
+  const out = emptySbiHoldings();
 
   const stocks = new Map<string, Group>();
   for (const s of portfolio.stocks) addTo(stocks, s.code, { ...s, unitSize: 1 });
@@ -118,6 +132,73 @@ export function sbiHoldings(portfolio: SbiPortfolio, accountId: string, asOf: st
     const symbol = jpSymbol(m.code);
     if (!symbol) continue;
     out.margins.push({ position: m, symbol });
+  }
+  return out;
+}
+
+/** 확인·보정한 미국주식 잔고 → SBI 가상 보유종목. JPY 취득단가는 계좌통화 총매입액으로 보존한다. */
+export function sbiUsHoldings(rows: readonly SbiUsHolding[], account: Account, asOf: string, rates?: FxRates): SbiHoldings {
+  const out = emptySbiHoldings();
+  const groups = new Map<string, { lots: Holding[]; name: string; code: string }>();
+
+  for (const row of rows) {
+    const symbol = quoteSymbolCandidates("US", row.ticker);
+    if (!symbol.ok) continue;
+    const avgCost = row.costCurrency === "USD" ? row.avgCost : rates ? convert(row.avgCost, "JPY", "USD", rates) : 0;
+    const basisJpy = row.costCurrency === "JPY" ? row.avgCost * row.quantity : undefined;
+    const costBasisHome =
+      basisJpy === undefined
+        ? undefined
+        : account.homeCurrency === "JPY"
+          ? basisJpy
+          : rates
+            ? convert(basisJpy, "JPY", account.homeCurrency, rates)
+            : undefined;
+    const holding: Holding = {
+      id: row.id,
+      accountId: account.id,
+      market: "US",
+      code: symbol.code,
+      quoteSymbol: symbol.candidates[0],
+      name: row.name,
+      quantity: row.quantity,
+      avgCost,
+      ...(costBasisHome !== undefined ? { costBasisHome } : {}),
+      updatedAt: asOf,
+    };
+    out.lots.push({ accountType: row.accountType, holding });
+    const group = groups.get(holding.quoteSymbol) ?? { lots: [], name: row.name, code: symbol.code };
+    group.lots.push(holding);
+    groups.set(holding.quoteSymbol, group);
+  }
+
+  for (const [quoteSymbol, group] of groups) {
+    const quantity = group.lots.reduce((sum, holding) => sum + holding.quantity, 0);
+    const costTrade = group.lots.reduce((sum, holding) => sum + holding.quantity * holding.avgCost, 0);
+    const hasKnownHomeBasis = group.lots.some((holding) => holding.costBasisHome !== undefined);
+    const costBasisHome =
+      hasKnownHomeBasis && rates
+        ? group.lots.reduce(
+            (sum, holding) =>
+              sum +
+              (holding.costBasisHome ?? convert(holding.quantity * holding.avgCost, "USD", account.homeCurrency, rates)),
+            0,
+          )
+        : group.lots.every((holding) => holding.costBasisHome !== undefined)
+          ? group.lots.reduce((sum, holding) => sum + (holding.costBasisHome ?? 0), 0)
+          : undefined;
+    out.holdings.push({
+      id: `sbi-us-csv-${group.code}`,
+      accountId: account.id,
+      market: "US",
+      code: group.code,
+      quoteSymbol,
+      name: group.name,
+      quantity,
+      avgCost: quantity > 0 ? costTrade / quantity : 0,
+      ...(costBasisHome !== undefined ? { costBasisHome } : {}),
+      updatedAt: asOf,
+    });
   }
   return out;
 }
@@ -226,25 +307,33 @@ export function sbiForDashboard(
   loaded: LoadedImport<SbiPortfolio> | null,
   accounts: readonly Account[],
   manualHoldings: readonly Holding[],
+  usTrades: LoadedUsTrades | null = null,
+  rates?: FxRates,
 ): SbiDashboard {
-  if (!loaded) return EMPTY_SBI_DASHBOARD;
-  if (!loaded.parsed.ok) {
-    return {
-      ...EMPTY_SBI_DASHBOARD,
-      unreliable: true,
-      warnings: [`SBI 포트폴리오 CSV를 읽지 못해 대시보드에 넣지 않았습니다: ${loaded.parsed.error}`],
-    };
-  }
+  if (!loaded && !usTrades) return EMPTY_SBI_DASHBOARD;
+  const warnings: string[] = [];
+  if (loaded && !loaded.parsed.ok) warnings.push(`SBI 포트폴리오 CSV를 읽지 못해 일본 보유종목을 넣지 않았습니다: ${loaded.parsed.error}`);
+  if (usTrades && !usTrades.parsed.ok) warnings.push(`SBI 미국주식 약정이력 CSV를 다시 읽지 못했습니다: ${usTrades.parsed.error}`);
   const account = pickSbiAccount(accounts);
   if (!account) {
     return {
       ...EMPTY_SBI_DASHBOARD,
-      warnings: ["SBI証券 계좌가 없어 SBI CSV의 보유종목을 대시보드에 넣지 않았습니다 — 보유종목 관리에서 SBI 계좌를 추가하세요"],
+      warnings: [...warnings, "SBI証券 계좌가 없어 SBI CSV의 보유종목을 대시보드에 넣지 않았습니다 — 보유종목 관리에서 SBI 계좌를 추가하세요"],
     };
   }
-  const sbi = sbiHoldings(loaded.parsed.data, account.id, loaded.asOf);
-  const warnings: string[] = [];
-  if (loaded.parsed.warnings.length > 0) warnings.push(`SBI 포트폴리오 CSV 확인 필요 ${loaded.parsed.warnings.length}건 — SBI 손익 화면에서 볼 수 있습니다`);
+  const parts: SbiHoldings[] = [];
+  if (loaded?.parsed.ok) {
+    parts.push(sbiHoldings(loaded.parsed.data, account.id, loaded.asOf));
+    if (loaded.parsed.warnings.length > 0) warnings.push(`SBI 포트폴리오 CSV 확인 필요 ${loaded.parsed.warnings.length}건 — SBI 손익 화면에서 볼 수 있습니다`);
+  }
+  if (usTrades) {
+    if (usTrades.needsReview) warnings.push("SBI 미국주식 추정 잔고를 아직 확인하지 않아 대시보드에서 제외했습니다 — SBI 손익 화면에서 수량과 평균단가를 확인하세요");
+    else parts.push(sbiUsHoldings(usTrades.holdings, account, usTrades.asOf, rates));
+    if (usTrades.parsed.ok && usTrades.parsed.warnings.length > 1) {
+      warnings.push(`SBI 미국주식 약정이력 확인 필요 ${usTrades.parsed.warnings.length - 1}건 — SBI 손익 화면에서 볼 수 있습니다`);
+    }
+  }
+  const sbi = mergeSbiHoldings(...parts);
   const csvSymbols = new Set(sbi.holdings.map((h) => h.quoteSymbol));
   const overlap = manualHoldings.filter((h) => h.accountId === account.id && csvSymbols.has(h.quoteSymbol));
   if (overlap.length > 0) {
@@ -252,13 +341,13 @@ export function sbiForDashboard(
       `${account.label}에 CSV로 가져온 종목과 직접 입력한 종목이 겹쳐 두 번 더해졌습니다: ${overlap.map((h) => h.name).join(", ")} — 보유종목 관리에서 직접 입력한 쪽을 지우세요`,
     );
   }
-  return {
-    account,
-    asOf: loaded.asOf,
-    holdings: sbi.holdings,
-    fundQuotes: sbi.fundQuotes,
-    csvQuotes: sbi.csvQuotes,
-    warnings,
-    unreliable: !loaded.parsed.data.holdingsComplete || overlap.length > 0,
-  };
+  const asOf = [loaded?.asOf, usTrades && !usTrades.needsReview ? usTrades.asOf : null]
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1) ?? null;
+  const unreliable =
+    Boolean(loaded && (!loaded.parsed.ok || !loaded.parsed.data.holdingsComplete)) ||
+    Boolean(usTrades && (!usTrades.parsed.ok || usTrades.needsReview)) ||
+    overlap.length > 0;
+  return { account, asOf, holdings: sbi.holdings, fundQuotes: sbi.fundQuotes, csvQuotes: sbi.csvQuotes, warnings, unreliable };
 }

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DIVIDENDS_CSV, PORTFOLIO_CSV, REALIZED_CSV } from "./fixtures.ts";
-import { accountTypeOf, detectKind, fundUnitSize, parseDividends, parseImports, parsePortfolio, parseRealized } from "./parse.ts";
+import { DIVIDENDS_CSV, PORTFOLIO_CSV, REALIZED_CSV, US_TRADES_CSV } from "./fixtures.ts";
+import { accountTypeOf, detectKind, fundUnitSize, parseDividends, parseImports, parsePortfolio, parseRealized, parseUsTrades } from "./parse.ts";
 import type { Parsed } from "./types.ts";
 
 function ok<T>(r: Parsed<T>): { data: T; warnings: string[] } {
@@ -13,7 +13,40 @@ test("내용으로 종류를 가린다", () => {
   assert.equal(detectKind(REALIZED_CSV), "realized");
   assert.equal(detectKind(PORTFOLIO_CSV), "portfolio");
   assert.equal(detectKind(DIVIDENDS_CSV), "dividends");
+  assert.equal(detectKind(US_TRADES_CSV), "usTrades");
   assert.equal(detectKind('"날짜","금액"\n"2026/1/1","100"\n'), null);
+});
+
+test("米国株式 約定履歴: 필수 열·기간·현물 매수/매도·결제금액과 수수료 추정", () => {
+  const { data, warnings } = ok(parseUsTrades(US_TRADES_CSV));
+  assert.deepEqual(data.period, { from: "2024-09-30", to: "2026-09-29" });
+  assert.equal(data.sourceRowCount, 8);
+  assert.equal(data.trades.length, 8);
+  assert.deepEqual(warnings, []);
+
+  const sale = data.trades.find((trade) => trade.ticker === "NVDA" && trade.side === "sell");
+  assert.deepEqual(sale, {
+    dedupeKey: "2026-09-28|NVDA|sell|5|150|特定|2026/09/30|749#1",
+    tradeId: null,
+    date: "2026-09-28",
+    settlementDate: "2026-09-30",
+    ticker: "NVDA",
+    name: "エヌビディア",
+    market: "NASDAQ",
+    side: "sell",
+    accountType: "特定",
+    quantity: 5,
+    unitPrice: 150,
+    priceCurrency: "USD",
+    settlementAmount: 749,
+    settlementCurrency: "USD",
+    estimatedFee: 1,
+  });
+
+  const vstra = data.trades.filter((trade) => trade.ticker === "VST");
+  assert.equal(vstra.length, 2);
+  assert.equal(new Set(vstra.map((trade) => trade.dedupeKey)).size, 2, "같은 파일의 동일한 두 체결은 보존한다");
+  assert.equal(parseUsTrades(US_TRADES_CSV.replace('"約定数量"', '"数量"')).ok, false);
 });
 
 test("実現損益: 기간·상품별·合計, 세전 여부", () => {

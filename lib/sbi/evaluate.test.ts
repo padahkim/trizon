@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import type { Account, Holding } from "../domain/schema.ts";
 import { makeRates } from "../portfolio/fx.ts";
 import type { Quote } from "../quotes/types.ts";
-import { evaluateMargin, pickSbiAccount, sbiForDashboard, sbiHoldings, valueSbiHoldings, withFallback } from "./evaluate.ts";
+import { evaluateMargin, pickSbiAccount, sbiForDashboard, sbiHoldings, sbiUsHoldings, valueSbiHoldings, withFallback } from "./evaluate.ts";
 import { PORTFOLIO_CSV } from "./fixtures.ts";
-import { parsePortfolio, type LoadedImport } from "./parse.ts";
-import type { SbiPortfolio } from "./types.ts";
+import { parsePortfolio, type LoadedImport, type LoadedUsTrades } from "./parse.ts";
+import type { SbiPortfolio, SbiUsHolding } from "./types.ts";
 
 const rates = makeRates(1_350, 150);
 const now = new Date("2026-09-28T06:00:00Z");
@@ -24,6 +24,21 @@ const loaded = (): LoadedImport<SbiPortfolio> => ({
   meta: { fileName: "New_file.csv", fileModifiedAt: asOf, importedAt: asOf },
   asOf,
   parsed: { ok: true, data: portfolio(), warnings: [] },
+});
+const loadedUs = (needsReview: boolean): LoadedUsTrades => ({
+  files: [{ fileName: "us-trades.csv", fileModifiedAt: asOf, importedAt: asOf }],
+  asOf,
+  parsed: {
+    ok: true,
+    data: { period: null, trades: [], duplicateCount: 0, sourceRowCount: 0, warnings: [] },
+    warnings: [],
+  },
+  holdings: [
+    { id: "sbi-us:AAPL:特定", ticker: "AAPL", name: "Apple", quantity: 2, avgCost: 100, costCurrency: "USD", accountType: "特定", source: "inferred" },
+  ],
+  needsReview,
+  confirmedAt: needsReview ? null : asOf,
+  closedCount: 0,
 });
 
 test("대시보드용은 預り 구분을 합쳐 한 줄로 (평균단가는 가중평균), SBI 화면용은 預り 구분마다", () => {
@@ -114,6 +129,28 @@ test("계좌통화가 엔이 아니면 신용 손익도 계좌통화로 바꿔 �
   assert.ok(Math.abs((usd.returnRate ?? 0) - (jpy.returnRate ?? 0)) < 1e-12);
 });
 
+test("미국주식은 預り 구분별 lot을 유지하고 JPY 취득단가는 엔 총매입액으로 평가한다", () => {
+  const rows: SbiUsHolding[] = [
+    { id: "a", ticker: "AAPL", name: "Apple", quantity: 1, avgCost: 100, costCurrency: "USD", accountType: "特定", source: "inferred" },
+    { id: "b", ticker: "AAPL", name: "Apple", quantity: 2, avgCost: 15_000, costCurrency: "JPY", accountType: "NISA", source: "manual" },
+  ];
+  const holdings = sbiUsHoldings(rows, sbi, asOf, rates);
+  assert.equal(holdings.lots.length, 2);
+  assert.deepEqual(holdings.lots.map((lot) => [lot.accountType, lot.holding.quantity, lot.holding.avgCost, lot.holding.costBasisHome]), [
+    ["特定", 1, 100, undefined],
+    ["NISA", 2, 100, 30_000],
+  ]);
+  assert.equal(holdings.holdings.length, 1);
+  assert.equal(holdings.holdings[0].quantity, 3);
+  assert.equal(holdings.holdings[0].costBasisHome, 45_000);
+
+  const quote: Quote = { symbol: "AAPL", price: 120, currency: "USD", marketTime: "2026-09-28T05:00:00Z" };
+  const valuation = valueSbiHoldings(holdings, sbi, { AAPL: quote }, rates, now);
+  assert.equal(valuation.value, 54_000);
+  assert.equal(valuation.cost, 45_000);
+  assert.equal(valuation.pnl, 9_000);
+});
+
 test("대시보드: 엔화 SBI 계좌에 넣고, 직접 입력과 겹치면 알린다", () => {
   assert.equal(pickSbiAccount([kb, { ...sbi, id: "sbi-usd", homeCurrency: "USD" }, sbi])?.id, "sbi");
   assert.equal(pickSbiAccount([kb]), null);
@@ -165,4 +202,18 @@ test("대시보드: 일부 보유종목을 읽지 못했으면 스냅샷을 막�
   assert.equal(dashboard.holdings.length, 3);
   assert.equal(dashboard.unreliable, true);
   assert.ok(dashboard.warnings.some((warning) => warning.includes("확인 필요")));
+});
+
+test("대시보드: 미국주식 추정 잔고는 사용자가 확인한 뒤에만 반영한다", () => {
+  const pending = sbiForDashboard(null, [sbi], [], loadedUs(true), rates);
+  assert.equal(pending.holdings.length, 0);
+  assert.equal(pending.asOf, null);
+  assert.equal(pending.unreliable, true);
+  assert.ok(pending.warnings.some((warning) => warning.includes("대시보드에서 제외")));
+
+  const confirmed = sbiForDashboard(null, [sbi], [], loadedUs(false), rates);
+  assert.equal(confirmed.holdings.length, 1);
+  assert.equal(confirmed.holdings[0].code, "AAPL");
+  assert.equal(confirmed.asOf, asOf);
+  assert.equal(confirmed.unreliable, false);
 });

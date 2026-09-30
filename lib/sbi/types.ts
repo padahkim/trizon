@@ -4,8 +4,16 @@ export const SBI_KINDS = ["realized", "portfolio", "dividends"] as const;
 /** realized = 実現損益, portfolio = ポートフォリオ, dividends = 配当・分配金 */
 export type SbiKind = (typeof SBI_KINDS)[number];
 
+/** 미국주식 約定履歴는 평가손익을 만드는 보조 입력이라 누적손익의 3개 항목(SbiKind)과 구분한다. */
+export const SBI_IMPORT_KINDS = [...SBI_KINDS, "usTrades"] as const;
+export type SbiImportKind = (typeof SBI_IMPORT_KINDS)[number];
+
 export function isSbiKind(value: unknown): value is SbiKind {
   return typeof value === "string" && (SBI_KINDS as readonly string[]).includes(value);
+}
+
+export function isSbiImportKind(value: unknown): value is SbiImportKind {
+  return typeof value === "string" && (SBI_IMPORT_KINDS as readonly string[]).includes(value);
 }
 
 /** YYYY-MM-DD */
@@ -109,4 +117,53 @@ export type SbiDividends = {
   items: DividendItem[];
 };
 
+// ── 米国株式 約定履歴 ──────────────────────────────────────
+
+export type UsTradeSide = "buy" | "sell";
+
+/** 約定履歴의 한 체결. 금액 통화는 현재 확인된 SBI 형식에서 USD다. */
+export type SbiUsTrade = {
+  /** 파일이 겹쳐도 같은 체결만 제거하기 위한 키. 같은 파일 안의 동일 체결은 출현 순번으로 구분한다. */
+  dedupeKey: string;
+  tradeId: string | null;
+  date: string;
+  settlementDate: string | null;
+  ticker: string;
+  name: string;
+  market: string;
+  side: UsTradeSide;
+  accountType: string;
+  quantity: number;
+  unitPrice: number;
+  priceCurrency: "USD";
+  settlementAmount: number | null;
+  settlementCurrency: "USD" | null;
+  /** 受渡金額과 수량×약정단가 차이로 구한 값. CSV에 별도 수수료 열은 없다. */
+  estimatedFee: number | null;
+};
+
+export type SbiUsTrades = {
+  period: Period | null;
+  trades: SbiUsTrade[];
+  /** 머리글 아래에서 발견한 원본 행 수(읽지 못한 행 포함) */
+  sourceRowCount: number;
+};
+
+export type SbiUsCostCurrency = "USD" | "JPY";
+export type SbiUsHoldingSource = "inferred" | "manual";
+
+/** CSV 추정 뒤 사용자가 확인·수정한 현재 미국주식 잔고. */
+export type SbiUsHolding = {
+  id: string;
+  ticker: string;
+  name: string;
+  quantity: number;
+  /** 1주당 평균 취득단가 */
+  avgCost: number;
+  costCurrency: SbiUsCostCurrency;
+  accountType: string;
+  source: SbiUsHoldingSource;
+};
+
 export type SbiDataByKind = { realized: SbiRealized; portfolio: SbiPortfolio; dividends: SbiDividends };
+export type SbiDataByImportKind = SbiDataByKind & { usTrades: SbiUsTrades };
