@@ -28,7 +28,36 @@ test("파일이 없으면 빈 값, 넣은 종류만 바꾸고 지운다", () =>
     assert.equal(loaded.dividends?.fileName, "b.csv");
     await store.remove("dividends");
     assert.deepEqual(Object.keys(await store.load()), ["realized"]);
-    assert.equal(JSON.parse(await readFile(path, "utf8")).version, 1);
+    assert.equal(JSON.parse(await readFile(path, "utf8")).version, 2);
+  }));
+
+test("v1 파일을 읽고 다음 저장에서 v2로 올린다", () =>
+  withDir(async (dir) => {
+    const path = join(dir, "sbi-imports.json");
+    await writeFile(path, JSON.stringify({ version: 1, imports: { realized: entry("old.csv") } }), "utf8");
+    const store = createSbiImportStore(path);
+    assert.equal((await store.load()).realized?.fileName, "old.csv");
+    await store.put({ dividends: entry("new.csv") });
+    const json = JSON.parse(await readFile(path, "utf8"));
+    assert.equal(json.version, 2);
+    assert.equal(json.imports.realized.fileName, "old.csv");
+  }));
+
+test("미국주식 여러 CSV와 확인 잔고를 원자적으로 저장하고 지운다", () =>
+  withDir(async (dir) => {
+    const path = join(dir, "sbi-imports.json");
+    const store = createSbiImportStore(path);
+    await store.updateUsTrades(() => ({
+      files: [{ ...entry("trades.csv"), fingerprint: "abc" }],
+      holdings: [
+        { id: "us-aapl", ticker: "AAPL", name: "Apple", quantity: 2, avgCost: 100, costCurrency: "USD", accountType: "特定", source: "inferred" },
+      ],
+      needsReview: true,
+      confirmedAt: null,
+    }));
+    assert.equal((await store.load()).usTrades?.holdings[0].ticker, "AAPL");
+    await store.remove("usTrades");
+    assert.equal((await store.load()).usTrades, undefined);
   }));
 
 test("깨진 파일은 덮어쓰지 않는다", () =>

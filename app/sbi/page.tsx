@@ -9,10 +9,20 @@ import { CURRENCY_SUFFIX, formatMoney, formatQuantity, formatUnitPrice, perUnits
 import { sumTotals, type PriceStatus } from "@/lib/portfolio/calc.ts";
 import { convert, type FxRates } from "@/lib/portfolio/fx.ts";
 import { NoFxError, type MarketData } from "@/lib/quotes/service.ts";
-import { pickSbiAccount, sbiHoldings, valueSbiHoldings, withFallback, type MarginEval, type SbiLotEval, type SbiValuation } from "@/lib/sbi/evaluate.ts";
+import {
+  mergeSbiHoldings,
+  pickSbiAccount,
+  sbiHoldings,
+  sbiUsHoldings,
+  valueSbiHoldings,
+  withFallback,
+  type MarginEval,
+  type SbiLotEval,
+  type SbiValuation,
+} from "@/lib/sbi/evaluate.ts";
 import { groupDividendsByStock, isFundProduct, perShareJpy } from "@/lib/sbi/group.ts";
 import { productLabel, SBI_GUIDE } from "@/lib/sbi/guide.ts";
-import { parseImports, type LoadedImport, type LoadedSbi } from "@/lib/sbi/parse.ts";
+import { parseImports, type LoadedImport, type LoadedSbi, type LoadedUsTrades } from "@/lib/sbi/parse.ts";
 import { SbiImportFileError } from "@/lib/sbi/store.ts";
 import type { Period, SbiDividends, SbiKind, SbiRealized } from "@/lib/sbi/types.ts";
 import { getQuoteService, getSbiStore, getStore } from "@/lib/server.ts";
@@ -23,6 +33,7 @@ import { hrefWith, type SearchParams } from "../_components/href.ts";
 import { RefreshButton } from "../_components/RefreshButton.tsx";
 import { ExpandRow } from "./ExpandRow.tsx";
 import { SbiImport, type ImportCardView } from "./SbiImport.tsx";
+import { UsHoldingsEditor } from "./UsHoldingsEditor.tsx";
 import styles from "./sbi.module.css";
 
 export const metadata: Metadata = { title: "SBI 누적손익 · trizon" };
@@ -66,11 +77,15 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
   const realized = ok(loaded.realized);
   const portfolio = ok(loaded.portfolio);
   const dividends = ok(loaded.dividends);
-  const holdings = portfolio && loaded.portfolio ? sbiHoldings(portfolio, account.id, loaded.portfolio.asOf) : null;
+  const hasHoldingSource = Boolean((portfolio && loaded.portfolio) || loaded.usTrades);
+  const jpHoldings = portfolio && loaded.portfolio ? sbiHoldings(portfolio, account.id, loaded.portfolio.asOf) : null;
+  const usHoldingsBeforeFx = loaded.usTrades ? sbiUsHoldings(loaded.usTrades.holdings, account, loaded.usTrades.asOf) : null;
+  let holdings = hasHoldingSource ? mergeSbiHoldings(...[jpHoldings, usHoldingsBeforeFx].filter((part) => part !== null)) : null;
 
   // 시세·환율: 투자신탁은 CSV 기준가라서 조회하지 않는다
-  const symbols = holdings
-    ? [...holdings.holdings.map((h) => h.quoteSymbol).filter((s) => !holdings.fundQuotes[s]), ...holdings.margins.map((m) => m.symbol)]
+  const activeHoldings = holdings;
+  const symbols = activeHoldings
+    ? [...activeHoldings.holdings.map((h) => h.quoteSymbol).filter((s) => !activeHoldings.fundQuotes[s]), ...activeHoldings.margins.map((m) => m.symbol)]
     : [];
   let market: MarketData | null = null;
   let noFx: string | null = null;
@@ -81,6 +96,11 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
     noFx = err.message;
   }
   const rates = market?.fx.rates ?? null;
+  if (holdings && loaded.usTrades && rates) {
+    holdings = mergeSbiHoldings(
+      ...[jpHoldings, sbiUsHoldings(loaded.usTrades.holdings, account, loaded.usTrades.asOf, rates)].filter((part) => part !== null),
+    );
+  }
   const ccy: Currency = rates && isCurrency(sp.ccy) ? sp.ccy : "JPY";
   const toCcy = (amount: number, from: Currency = "JPY") => (rates ? convert(amount, from, ccy, rates) : amount);
   const now = new Date();
@@ -120,6 +140,7 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
         ],
       };
     }),
+    usTradeCard(loaded.usTrades),
     card("dividends", loaded.dividends, (d) => ({
       headline: exactYen(d.totalJpy, true),
       headlineClass: directionClass(d.totalJpy),
@@ -171,7 +192,7 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
             <>
               <span className={`${styles.heroValue} muted`}>—</span>
               <p className={styles.lead}>
-                SBI証券에서 CSV 세 개를 받아 아래 카드에 끌어다 놓으면, 지금까지 이 계좌에서 번 돈(또는 잃은 돈)을 한 번에 보여 드려요.
+                SBI証券에서 필요한 CSV를 받아 아래 카드에 끌어다 놓으면, 지금까지 이 계좌에서 번 돈(또는 잃은 돈)을 한 번에 보여 드려요.
                 하나만 넣어도 그 항목부터 채워집니다.
               </p>
             </>
@@ -207,7 +228,9 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
                   {SBI_GUIDE[t.kind].title}
                 </span>
                 {t.value === null ? (
-                  <span className={styles.termEmpty}>{SBI_GUIDE[t.kind].step}번 CSV를 넣으면 채워져요</span>
+                  <span className={styles.termEmpty}>
+                    {t.kind === "portfolio" ? "2A 또는 2B CSV를 넣으면 채워져요" : `${SBI_GUIDE[t.kind].step}번 CSV를 넣으면 채워져요`}
+                  </span>
                 ) : (
                   <span className={styles.termValue}>
                     <Money amount={toCcy(t.value, t.from)} currency={ccy} mode={fmt} signed colored />
@@ -272,7 +295,7 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
           {market?.fx.fromCache && <p className="notice">환율을 새로 받지 못해 저장된 환율({timeText(market.fx.asOf)} 기준)을 씁니다.</p>}
           {market?.errors.map((e) => (
             <p key={e} className="notice">
-              {e} — 이 종목은 CSV의 현재가로 계산했습니다.
+              {e} — 시세가 없는 종목은 CSV 현재가가 있으면 그 가격을 사용하고, 없으면 매입금액으로 평가했습니다.
             </p>
           ))}
         </div>
@@ -287,12 +310,28 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
         <SbiImport cards={cards} />
       </section>
 
+      {loaded.usTrades?.parsed.ok && (
+        <UsHoldingsEditor
+          key={loaded.usTrades.files.map((file) => `${file.fileName}:${file.importedAt}`).join("|")}
+          holdings={loaded.usTrades.holdings}
+          needsReview={loaded.usTrades.needsReview}
+          warnings={loaded.usTrades.parsed.warnings}
+          summary={{
+            files: loaded.usTrades.files.length,
+            trades: loaded.usTrades.parsed.data.trades.length,
+            duplicates: loaded.usTrades.parsed.data.duplicateCount,
+            closed: loaded.usTrades.closedCount,
+            period: periodText(loaded.usTrades.parsed.data.period),
+          }}
+        />
+      )}
+
       {/* ── 항목별 ───────────────────────────────── */}
-      {valuation && holdings && loaded.portfolio && (
+      {valuation && holdings && (loaded.portfolio || loaded.usTrades) && (
         <UnrealizedPanel
           valuation={valuation}
           csvTotal={portfolio?.csvTotal ?? null}
-          asOf={loaded.portfolio.asOf}
+          asOf={[loaded.portfolio?.asOf, loaded.usTrades?.asOf].filter((value): value is string => Boolean(value)).sort().at(-1) as string}
           home={home}
           ccy={ccy}
           fmt={fmt}
@@ -310,12 +349,13 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
       <footer className={styles.footnotes}>
         <p>
           <strong>총 누적손익</strong> = 실현손익 + 평가손익 + 배당·분배금. 판 것, 들고 있는 것, 받은 것을 모두 더한 이 계좌의 성적표예요.
-          실현손익은 세전, 배당·분배금은 세후 금액이라 SBI 화면의 어느 한 숫자와 정확히 같지는 않을 수 있습니다.
+          실현손익은 세전, 배당·분배금은 세후 금액이라 SBI 화면의 어느 한 숫자와 정확히 같지는 않을 수 있습니다. 세금 계산에는 실제 매도로 확정된
+          실현손익만 쓰며, 현재 평가손익은 손익통산 대상에 넣지 않습니다.
         </p>
         <p className="muted">
-          평가손익은 CSV의 수량·취득단가에 지금 시세(15분마다 갱신)를 곱해 매번 새로 계산합니다. 투자신탁은 시세를 받을 수 없어 CSV의 기준가를,
-          신용은 CSV 시점의 금리·수수료를 빼서 씁니다. 평가액에는 SBI 화면처럼 신용 建代金을 넣지 않습니다. 엔이 아닌 통화로 볼 때는 모두 현재
-          환율로 바꿉니다.
+          평가손익은 포트폴리오 CSV와 확인한 미국주식 잔고의 수량·취득단가에 지금 시세(15분마다 갱신)를 곱해 매번 새로 계산합니다. 미국주식
+          약정이력은 현재 잔고 추정에만 쓰며 실현손익을 다시 더하지 않습니다. 투자신탁은 CSV의 기준가를, 신용은 CSV 시점의 금리·수수료를 빼서
+          씁니다. 평가액에는 SBI 화면처럼 신용 建代金을 넣지 않습니다.
         </p>
         <p className="muted">넣은 CSV는 이 컴퓨터의 data/sbi-imports.json 에만 저장됩니다.</p>
       </footer>
@@ -340,6 +380,34 @@ function card<T>(
   }
   const v = view(entry.parsed.data);
   return { kind, loaded: { ...v, lines: [...v.lines, file], warnings: entry.parsed.warnings } };
+}
+
+function usTradeCard(entry: LoadedUsTrades | null): ImportCardView {
+  if (!entry) return { kind: "usTrades", loaded: null };
+  const files = `${entry.files.length}개 파일 · ${timeText(entry.asOf)} 기준`;
+  if (!entry.parsed.ok) {
+    return {
+      kind: "usTrades",
+      loaded: { headline: "", headlineClass: "", lines: [files], warnings: [], error: entry.parsed.error },
+    };
+  }
+  const tickerCount = new Set(entry.holdings.map((holding) => holding.ticker)).size;
+  const warnings = entry.parsed.warnings;
+  return {
+    kind: "usTrades",
+    loaded: {
+      headline: `${tickerCount}종목`,
+      headlineClass: "",
+      lines: [
+        `${entry.parsed.data.trades.length}건 체결 · 계좌구분별 잔고 ${entry.holdings.length}개 · 잔고 0 ${entry.closedCount}개 제외`,
+        `${periodText(entry.parsed.data.period)} 약정 · ${files}`,
+      ],
+      warnings:
+        warnings.length <= 2
+          ? warnings
+          : [warnings[0], `추가 확인 사항 ${warnings.length - 1}건 — 아래 확인 화면에서 자세히 보세요`],
+    },
+  };
 }
 
 type Display = { ccy: Currency; fmt: FormatMode; toCcy: (amount: number, from?: Currency) => number };
@@ -378,7 +446,10 @@ function UnrealizedPanel(
 ) {
   const { valuation: v, csvTotal, asOf, home, ccy, fmt, toCcy, rates } = props;
   if (!rates) return null;
-  const stocks = sumTotals(v.stocks, home, rates);
+  const jpStocks = v.stocks.filter((item) => item.holding.market === "JP");
+  const usStocks = v.stocks.filter((item) => item.holding.market === "US");
+  const jpStockTotals = sumTotals(jpStocks, home, rates);
+  const usStockTotals = sumTotals(usStocks, home, rates);
   const funds = sumTotals(v.funds, home, rates);
   const marginPnl = v.margins.reduce((s, m) => s + m.pnl, 0);
   const marginOpen = v.margins.reduce((s, m) => s + m.position.openPrice * m.position.quantity, 0);
@@ -387,7 +458,7 @@ function UnrealizedPanel(
 
   return (
     <section className="panel">
-      <PanelHead kind="portfolio">CSV의 수량·취득단가 × 지금 시세 · {CURRENCY_SUFFIX[ccy]} 기준</PanelHead>
+      <PanelHead kind="portfolio">확인한 수량·취득단가 × 지금 시세 · {CURRENCY_SUFFIX[ccy]} 기준</PanelHead>
       <div className="table-wrap">
         <table className="data">
           <thead>
@@ -400,27 +471,50 @@ function UnrealizedPanel(
             </tr>
           </thead>
           <tbody>
-            {v.stocks.length > 0 && (
+            {jpStocks.length > 0 && (
               <ExpandRow
                 colSpan={5}
-                toggleLabel={`상세 · ${count(v.stocks)}종목`}
+                toggleLabel={`상세 · ${count(jpStocks)}종목`}
                 head={
                   <>
-                    일본주식 현물<span className="sub">{count(v.stocks)}종목 · 현재가는 Yahoo 시세</span>
+                    일본주식 현물<span className="sub">{count(jpStocks)}종목 · 현재가는 Yahoo 시세</span>
                   </>
                 }
                 cells={
                   <>
-                    <td className="r">{money(stocks.value)}</td>
-                    <td className="r">{money(stocks.cost)}</td>
-                    <td className="r">{money(stocks.pnl, true)}</td>
+                    <td className="r">{money(jpStockTotals.value)}</td>
+                    <td className="r">{money(jpStockTotals.cost)}</td>
+                    <td className="r">{money(jpStockTotals.pnl, true)}</td>
                     <td className="r">
-                      <Pct rate={stocks.returnRate} />
+                      <Pct rate={jpStockTotals.returnRate} />
                     </td>
                   </>
                 }
               >
-                <LotTable lots={v.stocks} money={money} />
+                <LotTable lots={jpStocks} money={money} />
+              </ExpandRow>
+            )}
+            {usStocks.length > 0 && (
+              <ExpandRow
+                colSpan={5}
+                toggleLabel={`상세 · ${count(usStocks)}종목`}
+                head={
+                  <>
+                    미국주식 현물<span className="sub">{count(usStocks)}종목 · 약정이력 추정 후 확인한 잔고</span>
+                  </>
+                }
+                cells={
+                  <>
+                    <td className="r">{money(usStockTotals.value)}</td>
+                    <td className="r">{money(usStockTotals.cost)}</td>
+                    <td className="r">{money(usStockTotals.pnl, true)}</td>
+                    <td className="r">
+                      <Pct rate={usStockTotals.returnRate} />
+                    </td>
+                  </>
+                }
+              >
+                <LotTable lots={usStocks} money={money} />
               </ExpandRow>
             )}
             {v.funds.length > 0 && (

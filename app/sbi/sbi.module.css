@@ -11,6 +11,10 @@
   --tone: var(--mk-JP);
 }
 
+.card[data-kind="usTrades"] {
+  --tone: var(--mk-US);
+}
+
 .card[data-kind="dividends"],
 .term[data-kind="dividends"],
 .panelTitle[data-kind="dividends"] {
@@ -242,7 +246,7 @@
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   align-items: start;
 }
@@ -290,7 +294,7 @@
 .step {
   display: grid;
   place-items: center;
-  width: 26px;
+  width: 30px;
   height: 26px;
   border-radius: 50%;
   background: var(--tone);
@@ -298,6 +302,193 @@
   font-size: 0.85rem;
   font-weight: 700;
   flex: none;
+}
+
+/* ── 미국주식 현재 잔고 확인 ── */
+.usReview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: inset 4px 0 0 var(--mk-US);
+}
+
+.reviewHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.reviewHead h2 {
+  font-size: 1.18rem;
+}
+
+.reviewHead p {
+  max-width: 56em;
+  margin: 5px 0 0;
+  color: var(--ink-2);
+}
+
+.tradeStats {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.6fr) repeat(4, minmax(92px, 1fr));
+  margin: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--hairline);
+  gap: 1px;
+}
+
+.tradeStats div {
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--surface-2);
+}
+
+.tradeStats dt {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.tradeStats dd {
+  margin: 1px 0 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 620;
+}
+
+.reviewWarnings {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  font-size: 0.84rem;
+}
+
+.reviewWarnings summary {
+  cursor: pointer;
+  font-weight: 620;
+}
+
+.reviewWarnings ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.reviewForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.editorWrap {
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+}
+
+.editor {
+  min-width: 850px;
+}
+
+.editor th {
+  white-space: nowrap;
+}
+
+.editor td {
+  vertical-align: top;
+}
+
+.editor td:nth-child(1) {
+  width: 7em;
+}
+
+.editor td:nth-child(2) {
+  width: 14em;
+}
+
+.editor td:nth-child(3),
+.editor td:nth-child(4) {
+  width: 9em;
+}
+
+.editor td:nth-child(5) {
+  width: 5.5em;
+}
+
+.editor td:nth-child(6) {
+  width: 8em;
+}
+
+.editor input,
+.editor select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--axis);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.editor input[type="number"] {
+  text-align: right;
+}
+
+.editorEmpty {
+  padding: 24px !important;
+  color: var(--muted);
+  text-align: center;
+}
+
+.reviewActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reviewRule {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.reviewActions :global(.btn-primary) {
+  margin-left: auto;
+}
+
+.formSuccess {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--mk-US) 12%, var(--surface));
+  color: var(--ink-2);
+  font-size: 0.86rem;
+}
+
+.estimateNote {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 760px) {
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tradeStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tradeStats div:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .reviewActions :global(.btn-primary) {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .cardTitle {

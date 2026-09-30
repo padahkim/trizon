@@ -39,12 +39,16 @@ export default async function HoldingsPage({ searchParams }: { searchParams: Pro
 
   const editing = editId ? file.holdings.find((h) => h.id === editId) : undefined;
 
-  // SBI 포트폴리오 CSV 로 가져온 종목 수 — 여기에 또 넣으면 두 번 더해진다
+  // SBI CSV 로 가져온 일본·미국 종목 수 — 여기에 또 넣으면 두 번 더해진다
   const sbiAccountId = pickSbiAccount(file.accounts)?.id;
   let sbiCsvCount = 0;
   try {
-    const parsed = parseImports(await getSbiStore().load()).portfolio?.parsed;
-    if (parsed?.ok) sbiCsvCount = new Set([...parsed.data.stocks.map((s) => s.code), ...parsed.data.funds.map((f) => f.name)]).size;
+    const loaded = parseImports(await getSbiStore().load());
+    const portfolio = loaded.portfolio?.parsed;
+    sbiCsvCount = new Set([
+      ...(portfolio?.ok ? [...portfolio.data.stocks.map((stock) => stock.code), ...portfolio.data.funds.map((fund) => fund.name)] : []),
+      ...(loaded.usTrades?.holdings.map((holding) => holding.ticker) ?? []),
+    ]).size;
   } catch {
     // 저장 파일이 깨졌으면 SBI 손익 화면이 알려 준다
   }
