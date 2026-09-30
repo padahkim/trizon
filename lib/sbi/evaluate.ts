@@ -208,7 +208,7 @@ export type SbiDashboard = Pick<SbiHoldings, "holdings" | "fundQuotes" | "csvQuo
   /** CSV 를 받은 시각 */
   asOf: string | null;
   warnings: string[];
-  /** 합계가 틀린 줄 아는 상태 (CSV 종목과 직접 입력이 겹침, 넣은 CSV 를 읽지 못함). 그날 스냅샷을 남기지 않는다 */
+  /** 합계가 틀린 줄 아는 상태 (CSV 누락·파싱 실패, 직접 입력과 겹침). 그날 스냅샷을 남기지 않는다 */
   unreliable: boolean;
 };
 
@@ -259,6 +259,6 @@ export function sbiForDashboard(
     fundQuotes: sbi.fundQuotes,
     csvQuotes: sbi.csvQuotes,
     warnings,
-    unreliable: overlap.length > 0,
+    unreliable: !loaded.parsed.data.holdingsComplete || overlap.length > 0,
   };
 }

@@ -6,7 +6,7 @@ import { MARKET_LABEL, MARKETS, TRADE_CURRENCY, type Currency, type Market } fro
 import type { Account, Holding } from "@/lib/domain/schema.ts";
 import { quoteSymbolCandidates } from "@/lib/domain/symbols.ts";
 import { CURRENCY_SUFFIX, formatMoney, formatUnitPrice } from "@/lib/format/money.ts";
-import { impliedFxRate, isFxRateSuspicious, scaleCostBasis } from "@/lib/portfolio/cost-basis.ts";
+import { defaultCostBasisMode, impliedFxRate, isFxRateSuspicious, scaleCostBasis, type CostBasisMode } from "@/lib/portfolio/cost-basis.ts";
 import { crossRate, type FxRates } from "@/lib/portfolio/fx.ts";
 import { saveHolding, type FormState } from "../actions.ts";
 import styles from "./holdings.module.css";
@@ -21,10 +21,6 @@ function num(s: string): number | undefined {
 }
 
 const plain = (n: number) => String(Math.round(n * 1e6) / 1e6);
-
-type BasisMode = "total" | "perShare";
-// SBI 는 取得単価(円換算)을 1주당으로 보여주고, 한국 증권사는 원화 매입금액을 총액으로 보여준다
-const defaultBasisMode = (c: Currency): BasisMode => (c === "JPY" ? "perShare" : "total");
 
 export function HoldingForm(props: { accounts: Account[]; rates: FxRates | null; initial?: Holding }) {
   const { accounts, rates, initial } = props;
@@ -42,21 +38,24 @@ export function HoldingForm(props: { accounts: Account[]; rates: FxRates | null;
   const [name, setName] = useState(initial?.name ?? "");
   const [quantity, setQuantity] = useState(initial ? plain(initial.quantity) : "");
   const [avgCost, setAvgCost] = useState(initial ? plain(initial.avgCost) : "");
-  const currencyOf = (id: string): Currency => (accounts.find((a) => a.id === id) ?? firstAccount)?.homeCurrency ?? "KRW";
-  const homeCurrency = currencyOf(accountId);
+  const accountOf = (id: string) => accounts.find((a) => a.id === id) ?? firstAccount;
+  const account = accountOf(accountId);
+  const homeCurrency: Currency = account?.homeCurrency ?? "KRW";
   const tradeCurrency = TRADE_CURRENCY[market];
   const foreign = tradeCurrency !== homeCurrency;
 
-  const [mode, setMode] = useState<BasisMode>(initial?.costBasisHome !== undefined ? "total" : defaultBasisMode(homeCurrency));
+  const [mode, setMode] = useState<CostBasisMode>(
+    initial?.costBasisHome !== undefined ? "total" : defaultCostBasisMode(account?.broker ?? "KB"),
+  );
   const [basis, setBasis] = useState(initial?.costBasisHome !== undefined ? plain(initial.costBasisHome) : "");
   const [unknown, setUnknown] = useState(initial !== undefined && foreign && initial.costBasisHome === undefined);
 
-  // 계좌통화가 바뀌면 적어 둔 매입금액은 다른 통화의 금액이 되므로 비우고, 입력 단위도 새 계좌의 증권사 화면에 맞춘다
+  // 통화나 증권사가 바뀌면 적어 둔 금액의 통화·입력 단위가 달라질 수 있으므로 비운다
   function changeAccount(id: string) {
+    const next = accountOf(id);
     setAccountId(id);
-    const next = currencyOf(id);
-    if (next === homeCurrency) return;
-    setMode(defaultBasisMode(next));
+    if (!next || (next.homeCurrency === homeCurrency && next.broker === account?.broker)) return;
+    setMode(defaultCostBasisMode(next.broker));
     setBasis("");
   }
 

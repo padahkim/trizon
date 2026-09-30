@@ -13,6 +13,7 @@ import { pickSbiAccount, sbiHoldings, valueSbiHoldings, withFallback, type Margi
 import { groupDividendsByStock, isFundProduct, perShareJpy } from "@/lib/sbi/group.ts";
 import { productLabel, SBI_GUIDE } from "@/lib/sbi/guide.ts";
 import { parseImports, type LoadedImport, type LoadedSbi } from "@/lib/sbi/parse.ts";
+import { sbiPeriodIssue } from "@/lib/sbi/periods.ts";
 import { SbiImportFileError } from "@/lib/sbi/store.ts";
 import type { Period, SbiDividends, SbiKind, SbiRealized } from "@/lib/sbi/types.ts";
 import { getQuoteService, getSbiStore, getStore } from "@/lib/server.ts";
@@ -102,10 +103,7 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
   const present = terms.filter((t) => t.value !== null);
   const cumulative = present.length > 0 ? present.reduce((s, t) => s + toCcy(t.value as number, t.from), 0) : null;
   // 실현손익·배당 CSV 는 따로 넣으므로 기간이 어긋날 수 있다. 그대로 더하면 한쪽 기간 밖의 손익이 빠진다
-  const periodGap =
-    realized?.period && dividends?.period && (realized.period.from !== dividends.period.from || realized.period.to !== dividends.period.to)
-      ? { realized: realized.period, dividends: dividends.period }
-      : null;
+  const periodIssue = sbiPeriodIssue(realized, dividends);
 
   const cards: ImportCardView[] = [
     card("realized", loaded.realized, (d) => ({
@@ -171,7 +169,7 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
           <h1 className={styles.heroLabel}>
             SBI証券 총 누적손익
             {present.length > 0 && present.length < 3 && <span className="pill">3개 중 {present.length}개 반영</span>}
-            {periodGap && <span className="pill pill-warn">CSV 기간 다름</span>}
+            {periodIssue && <span className="pill pill-warn">{periodIssue.kind === "different" ? "CSV 기간 다름" : "CSV 기간 확인 불가"}</span>}
           </h1>
           {cumulative === null ? (
             <>
@@ -263,12 +261,19 @@ export default async function SbiPage({ searchParams }: { searchParams: Promise<
       </section>
 
       {/* ── 경고 ─────────────────────────────────── */}
-      {(periodGap || noFx || (market && (market.errors.length > 0 || market.fx.fromCache)) || (holdings && !target)) && (
+      {(periodIssue || noFx || (market && (market.errors.length > 0 || market.fx.fromCache)) || (holdings && !target)) && (
         <div className={styles.notices}>
-          {periodGap && (
+          {periodIssue?.kind === "different" && (
             <p className="notice">
-              실현손익({periodText(periodGap.realized)})과 배당·분배금({periodText(periodGap.dividends)})의 기간이 달라, 총 누적손익은 서로 다른
+              실현손익({periodText(periodIssue.realized)})과 배당·분배금({periodText(periodIssue.dividends)})의 기간이 달라, 총 누적손익은 서로 다른
               기간의 금액을 더한 값입니다. 두 CSV를 같은 기간(가장 처음부터 오늘까지)으로 받아 다시 넣으세요.
+            </p>
+          )}
+          {periodIssue?.kind === "unknown" && (
+            <p className="notice">
+              실현손익({periodText(periodIssue.realized)})과 배당·분배금({periodText(periodIssue.dividends)}) 중 기간 정보가 없는 CSV가 있어 범위를
+              비교할 수 없습니다. 총 누적손익이 서로 다른 기간의 금액을 더했을 수 있으니, 두 CSV를 같은 기간(가장 처음부터 오늘까지)으로 받아
+              다시 넣으세요.
             </p>
           )}
           {noFx && (

@@ -154,3 +154,15 @@ test("대시보드: SBI 계좌가 없거나 CSV 가 깨졌으면 넣지 않고 �
 
   assert.equal(sbiForDashboard(null, [sbi], []).holdings.length, 0);
 });
+
+test("대시보드: 일부 보유종목을 읽지 못했으면 스냅샷을 막는다", () => {
+  const partial = loaded();
+  if (!partial.parsed.ok) assert.fail(partial.parsed.error);
+  partial.parsed.data.holdingsComplete = false;
+  partial.parsed.warnings.push("읽지 못한 행");
+
+  const dashboard = sbiForDashboard(partial, [sbi], []);
+  assert.equal(dashboard.holdings.length, 3);
+  assert.equal(dashboard.unreliable, true);
+  assert.ok(dashboard.warnings.some((warning) => warning.includes("확인 필요")));
+});

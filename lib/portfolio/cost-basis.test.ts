@@ -1,8 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { impliedFxRate, isFxRateSuspicious, resolveCostBasisHome, scaleCostBasis } from "./cost-basis.ts";
+import { defaultCostBasisMode, impliedFxRate, isFxRateSuspicious, resolveCostBasisHome, scaleCostBasis } from "./cost-basis.ts";
 
 const base = { tradeCurrency: "USD", homeCurrency: "KRW", quantity: 10, mode: "total", amount: 1_950_000, unknown: false } as const;
+
+test("매입금액 기본 입력 단위는 계좌통화가 아니라 증권사 화면을 따른다", () => {
+  assert.equal(defaultCostBasisMode("SBI"), "perShare");
+  assert.equal(defaultCostBasisMode("KB"), "total");
+});
 
 test("국내 종목은 입력을 무시한다", () => {
   assert.deepEqual(resolveCostBasisHome({ ...base, tradeCurrency: "KRW" }), { ok: true, costBasisHome: undefined });
