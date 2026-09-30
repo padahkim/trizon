@@ -6,7 +6,7 @@ import { MARKET_LABEL, MARKETS, TRADE_CURRENCY, type Currency, type Market } fro
 import type { Account, Holding } from "@/lib/domain/schema.ts";
 import { quoteSymbolCandidates } from "@/lib/domain/symbols.ts";
 import { CURRENCY_SUFFIX, formatMoney, formatUnitPrice } from "@/lib/format/money.ts";
-import { impliedFxRate, isFxRateSuspicious, scaleCostBasis } from "@/lib/portfolio/cost-basis.ts";
+import { defaultCostBasisMode, impliedFxRate, isFxRateSuspicious, scaleCostBasis, type CostBasisMode } from "@/lib/portfolio/cost-basis.ts";
 import { crossRate, type FxRates } from "@/lib/portfolio/fx.ts";
 import { saveHolding, type FormState } from "../actions.ts";
 import styles from "./holdings.module.css";
@@ -38,17 +38,26 @@ export function HoldingForm(props: { accounts: Account[]; rates: FxRates | null;
   const [name, setName] = useState(initial?.name ?? "");
   const [quantity, setQuantity] = useState(initial ? plain(initial.quantity) : "");
   const [avgCost, setAvgCost] = useState(initial ? plain(initial.avgCost) : "");
-  const account = accounts.find((a) => a.id === accountId) ?? firstAccount;
+  const accountOf = (id: string) => accounts.find((a) => a.id === id) ?? firstAccount;
+  const account = accountOf(accountId);
   const homeCurrency: Currency = account?.homeCurrency ?? "KRW";
   const tradeCurrency = TRADE_CURRENCY[market];
   const foreign = tradeCurrency !== homeCurrency;
 
-  // SBI 는 取得単価(円換算)을 1주당으로 보여주고, 한국 증권사는 원화 매입금액을 총액으로 보여준다
-  const [mode, setMode] = useState<"total" | "perShare">(
-    initial?.costBasisHome !== undefined ? "total" : homeCurrency === "JPY" ? "perShare" : "total",
+  const [mode, setMode] = useState<CostBasisMode>(
+    initial?.costBasisHome !== undefined ? "total" : defaultCostBasisMode(account?.broker ?? "KB"),
   );
   const [basis, setBasis] = useState(initial?.costBasisHome !== undefined ? plain(initial.costBasisHome) : "");
   const [unknown, setUnknown] = useState(initial !== undefined && foreign && initial.costBasisHome === undefined);
+
+  // 통화나 증권사가 바뀌면 적어 둔 금액의 통화·입력 단위가 달라질 수 있으므로 비운다
+  function changeAccount(id: string) {
+    const next = accountOf(id);
+    setAccountId(id);
+    if (!next || (next.homeCurrency === homeCurrency && next.broker === account?.broker)) return;
+    setMode(defaultCostBasisMode(next.broker));
+    setBasis("");
+  }
 
   const e = state.fieldErrors ?? {};
   const qty = num(quantity);
@@ -102,7 +111,7 @@ export function HoldingForm(props: { accounts: Account[]; rates: FxRates | null;
       <div className={styles.grid}>
         <div className="field">
           <label htmlFor="f-account">계좌</label>
-          <select id="f-account" name="accountId" value={accountId} onChange={(ev) => setAccountId(ev.target.value)}>
+          <select id="f-account" name="accountId" value={accountId} onChange={(ev) => changeAccount(ev.target.value)}>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.label} ({a.homeCurrency})

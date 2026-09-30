@@ -261,8 +261,10 @@ export function valueSbiHoldings(
   }));
   const margins = sbi.margins.map((m) => evaluateMargin(m, quotes[m.symbol], now));
   const totals = sumTotals(evals, account.homeCurrency, rates);
-  const marginPnl = margins.reduce((s, m) => s + m.pnl, 0);
-  const marginOpen = margins.reduce((s, m) => s + m.position.openPrice * m.position.quantity, 0);
+  // 신용 금액은 엔이다. 계좌통화가 엔이 아닌 SBI 계좌도 있으므로 바꿔서 더한다
+  const toHome = (jpy: number) => convert(jpy, "JPY", account.homeCurrency, rates);
+  const marginPnl = toHome(margins.reduce((s, m) => s + m.pnl, 0));
+  const marginOpen = toHome(margins.reduce((s, m) => s + m.position.openPrice * m.position.quantity, 0));
   const pnl = totals.pnl + marginPnl;
   return {
     stocks: evals.filter((e) => !isSbiFundSymbol(e.holding.quoteSymbol)),
@@ -287,9 +289,19 @@ export type SbiDashboard = Pick<SbiHoldings, "holdings" | "fundQuotes" | "csvQuo
   /** CSV 를 받은 시각 */
   asOf: string | null;
   warnings: string[];
+  /** 합계가 틀린 줄 아는 상태 (CSV 누락·파싱 실패, 직접 입력과 겹침). 그날 스냅샷을 남기지 않는다 */
+  unreliable: boolean;
 };
 
-export const EMPTY_SBI_DASHBOARD: SbiDashboard = { account: null, asOf: null, holdings: [], fundQuotes: {}, csvQuotes: {}, warnings: [] };
+export const EMPTY_SBI_DASHBOARD: SbiDashboard = {
+  account: null,
+  asOf: null,
+  holdings: [],
+  fundQuotes: {},
+  csvQuotes: {},
+  warnings: [],
+  unreliable: false,
+};
 
 export function sbiForDashboard(
   loaded: LoadedImport<SbiPortfolio> | null,
@@ -333,5 +345,9 @@ export function sbiForDashboard(
     .filter((value): value is string => Boolean(value))
     .sort()
     .at(-1) ?? null;
-  return { account, asOf, holdings: sbi.holdings, fundQuotes: sbi.fundQuotes, csvQuotes: sbi.csvQuotes, warnings };
+  const unreliable =
+    Boolean(loaded && (!loaded.parsed.ok || !loaded.parsed.data.holdingsComplete)) ||
+    Boolean(usTrades && (!usTrades.parsed.ok || usTrades.needsReview)) ||
+    overlap.length > 0;
+  return { account, asOf, holdings: sbi.holdings, fundQuotes: sbi.fundQuotes, csvQuotes: sbi.csvQuotes, warnings, unreliable };
 }

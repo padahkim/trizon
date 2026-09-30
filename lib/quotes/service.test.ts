@@ -101,6 +101,42 @@ test("조회 실패 → 마지막 시세를 fromCache 로, 1분 동안은 재시
     assert.equal(recovered.quotes["005930.KS"].fromCache, false);
   }));
 
+test("응답에서 빠진 종목도 TTL 동안은 다시 묻지 않고, 그동안 계속 경고한다", () =>
+  withTempDir(async (dir) => {
+    const prices: Record<string, number> = { "005930.KS": 285_500, "000660.KS": 210_000 };
+    const q = fakeQuotes(prices);
+    const c = clock("2026-09-26T00:00:00Z");
+    const svc = createQuoteService({
+      quoteProvider: q.provider,
+      fxProviders: [fakeFx("yahoo", 1350)],
+      cachePath: join(dir, "c.json"),
+      now: c.now,
+    });
+    await svc.get(["005930.KS", "000660.KS"]);
+
+    delete prices["000660.KS"]; // 캐시에 있던 종목이 응답에서 빠진다
+    c.advance(16 * 60_000);
+    const partial = await svc.get(["005930.KS", "000660.KS", "999999.KS"]); // 처음 보는 종목도 없다
+    assert.equal(q.calls(), 2);
+    assert.equal(partial.quotes["000660.KS"].fromCache, true);
+    assert.equal(partial.quotes["999999.KS"], undefined);
+    assert.deepEqual(partial.errors, ["시세를 받지 못한 종목: 000660.KS, 999999.KS"]);
+
+    c.advance(60_000);
+    const again = await svc.get(["005930.KS", "000660.KS", "999999.KS"]);
+    assert.equal(q.calls(), 2); // 1분 백오프가 아니라 TTL 까지 기다린다
+    assert.equal(again.quotes["000660.KS"].fromCache, true);
+    assert.deepEqual(again.errors, ["시세를 받지 못한 종목: 000660.KS, 999999.KS"]);
+
+    prices["000660.KS"] = 212_000;
+    c.advance(15 * 60_000);
+    const back = await svc.get(["005930.KS", "000660.KS", "999999.KS"]);
+    assert.equal(q.calls(), 3);
+    assert.equal(back.quotes["000660.KS"].price, 212_000);
+    assert.equal(back.quotes["000660.KS"].fromCache, false);
+    assert.deepEqual(back.errors, ["시세를 받지 못한 종목: 999999.KS"]);
+  }));
+
 test("재시작 후 조회가 실패해도 디스크 캐시로 뜬다", () =>
   withTempDir(async (dir) => {
     const cachePath = join(dir, "c.json");

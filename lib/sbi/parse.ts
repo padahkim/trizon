@@ -231,7 +231,7 @@ export function accountTypeOf(title: string): string {
 export function parsePortfolio(text: string): Parsed<SbiPortfolio> {
   const rows = parseCsv(text);
   const warnings: string[] = [];
-  const data: SbiPortfolio = { stocks: [], margins: [], funds: [], csvTotal: null };
+  const data: SbiPortfolio = { stocks: [], margins: [], funds: [], holdingsComplete: true, csvTotal: null };
   const sectionSums = new Map<string, number>();
   const unread: string[] = [];
   let title = "";
@@ -303,6 +303,8 @@ export function parsePortfolio(text: string): Parsed<SbiPortfolio> {
   } else if (declared !== null && readCount < declared) {
     warnings.push(`총 ${declared}건 중 ${readCount}건만 읽었습니다`);
   }
+  // 정상적인 빈 포트폴리오 안내는 불완전 파싱이 아니다. 그 외 경고는 행·표·페이지 누락 가능성을 뜻한다.
+  data.holdingsComplete = warnings.length === 0;
   if (readCount === 0) warnings.push("보유종목이 없습니다");
   return { ok: true, data, warnings };
 }

@@ -1,7 +1,12 @@
-import type { Currency } from "../domain/model.ts";
+import type { Broker, Currency } from "../domain/model.ts";
 
 // 해외 종목의 "계좌통화 기준 매입금액" 입력 규칙과 실수 방지 가드.
 // 저장은 항상 총액. SBI 는 1주당(取得単価 円換算)으로 보여주므로 입력만 1주당을 받는다.
+
+export type CostBasisMode = "total" | "perShare";
+
+/** 증권사 화면에 맞는 기본 입력 단위. 계좌통화가 아니라 증권사가 표시하는 형식으로 정한다. */
+export const defaultCostBasisMode = (broker: Broker): CostBasisMode => (broker === "SBI" ? "perShare" : "total");
 
 export type CostBasisResult =
   | { ok: true; costBasisHome: number | undefined }
@@ -11,7 +16,7 @@ export function resolveCostBasisHome(args: {
   tradeCurrency: Currency;
   homeCurrency: Currency;
   quantity: number;
-  mode: "total" | "perShare";
+  mode: CostBasisMode;
   amount: number | undefined;
   unknown: boolean;
 }): CostBasisResult {

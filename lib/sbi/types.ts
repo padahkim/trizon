@@ -89,6 +89,8 @@ export type SbiPortfolio = {
   stocks: PortfolioStock[];
   margins: PortfolioMargin[];
   funds: PortfolioFund[];
+  /** CSV에 표시된 보유목록을 빠짐없이 읽었는지. false면 대시보드 스냅샷을 남기지 않는다. */
+  holdingsComplete: boolean;
   /** CSV 의 総合計 (받은 시점의 SBI 화면 값, 참고용) */
   csvTotal: { value: number | null; marginNotional: number | null; pnl: number | null } | null;
 };

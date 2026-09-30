@@ -51,6 +51,8 @@ export function createQuoteService(opts: {
   const RETRY_AFTER_FAILURE_MS = 60_000;
   let quotesFailedAtMs = -Infinity;
   let fxFailedAtMs = -Infinity;
+  // 응답에서 빠진(못 찾은) 심볼 → 그 응답 시각. 조회 자체는 성공했으므로 받은 시세처럼 TTL 동안은 다시 묻지 않는다
+  const missedAtMs = new Map<string, number>();
 
   async function loadDisk() {
     if (diskLoaded) return;
@@ -79,9 +81,10 @@ export function createQuoteService(opts: {
   }
 
   const expired = (e: Entry<unknown> | undefined, nowMs: number) => forced || !e || nowMs - e.fetchedAtMs >= ttlMs;
+  const missedRecently = (s: string, nowMs: number) => !forced && nowMs - (missedAtMs.get(s) ?? -Infinity) < ttlMs;
 
   async function refreshQuotes(symbols: string[], nowMs: number, errors: string[]): Promise<boolean> {
-    const need = symbols.filter((s) => expired(quotes.get(s), nowMs));
+    const need = symbols.filter((s) => expired(quotes.get(s), nowMs) && !missedRecently(s, nowMs));
     if (need.length === 0) return false;
     if (!forced && nowMs - quotesFailedAtMs < RETRY_AFTER_FAILURE_MS) {
       for (const s of need) {
@@ -96,11 +99,14 @@ export function createQuoteService(opts: {
       for (const s of need) {
         const q = got[s];
         const prev = quotes.get(s);
-        if (q) quotes.set(s, { value: q, fetchedAtMs: nowMs, lastAttemptFailed: false });
-        else if (prev) prev.lastAttemptFailed = true;
+        if (q) {
+          quotes.set(s, { value: q, fetchedAtMs: nowMs, lastAttemptFailed: false });
+          missedAtMs.delete(s);
+        } else {
+          missedAtMs.set(s, nowMs);
+          if (prev) prev.lastAttemptFailed = true;
+        }
       }
-      const missing = need.filter((s) => !got[s]);
-      if (missing.length > 0) errors.push(`시세를 받지 못한 종목: ${missing.join(", ")}`);
       return true;
     } catch (err) {
       quotesFailedAtMs = nowMs;
@@ -149,6 +155,9 @@ export function createQuoteService(opts: {
           forced = false;
         });
         if (quotesChanged || fxChanged) await saveDisk().catch((err) => errors.push(`시세 캐시 저장 실패: ${message(err)}`));
+        // 다시 묻지 않는 동안에도 경고는 계속 띄운다
+        const missing = unique.filter((s) => missedAtMs.has(s));
+        if (missing.length > 0) errors.push(`시세를 받지 못한 종목: ${missing.join(", ")}`);
 
         const out: Record<string, Quote> = {};
         for (const s of unique) {
@@ -173,6 +182,7 @@ export function createQuoteService(opts: {
         await serial(async () => {
           await loadDisk();
           quotes.set(result.quote.symbol, { value: result.quote, fetchedAtMs: now().getTime(), lastAttemptFailed: false });
+          missedAtMs.delete(result.quote.symbol);
         });
       }
       return result;

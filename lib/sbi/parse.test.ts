@@ -71,6 +71,7 @@ test("実現損益: 다른 CSV 는 오류", () => {
 test("ポートフォリオ: 預り 구분별 현물·신용·투자신탁", () => {
   const { data, warnings } = ok(parsePortfolio(PORTFOLIO_CSV));
   assert.deepEqual(warnings, []);
+  assert.equal(data.holdingsComplete, true);
   assert.deepEqual(
     data.stocks.map((s) => [s.accountType, s.code, s.name, s.quantity, s.unitCost, s.boughtAt]),
     [
@@ -112,14 +113,23 @@ test("ポートフォリオ: 읽지 못한 표·빠진 행·잘린 페이지를 
   );
   const r1 = ok(parsePortfolio(withForeign));
   assert.ok(r1.warnings.some((w) => w.includes("外貨建MMF")), r1.warnings.join("\n"));
+  assert.equal(r1.data.holdingsComplete, false);
 
   const brokenRow = ok(parsePortfolio(PORTFOLIO_CSV.replace('"285A キオクシア"', '"キオクシア"')));
   assert.equal(brokenRow.data.stocks.length, 2);
+  assert.equal(brokenRow.data.holdingsComplete, false);
   assert.ok(brokenRow.warnings.some((w) => w.startsWith("읽지 못한 행")));
   assert.ok(brokenRow.warnings.some((w) => w.includes("CSV 합계")));
 
   const paged = ok(parsePortfolio(PORTFOLIO_CSV.replace("総件数：5件", "総件数：40件")));
+  assert.equal(paged.data.holdingsComplete, false);
   assert.ok(paged.warnings.some((w) => w.includes("40건 중 1–5건")), paged.warnings.join("\n"));
+});
+
+test("ポートフォリオ: 정상적인 빈 목록은 스냅샷을 막을 불완전 파싱이 아니다", () => {
+  const empty = ok(parsePortfolio('"ポートフォリオ一覧",\n"総件数：0件",\n'));
+  assert.equal(empty.data.holdingsComplete, true);
+  assert.deepEqual(empty.warnings, ["보유종목이 없습니다"]);
 });
 
 test("ポートフォリオ: 보유종목 표가 전혀 없으면 오류", () => {

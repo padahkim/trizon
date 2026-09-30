@@ -119,6 +119,16 @@ test("CSV 값으로만 평가하면 SBI 総合計와 같다 (평가액에 신용
   assert.ok(v.stocks.every((e) => e.priceStatus === "imported"));
 });
 
+test("계좌통화가 엔이 아니면 신용 손익도 계좌통화로 바꿔 더한다", () => {
+  const h = sbiHoldings(portfolio(), "sbi-usd", asOf);
+  const quotes = withFallback(h.fundQuotes, h.csvQuotes);
+  const jpy = valueSbiHoldings(h, sbi, quotes, rates, now);
+  const usd = valueSbiHoldings(h, { ...sbi, id: "sbi-usd", homeCurrency: "USD" }, quotes, rates, now);
+  // 含み損益 156,000엔 (신용 19,000엔 포함) ÷ 150엔/달러
+  assert.ok(Math.abs(usd.pnl - 156_000 / 150) < 1e-9, `${usd.pnl}`);
+  assert.ok(Math.abs((usd.returnRate ?? 0) - (jpy.returnRate ?? 0)) < 1e-12);
+});
+
 test("미국주식은 預り 구분별 lot을 유지하고 JPY 취득단가는 엔 총매입액으로 평가한다", () => {
   const rows: SbiUsHolding[] = [
     { id: "a", ticker: "AAPL", name: "Apple", quantity: 1, avgCost: 100, costCurrency: "USD", accountType: "特定", source: "inferred" },
@@ -162,6 +172,9 @@ test("대시보드: 엔화 SBI 계좌에 넣고, 직접 입력과 겹치면 알�
   assert.ok(d.holdings.every((h) => h.accountId === "sbi"));
   assert.equal(d.warnings.length, 1);
   assert.ok(d.warnings[0].includes("トヨタ"));
+  // 두 번 더해진 합계가 그날 스냅샷으로 남지 않게 한다
+  assert.equal(d.unreliable, true);
+  assert.equal(sbiForDashboard(loaded(), [kb, sbi], []).unreliable, false);
 });
 
 test("대시보드: SBI 계좌가 없거나 CSV 가 깨졌으면 넣지 않고 알린다", () => {
@@ -172,18 +185,35 @@ test("대시보드: SBI 계좌가 없거나 CSV 가 깨졌으면 넣지 않고 �
   const broken = sbiForDashboard({ ...loaded(), parsed: { ok: false, error: "x" } }, [sbi], []);
   assert.equal(broken.holdings.length, 0);
   assert.equal(broken.warnings.length, 1);
+  // 넣은 CSV 를 읽지 못하면 합계에서 빠진 것이므로 스냅샷을 남기지 않는다. 계좌가 없는 것은 설정이라 괜찮다
+  assert.equal(broken.unreliable, true);
+  assert.equal(noAccount.unreliable, false);
 
   assert.equal(sbiForDashboard(null, [sbi], []).holdings.length, 0);
+});
+
+test("대시보드: 일부 보유종목을 읽지 못했으면 스냅샷을 막는다", () => {
+  const partial = loaded();
+  if (!partial.parsed.ok) assert.fail(partial.parsed.error);
+  partial.parsed.data.holdingsComplete = false;
+  partial.parsed.warnings.push("읽지 못한 행");
+
+  const dashboard = sbiForDashboard(partial, [sbi], []);
+  assert.equal(dashboard.holdings.length, 3);
+  assert.equal(dashboard.unreliable, true);
+  assert.ok(dashboard.warnings.some((warning) => warning.includes("확인 필요")));
 });
 
 test("대시보드: 미국주식 추정 잔고는 사용자가 확인한 뒤에만 반영한다", () => {
   const pending = sbiForDashboard(null, [sbi], [], loadedUs(true), rates);
   assert.equal(pending.holdings.length, 0);
   assert.equal(pending.asOf, null);
+  assert.equal(pending.unreliable, true);
   assert.ok(pending.warnings.some((warning) => warning.includes("대시보드에서 제외")));
 
   const confirmed = sbiForDashboard(null, [sbi], [], loadedUs(false), rates);
   assert.equal(confirmed.holdings.length, 1);
   assert.equal(confirmed.holdings[0].code, "AAPL");
   assert.equal(confirmed.asOf, asOf);
+  assert.equal(confirmed.unreliable, false);
 });

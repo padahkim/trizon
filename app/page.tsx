@@ -51,7 +51,11 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     sbi = sbiForDashboard(loadedSbi.portfolio, file.accounts, file.holdings, loadedSbi.usTrades);
   } catch (err) {
     if (!(err instanceof SbiImportFileError)) throw err;
-    sbi = { ...EMPTY_SBI_DASHBOARD, warnings: ["SBI CSV 저장 파일을 읽을 수 없어 SBI 보유종목을 빼고 보여 줍니다 — SBI 손익 화면에서 확인하세요"] };
+    sbi = {
+      ...EMPTY_SBI_DASHBOARD,
+      unreliable: true,
+      warnings: ["SBI CSV 저장 파일을 읽을 수 없어 SBI 보유종목을 빼고 보여 줍니다 — SBI 손익 화면에서 확인하세요"],
+    };
   }
   const holdingsBeforeFx = [...file.holdings, ...sbi.holdings];
 
@@ -86,8 +90,9 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     displayCurrency: ccy,
   });
 
-  // 하루 한 줄 스냅샷 — 응답을 보낸 뒤 기록한다
-  if (holdings.length > 0) {
+  // 하루 한 줄 스냅샷 — 응답을 보낸 뒤 기록한다. 그날 기록은 나중에 고쳐도 덮어쓰지 않으므로,
+  // SBI 종목이 겹치거나 빠져 합계가 틀린 줄 알 때는 남기지 않는다 (고친 뒤 대시보드를 열면 그때 남는다)
+  if (holdings.length > 0 && !sbi.unreliable) {
     after(() => appendDailySnapshot(SNAPSHOTS_PATH, snapshotFromView(view, rates, now)).catch((e) => console.error("snapshot", e)));
   }
 
@@ -181,6 +186,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               {w} <Link href="/sbi">SBI 손익</Link>
             </p>
           ))}
+          {sbi.unreliable && <p className="notice">이 문제를 고칠 때까지 오늘의 총자산 기록(스냅샷)은 남기지 않습니다.</p>}
           {view.counts.missing > 0 && (
             <p className="notice notice-danger">
               가격 미확인 {view.counts.missing}종목 — 평가액을 매입금액으로 계산해 합계에 넣었습니다 (손익 0).
