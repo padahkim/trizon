@@ -2,7 +2,7 @@ import { formatMoney } from "../format/money.ts";
 import { findColumn, parseAmount, parseCsv, parseDate, parsePeriod } from "./csv.ts";
 import type { SbiImport, SbiImports } from "./store.ts";
 import type { SbiUsTradeState } from "./store.ts";
-import { inferUsHoldings, mergeUsTrades, type MergedUsTrades } from "./us-trades.ts";
+import { inferUsHoldings, mergeUsTrades, type InferredUsHoldings, type MergedUsTrades } from "./us-trades.ts";
 import type {
   DividendByProduct,
   DividendItem,
@@ -549,9 +549,23 @@ export function parseImports(imports: SbiImports): LoadedSbi {
   return { realized: load("realized"), portfolio: load("portfolio"), dividends: load("dividends"), usTrades: loadUsTrades(imports.usTrades) };
 }
 
+/**
+ * 약정이력 CSV 원문들 → 파일별 파싱 결과, 파일 사이 중복을 지운 체결, 추정 잔고.
+ * 저장한 상태를 읽을 때(loadUsTrades)와 새 CSV를 넣을 때(importSbiCsv)가 같은 순서로 계산하도록 여기 한 곳에 둔다.
+ */
+export function inferUsTradeFiles(files: readonly { text: string }[]): {
+  parsed: Parsed<SbiUsTrades>[];
+  merged: MergedUsTrades;
+  inferred: InferredUsHoldings;
+} {
+  const parsed = files.map((file) => parseUsTrades(file.text));
+  const merged = mergeUsTrades(parsed);
+  return { parsed, merged, inferred: inferUsHoldings(merged.trades) };
+}
+
 function loadUsTrades(state: SbiUsTradeState | undefined): LoadedUsTrades | null {
   if (!state || state.files.length === 0) return null;
-  const parsedFiles = state.files.map((file) => parseUsTrades(file.text));
+  const { parsed: parsedFiles, merged, inferred } = inferUsTradeFiles(state.files);
   const failed = parsedFiles.filter((result): result is Extract<Parsed<SbiUsTrades>, { ok: false }> => !result.ok);
   const metas = state.files.map(({ text: _text, fingerprint: _fingerprint, ...meta }) => meta);
   const asOf = metas
@@ -569,8 +583,6 @@ function loadUsTrades(state: SbiUsTradeState | undefined): LoadedUsTrades | null
       closedCount: 0,
     };
   }
-  const merged = mergeUsTrades(parsedFiles);
-  const inferred = inferUsHoldings(merged.trades);
   const warnings = [...new Set([...merged.warnings, ...inferred.warnings, ...(failed.length > 0 ? [`${failed.length}개 파일을 읽지 못해 제외했습니다`] : [])])];
   return {
     files: metas,

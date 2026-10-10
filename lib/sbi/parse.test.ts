@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DIVIDENDS_CSV, PORTFOLIO_CSV, REALIZED_CSV, US_TRADES_CSV } from "./fixtures.ts";
-import { accountTypeOf, detectKind, fundUnitSize, parseDividends, parseImports, parsePortfolio, parseRealized, parseUsTrades } from "./parse.ts";
+import { accountTypeOf, detectKind, fundUnitSize, inferUsTradeFiles, parseDividends, parseImports, parsePortfolio, parseRealized, parseUsTrades } from "./parse.ts";
 import type { Parsed } from "./types.ts";
 
 function ok<T>(r: Parsed<T>): { data: T; warnings: string[] } {
@@ -181,4 +181,18 @@ test("저장된 원문을 다시 파싱하고, 기준 시각은 파일 수정 �
   assert.equal(loaded.portfolio?.asOf, "2026-09-28T00:00:00.000Z");
   assert.equal(loaded.portfolio?.parsed.ok, false);
   assert.equal(loaded.dividends, null);
+});
+
+test("미국주식 약정이력: 저장한 원문들을 다시 합쳐 추정하고, 읽지 못한 파일은 빼고 알린다", () => {
+  const file = (fingerprint: string, text: string) => ({ fileName: `${fingerprint}.csv`, fileModifiedAt: null, importedAt: "2026-09-28T00:00:00.000Z", text, fingerprint });
+  const state = { files: [file("a", US_TRADES_CSV), file("b", "깨진 내용")], holdings: [], needsReview: true, confirmedAt: null };
+
+  const loaded = parseImports({ usTrades: state }).usTrades;
+  assert.ok(loaded?.parsed.ok);
+  assert.ok(loaded.parsed.warnings.some((w) => w.includes("1개 파일을 읽지 못해")));
+  const { merged, inferred } = inferUsTradeFiles(state.files);
+  assert.equal(loaded.parsed.data.trades.length, merged.trades.length);
+  assert.equal(loaded.closedCount, inferred.closedCount);
+
+  assert.equal(parseImports({ usTrades: { ...state, files: [file("b", "깨진 내용")] } }).usTrades?.parsed.ok, false);
 });

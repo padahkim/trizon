@@ -10,9 +10,9 @@ import { quoteSymbolCandidates } from "@/lib/domain/symbols.ts";
 import { resolveCostBasisHome } from "@/lib/portfolio/cost-basis.ts";
 import { decodeCsvBytes } from "@/lib/sbi/csv.ts";
 import { SBI_GUIDE } from "@/lib/sbi/guide.ts";
-import { detectKind, PARSERS, parseUsTrades } from "@/lib/sbi/parse.ts";
+import { detectKind, inferUsTradeFiles, PARSERS, parseUsTrades } from "@/lib/sbi/parse.ts";
 import { sbiUsHoldingsSchema, type SbiCoreImports, type SbiUsTradeFile } from "@/lib/sbi/store.ts";
-import { inferUsHoldings, mergeUsTrades, reconcileReviewedUsHoldings } from "@/lib/sbi/us-trades.ts";
+import { reconcileReviewedUsHoldings } from "@/lib/sbi/us-trades.ts";
 import { isSbiImportKind, type SbiImportKind } from "@/lib/sbi/types.ts";
 import { getQuoteService, getSbiStore, getStore } from "@/lib/server.ts";
 
@@ -221,12 +221,8 @@ export async function importSbiCsv(formData: FormData): Promise<SbiImportResult[
         fingerprints.add(file.fingerprint);
         return true;
       });
-      const merged = mergeUsTrades(files.map((file) => parseUsTrades(file.text)));
-      const inferred = inferUsHoldings(merged.trades);
-      const previousInferred =
-        current && !current.needsReview
-          ? inferUsHoldings(mergeUsTrades(current.files.map((file) => parseUsTrades(file.text))).trades).holdings
-          : [];
+      const { inferred } = inferUsTradeFiles(files);
+      const previousInferred = current && !current.needsReview ? inferUsTradeFiles(current.files).inferred.holdings : [];
       const holdings =
         current && !current.needsReview
           ? reconcileReviewedUsHoldings(previousInferred, inferred.holdings, current.holdings)
