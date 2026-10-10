@@ -9,6 +9,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"lib/**/*.test.ts\"",
+    "check": "npm run typecheck && npm test",
     "quote:smoke": "node scripts/quote-smoke.ts",
     "symbols:smoke": "node scripts/symbols-smoke.ts"
   },
