@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseNumberInput } from "./input.ts";
 import { BROKERS, CURRENCIES, MARKETS } from "./model.ts";
 
 // 저장 파일(data/portfolio.json)과 폼 입력이 같은 스키마를 공유한다. 타입은 z.infer 가 단일 출처.
@@ -67,10 +68,7 @@ export type PortfolioFile = z.infer<typeof portfolioFileSchema>;
 
 /** 증권사 화면에서 복사한 "1,234,567" / " 12.5 " 를 숫자로. 빈 칸은 undefined. */
 function toNumber(value: unknown): unknown {
-  if (typeof value !== "string") return value;
-  const s = value.replace(/[,\s]/g, "");
-  if (s === "") return undefined;
-  return Number(s);
+  return typeof value === "string" ? parseNumberInput(value) : value;
 }
 
 const numberError = (label: string) => ({ error: `${label}: 숫자를 입력하세요` });
