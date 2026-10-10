@@ -26,6 +26,13 @@ const fail = (message: string, fieldErrors?: FormState["fieldErrors"]): FormStat
 
 class ConflictError extends Error {}
 
+/** 쓰기 뒤 다시 그릴 화면. 세 화면 모두 portfolio.json 과 sbi-imports.json 을 함께 읽으므로 항상 셋 다 */
+function revalidateDataPages() {
+  revalidatePath("/");
+  revalidatePath("/holdings");
+  revalidatePath("/sbi");
+}
+
 export async function saveHolding(_prev: FormState, formData: FormData): Promise<FormState> {
   const parsed = holdingFormSchema.safeParse(formDataToObject(formData));
   if (!parsed.success) return fail("입력값을 확인하세요", z.flattenError(parsed.error).fieldErrors);
@@ -93,16 +100,14 @@ export async function saveHolding(_prev: FormState, formData: FormData): Promise
     throw err;
   }
 
-  revalidatePath("/");
-  revalidatePath("/holdings");
+  revalidateDataPages();
   redirect("/holdings");
 }
 
 export async function deleteHolding(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   await getStore().update((f) => ({ ...f, holdings: f.holdings.filter((h) => h.id !== id) }));
-  revalidatePath("/");
-  revalidatePath("/holdings");
+  revalidateDataPages();
   redirect("/holdings");
 }
 
@@ -114,8 +119,7 @@ export async function addAccount(_prev: FormState, formData: FormData): Promise<
     ...f,
     accounts: [...f.accounts, { id: `${broker.toLowerCase()}-${randomUUID().slice(0, 6)}`, broker, label, homeCurrency }],
   }));
-  revalidatePath("/");
-  revalidatePath("/holdings");
+  revalidateDataPages();
   return { ok: true, message: `${label} 계좌를 추가했습니다` };
 }
 
@@ -125,8 +129,7 @@ export async function deleteAccount(formData: FormData): Promise<void> {
   await getStore().update((f) =>
     f.holdings.some((h) => h.accountId === id) ? f : { ...f, accounts: f.accounts.filter((a) => a.id !== id) },
   );
-  revalidatePath("/");
-  revalidatePath("/holdings");
+  revalidateDataPages();
 }
 
 export async function refreshQuotes(): Promise<void> {
@@ -231,9 +234,7 @@ export async function importSbiCsv(formData: FormData): Promise<SbiImportResult[
     });
   }
   if (Object.keys(entries).length > 0 || usFiles.length > 0) {
-    revalidatePath("/");
-    revalidatePath("/sbi");
-    revalidatePath("/holdings");
+    revalidateDataPages();
   }
   return results;
 }
@@ -242,9 +243,7 @@ export async function clearSbiImport(formData: FormData): Promise<void> {
   const kind = formData.get("kind");
   if (!isSbiImportKind(kind)) return;
   await getSbiStore().remove(kind);
-  revalidatePath("/");
-  revalidatePath("/sbi");
-  revalidatePath("/holdings");
+  revalidateDataPages();
 }
 
 /** 미국주식 추정 잔고 확인 화면에서 수정·추가한 현재 잔고를 저장한다. */
@@ -271,8 +270,6 @@ export async function saveSbiUsHoldings(_prev: FormState, formData: FormData): P
   });
   if (!saved) return fail("먼저 미국주식 약정이력 CSV를 넣어 주세요");
 
-  revalidatePath("/");
-  revalidatePath("/sbi");
-  revalidatePath("/holdings");
+  revalidateDataPages();
   return { ok: true, message: `현재 보유종목 ${parsed.data.length}개를 저장했습니다` };
 }
