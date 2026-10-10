@@ -119,9 +119,7 @@ export function UsHoldingsEditor(props: {
                     <input
                       className="num"
                       aria-label={`${row.ticker || "새 종목"} 현재 보유수량`}
-                      type="number"
-                      min="0.00000001"
-                      step="any"
+                      type="text"
                       inputMode="decimal"
                       value={row.quantity}
                       onChange={(event) => update(row.id, { quantity: event.target.value })}
@@ -132,9 +130,7 @@ export function UsHoldingsEditor(props: {
                     <input
                       className="num"
                       aria-label={`${row.ticker || "새 종목"} 평균 취득단가`}
-                      type="number"
-                      min="0"
-                      step="any"
+                      type="text"
                       inputMode="decimal"
                       value={row.avgCost}
                       onChange={(event) => update(row.id, { avgCost: event.target.value })}
