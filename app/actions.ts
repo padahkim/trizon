@@ -155,15 +155,15 @@ export async function importSbiCsv(formData: FormData): Promise<SbiImportResult[
 
   for (const [i, file] of files.entries()) {
     const fileName = file.name || `파일 ${i + 1}`;
-    const fail = (message: string) => results.push({ fileName, ok: false, message, warnings: [] });
+    const failFile = (message: string) => results.push({ fileName, ok: false, message, warnings: [] });
     if (file.size > MAX_SBI_CSV_BYTES) {
-      fail("파일이 너무 큽니다. SBI에서 받은 CSV가 맞는지 확인하세요");
+      failFile("파일이 너무 큽니다. SBI에서 받은 CSV가 맞는지 확인하세요");
       continue;
     }
     const text = decodeCsvBytes(new Uint8Array(await file.arrayBuffer()));
     const kind = detectKind(text);
     if (!kind) {
-      fail("지원하는 실현손익·포트폴리오·미국주식 약정이력·배당 CSV가 아닙니다. SBI에서 받은 CSV를 그대로 넣어 주세요");
+      failFile("지원하는 실현손익·포트폴리오·미국주식 약정이력·배당 CSV가 아닙니다. SBI에서 받은 CSV를 그대로 넣어 주세요");
       continue;
     }
     const ms = modified[i];
@@ -171,7 +171,7 @@ export async function importSbiCsv(formData: FormData): Promise<SbiImportResult[
     if (kind === "usTrades") {
       const parsed = parseUsTrades(text);
       if (!parsed.ok) {
-        fail(`${SBI_GUIDE[kind].jpTitle} CSV로 보이지만 읽지 못했습니다: ${parsed.error}`);
+        failFile(`${SBI_GUIDE[kind].jpTitle} CSV로 보이지만 읽지 못했습니다: ${parsed.error}`);
         continue;
       }
       const fingerprint = createHash("sha256").update(text).digest("hex");
@@ -192,7 +192,7 @@ export async function importSbiCsv(formData: FormData): Promise<SbiImportResult[
     }
     const parsed = PARSERS[kind](text);
     if (!parsed.ok) {
-      fail(`${SBI_GUIDE[kind].jpTitle} CSV로 보이지만 읽지 못했습니다: ${parsed.error}`);
+      failFile(`${SBI_GUIDE[kind].jpTitle} CSV로 보이지만 읽지 못했습니다: ${parsed.error}`);
       continue;
     }
     // 같은 종류를 한 번에 여러 개 넣으면 SBI 에서 더 나중에 받은 쪽을 쓴다
