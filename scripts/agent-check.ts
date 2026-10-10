@@ -59,8 +59,9 @@ function main(): number {
 
   const tail = r.stdout.trimEnd().split("\n").slice(-TAIL_LINES).join("\n");
   if (input.stop_hook_active) {
-    // 한 번 돌려보냈는데도 실패하면 더 막지 않고 사람에게 넘긴다 (무한 루프 방지)
-    console.error(`npm run check가 아직 실패한다. 실패한 채로 끝났다고 사용자에게 보고한다.\n\n${tail}`);
+    // 한 번 돌려보냈는데도 실패하면 더 막지 않고 사람에게 넘긴다 (무한 루프 방지).
+    // exit 0의 stderr는 에이전트에게도 사용자에게도 보이지 않으므로, 사용자에게 뜨는 경고(systemMessage)로 알린다
+    console.log(JSON.stringify({ systemMessage: "에이전트가 고친 뒤에도 npm run check가 실패한 채로 끝났다. 직접 돌려서 확인한다." }));
     return 0;
   }
   console.error(
