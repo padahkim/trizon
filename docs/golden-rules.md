@@ -52,6 +52,7 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 - 쓰기는 app/actions.ts의 Server Action이 한다. Route Handler는 입력하는 도중에 부르는 읽기 API에만 쓴다(app/api/AGENTS.md).
 - 쓰기 액션은 끝에 `revalidateDataPages()`(app/actions.ts)를 불러 `/`·`/holdings`·`/sbi`를 모두 다시 그린다. 세 화면이 모두 portfolio.json과 sbi-imports.json을 함께 읽기 때문이다.
 - 폼에 들어온 숫자("1,234", " 12.5 ")는 `parseNumberInput`(lib/domain/input.ts)으로 읽는다. 서버 스키마와 클라이언트 폼이 같이 쓴다. zod를 import하지 않아 클라이언트 컴포넌트에서도 쓸 수 있다.
+- 숫자 입력칸은 `type="text"`와 `inputMode="decimal"`로 둔다. `type="number"`는 증권사 화면에서 복사한 "1,000"을 브라우저가 빈 값으로 버린다.
 - 링크는 `hrefWith`(app/_components/href.ts)로 만들고, 삭제 확인은 `ConfirmSubmit`으로 받는다.
 
 ### 오류
