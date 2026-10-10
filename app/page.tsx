@@ -91,7 +91,18 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   // 하루 한 줄 스냅샷 — 응답을 보낸 뒤 기록한다. 그날 기록은 나중에 고쳐도 덮어쓰지 않으므로,
   // SBI 종목이 겹치거나 빠져 합계가 틀린 줄 알 때는 남기지 않는다 (고친 뒤 대시보드를 열면 그때 남는다)
   if (holdings.length > 0 && !sbi.unreliable) {
-    after(() => appendDailySnapshot(SNAPSHOTS_PATH, snapshotFromView(view, rates, now)).catch((e) => console.error("snapshot", e)));
+    after(() =>
+      appendDailySnapshot(SNAPSHOTS_PATH, snapshotFromView(view, rates, now)).catch((err) =>
+        console.error(
+          JSON.stringify({
+            ts: new Date().toISOString(),
+            event: "snapshot_failed",
+            path: SNAPSHOTS_PATH,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        ),
+      ),
+    );
   }
 
   const toDisplay = (e: HoldingEval, amount: number) => convert(amount, e.homeCurrency, ccy, rates);
