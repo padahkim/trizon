@@ -26,12 +26,14 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 
 ## 3. 표준: 이 일은 이렇게 한다
 
+"(테스트로 강제)"라고 적은 규칙은 lib/golden-rules.test.ts가 검사한다. `npm run check`와 에이전트 Stop 훅이 이 테스트를 돌린다.
+
 ### 금액·숫자·날짜 표시
 
 - 금액·수익률을 JSX로 보여 줄 때는 `<Money>`·`<Pct>`(app/_components/figures.tsx)를 쓴다. 정확한 금액 툴팁과 손익 색이 같이 붙는다.
 - 문자열이 필요할 때(툴팁, prop, 경고 문구)만 `formatMoney`·`formatPercent`·`formatUnitPrice`·`formatQuantity`(lib/format/money.ts)를 직접 부른다.
 - 통화 이름(원·엔·달러)은 `CURRENCY_SUFFIX`(lib/format/money.ts)에서 가져온다.
-- `toLocaleString`과 `Intl`은 lib/format/ 안에서만 쓴다. 새 표시 형식이 필요하면 lib/format/에 함수를 더한다. 날짜·시각 표시는 lib/format/date.ts에 둔다.
+- `toLocaleString`과 `Intl`은 lib/format/ 안에서만 쓴다(테스트로 강제). 새 표시 형식이 필요하면 lib/format/에 함수를 더한다. 날짜·시각 표시는 lib/format/date.ts에 둔다.
 
 ### 통화·종목코드·스키마
 
@@ -43,13 +45,13 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 
 - 쓰기는 `writeFileAtomic`, 읽기·쓰기 순서 보장은 `createSerialQueue`(lib/store/fs-utils.ts)로 한다.
 - 읽는 순서는 lib/store/json-file.ts의 `read()`와 같게 쓴다: 파일 읽기 → `JSON.parse` → `safeParse`.
-- 파일이 깨졌으면 `filePath`·`details`를 담은 오류를 던지고 **파일을 덮어쓰지 않는다**. 화면은 `FileErrorPanel`로 보여 준다.
+- 파일이 깨졌으면 `DataFileError`(lib/store/types.ts)를 상속한 그 파일 전용 오류(`PortfolioFileError`·`SbiImportFileError`처럼)를 던지고 **파일을 덮어쓰지 않는다**. 스키마 오류의 `details`는 `zodIssueLines`(lib/domain/schema.ts)로 만든다. 화면은 `FileErrorPanel`로 보여 준다.
 
 ### 화면·Server Actions
 
 - 쓰기는 app/actions.ts의 Server Action이 한다. Route Handler는 입력하는 도중에 부르는 읽기 API에만 쓴다(app/api/AGENTS.md).
-- 쓰기 액션은 데이터를 읽는 화면 `/`·`/holdings`·`/sbi`를 모두 revalidate한다. /sbi도 계좌를 읽고, /holdings도 SBI 종목 수를 읽기 때문이다.
-- 폼에 들어온 숫자("1,234", " 12.5 ")는 서버 스키마의 `toNumber`(lib/domain/schema.ts)와 같은 규칙으로 읽는다. 콤마와 공백을 지우고, 빈 칸은 값 없음으로 본다.
+- 쓰기 액션은 끝에 `revalidateDataPages()`(app/actions.ts)를 불러 `/`·`/holdings`·`/sbi`를 모두 다시 그린다. 세 화면이 모두 portfolio.json과 sbi-imports.json을 함께 읽기 때문이다.
+- 폼에 들어온 숫자("1,234", " 12.5 ")는 `parseNumberInput`(lib/domain/input.ts)으로 읽는다. 서버 스키마와 클라이언트 폼이 같이 쓴다. zod를 import하지 않아 클라이언트 컴포넌트에서도 쓸 수 있다.
 - 링크는 `hrefWith`(app/_components/href.ts)로 만들고, 삭제 확인은 `ConfirmSubmit`으로 받는다.
 
 ### 오류
@@ -59,8 +61,8 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 
 ### 로그
 
-- lib/는 로그를 찍지 않는다. 사용자가 알아야 할 문제는 결과의 `warnings`로 돌려준다.
-- 서버의 진단 로그는 한 줄 JSON(JSON line)으로 쓴다: `console.error(JSON.stringify({ ts: new Date().toISOString(), event: "snapshot_failed", error: … }))`.
+- lib/는 로그를 찍지 않는다(테스트로 강제). 사용자가 알아야 할 문제는 결과의 `warnings`로 돌려준다.
+- 서버의 진단 로그는 한 줄 JSON(JSON line)으로 쓴다(테스트로 강제): `console.error(JSON.stringify({ ts: new Date().toISOString(), event: "snapshot_failed", error: … }))`. 예: app/page.tsx의 스냅샷 실패 로그.
   - `event`는 snake_case로 "무엇이 일어났나"를 적는다. 값은 문자열·숫자로만 넣는다.
   - 에이전트가 `jq`로 골라 읽고 자기 작업을 확인할 수 있게 하려는 것이다.
 - scripts/의 스모크 출력은 사람이 읽는 텍스트라 예외다.
@@ -79,8 +81,8 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 ## 4. 어디에 두나
 
 - **lib/<도메인>/:** 역할이 같으면 이름을 맞춘다. `types.ts`(타입), `parse.ts`(외부 형식 파서), `service.ts`(캐시·외부 호출), `store.ts`(data/ 파일)로 짓고, 옆에 `*.test.ts`를 둔다. 그 밖의 파일은 하는 일을 이름으로 쓴다(`calc.ts`, `fx.ts`, `yahoo.ts`).
-- **폴더별 지침:** 외부 API·파일 형식을 다루는 폴더에는 `AGENTS.md`를 두고, 루트 `AGENTS.md`의 "폴더별 지침"에 등록한다.
-- **여러 도메인이 쓰는 것:** 규칙은 lib/domain/, 표시 포맷은 lib/format/에 둔다. 서버 싱글턴은 lib/server.ts에 둔다(`next` import 규칙은 루트 `AGENTS.md`의 "TypeScript 규칙").
+- **폴더별 지침:** 외부 API·파일 형식을 다루는 폴더에는 `AGENTS.md`를 두고, 루트 `AGENTS.md`의 "폴더별 지침"에 등록한다(테스트로 강제).
+- **여러 도메인이 쓰는 것:** 규칙은 lib/domain/, 표시 포맷은 lib/format/에 둔다. 서버 싱글턴은 lib/server.ts에 둔다. `next` import 규칙은 루트 `AGENTS.md`의 "TypeScript 규칙"에 있다(테스트로 강제).
 - **app/<route>/:** `page.tsx`, 그 화면만 쓰는 컴포넌트, 그 화면의 `.module.css`를 둔다. 두 화면 이상이 쓰는 컴포넌트는 app/_components/로 옮긴다.
 - 새 종류의 위치가 필요하면 코드보다 이 절을 먼저 고친다.
 
@@ -88,20 +90,8 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 
 아래는 아직 리포에 남아 있는 옛 방법이다. 근처에 있어도 따라 쓰지 말고 3절의 표준을 쓴다. 고치면 이 목록에서 지운다.
 
-### 죽은 코드
-
-- **`isSbiKind`(lib/sbi/types.ts):** 아무도 부르지 않는다. 종류 판정은 `isSbiImportKind`로 한다.
-- **`PARSERS.usTrades`(lib/sbi/parse.ts):** 어느 경로에서도 닿지 않는다. 약정이력은 `parseUsTrades`를 직접 부른다.
-- **쓰는 곳이 없는 것:** `HoldingFormInput`·`AccountFormInput` 타입(lib/domain/schema.ts), `ConfirmSubmit`의 `className` prop, app/globals.css의 `.field .label`과 `[data-theme="dark"]` 블록.
-
 ### lib/
 
-- **파일 오류 클래스 두 벌:** `PortfolioFileError`(lib/store/types.ts)와 `SbiImportFileError`(lib/sbi/store.ts)는 필드까지 같다.
-- **zod 오류 문장 세 벌:** lib/store/json-file.ts, lib/sbi/store.ts, app/actions.ts(`saveSbiUsHoldings`)에 같은 `issues.map(…)`가 있다.
-- **US 약정이력 parse → merge → infer 세 벌:** lib/sbi/parse.ts의 `loadUsTrades`와 app/actions.ts `importSbiCsv` 안의 두 곳에 있다.
-- **티커·종목코드 정규식 복사본:** lib/sbi/parse.ts `normalizeUsTicker`, lib/sbi/store.ts의 `ticker` 스키마, scripts/quote-smoke.ts `guessMarket`. 판정은 `quoteSymbolCandidates`로 한다.
-  - lib/sbi/group.ts의 `splitSecurityName`은 종목명 끝에서 코드를 떼어 내는 용도다. 형식 판정에 쓰지 않는다.
-- **오류 메시지 래퍼:** `message()`(lib/quotes/service.ts)와 `reason()`(lib/symbols/sources.ts). 3절의 관용구를 그대로 쓴다.
 - **결과 타입 다섯 벌:** `{ ok: false; error }`를 lib/domain/symbols.ts, lib/quotes/resolve.ts, lib/portfolio/cost-basis.ts, lib/symbols/service.ts, lib/sbi/types.ts(`Parsed<T>`)가 각자 정의한다. `Parsed<T>`만 값을 `data`로 감싼다. 새 코드는 같은 폴더의 기존 모양을 따르고, 폴더에 없으면 `Parsed<T>` 모양으로 쓴다.
 - **비치명 메시지 이름:** lib/quotes/service.ts만 `errors[]`이고 나머지는 `warnings[]`다. 새 코드는 `warnings`를 쓴다.
 - **시계 직접 호출:** lib/symbols/sources.ts와 lib/quotes/frankfurter.ts가 `new Date()`를 직접 부른다.
@@ -110,22 +100,16 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 - **평균단가 계산이 여러 벌:** lib/sbi/evaluate.ts 안에 가중평균이 두 방식(`addTo`, 인라인 `reduce`)으로 있다. 매도 때 취득원가를 줄이는 계산도 lib/sbi/us-trades.ts와 lib/portfolio/cost-basis.ts `scaleCostBasis`에 따로 있다. 새로 필요하면 복사하지 말고 먼저 하나로 정리한다.
 - **실수 오차 지우기:** `Number(v.toFixed(10))`가 `cleanMoney`(lib/sbi/parse.ts)와 `clean`(lib/sbi/us-trades.ts)이라는 다른 이름으로 있다.
 - **NFKC 정규화 범위:** SBI CSV 셀(lib/sbi/csv.ts)과 종목 검색(lib/symbols/search.ts)은 NFKC를 거치지만, 폼의 종목코드(`quoteSymbolCandidates`)는 거치지 않는다. 그래서 전각으로 입력한 코드는 폼에서 거부된다.
-- **테스트 임시 폴더:** lib/sbi/store.test.ts는 `withDir`, lib/store/snapshots.test.ts는 인라인 try/finally를 쓴다. 나머지는 `withTempDir`다.
 
 ### app/
 
-- **다시 그릴 화면 범위:** 계좌·보유종목 액션(`saveHolding`·`deleteHolding`·`addAccount`·`deleteAccount`)은 `/sbi`를 revalidate하지 않는다. SBI 액션은 세 화면을 모두 한다.
-- **아무것도 확인하지 않는 `catch {}`:** app/holdings/page.tsx의 시세 조회와 SBI 저장 파일 읽기, 두 곳이다.
-- **폼 숫자 읽기 세 벌:** `toNumber`(lib/domain/schema.ts), `num()`(app/holdings/HoldingForm.tsx, 주석에 스스로 복사본이라고 적혀 있다), `Number()`(app/sbi/UsHoldingsEditor.tsx). 마지막 것은 콤마를 지우지 않아서 "1,000"을 넣으면 실패한다.
-- **진단 로그:** app/page.tsx의 `console.error("snapshot", e)`는 JSON line이 아니다.
-- **`CURRENCY_NAME`(app/page.tsx):** `CURRENCY_SUFFIX`와 값이 같은 복사본이다.
 - **날짜·시각 표시 다섯 벌:**
   - `formatMonthDay`(lib/format/date.ts)
   - `timeText` 두 개: app/page.tsx는 월·일이 두 자리, app/sbi/page.tsx는 한 자리다.
   - `ymd`(app/sbi/page.tsx)
   - 표시에 쓰는 `localDate`(lib/store/snapshots.ts → app/holdings/page.tsx)
-  - 새 코드는 lib/format/date.ts에 함수를 더해 쓴다.
-- **평균 매입환율 표시 세 벌(자릿수가 다르다):** app/holdings/HoldingForm.tsx `rateText`, app/holdings/page.tsx의 인라인 `toLocaleString`, app/page.tsx의 `formatUnitPrice`. 새 코드는 lib/format/money.ts에 함수를 더한다.
+  - 새 코드는 lib/format/date.ts에 함수를 더해 쓴다. 남은 파일은 lib/golden-rules.test.ts의 `FORMAT_EXCEPTIONS`에 있다.
+- **평균 매입환율 표시 세 벌(자릿수가 다르다):** app/holdings/HoldingForm.tsx `rateText`, app/holdings/page.tsx의 인라인 `toLocaleString`, app/page.tsx의 `formatUnitPrice`. 새 코드는 lib/format/money.ts에 함수를 더한다(남은 파일은 `FORMAT_EXCEPTIONS`).
 - **`<Money>`를 손으로 다시 만든 곳:**
   - app/page.tsx와 app/sbi/page.tsx의 hero 금액.
   - app/sbi/page.tsx 안의 `money` 클로저 세 개. 이름은 같은데 동작이 다르다.
@@ -143,7 +127,7 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 
 1. 표준을 하나 고른다. 이 문서 → 부르는 곳의 수 → 더 최근 코드 순으로 정한다.
 2. 같은 PR에서 나머지를 표준으로 바꾼다. 범위가 커서 못 하면 5절에 "어디에 있나 / 새 코드는 무엇을 쓰나"를 적는다.
-3. 기계로 검사할 수 있으면 `npm run check`가 잡도록 테스트를 더한다.
+3. 기계로 검사할 수 있으면 lib/golden-rules.test.ts에 검사를 더한다. `npm run check`와 에이전트 Stop 훅이 돌린다. 아직 못 고친 곳은 그 테스트의 예외 목록에만 적는다.
 4. frontmatter의 `last_reviewed`를 오늘 날짜로 바꾼다.
 
 ## 7. 정기 감사
@@ -153,4 +137,4 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 - **패턴 오염:** 같은 일을 하는 두 방법이 새로 생겼나. 5절 목록이 줄었나. 아무도 부르지 않는 export·CSS가 있나.
 - **구조:** 새 파일이 4절의 위치에 있나. 새 폴더의 `AGENTS.md`가 루트 목록에 있나.
 - **로그:** console 사용이 3절 "로그" 규칙대로인가.
-- **문서:** docs/architecture.md와 폴더별 `AGENTS.md`가 코드와 맞나. 이 문서의 `last_reviewed`가 오래되지 않았나.
+- **문서:** docs/architecture.md와 폴더별 `AGENTS.md`가 코드와 맞나. 이 문서의 `last_reviewed`가 오래되지 않았나. 문서가 루트 `AGENTS.md`에서 가리켜지는지는 테스트가 본다.
