@@ -4,8 +4,10 @@ import { CURRENCY_SUFFIX, formatMoney, formatQuantity, formatUnitPrice } from "@
 import { MARKET_LABEL, TRADE_CURRENCY } from "@/lib/domain/model.ts";
 import { impliedFxRate, isFxRateSuspicious } from "@/lib/portfolio/cost-basis.ts";
 import { crossRate, type FxRates } from "@/lib/portfolio/fx.ts";
+import { NoFxError } from "@/lib/quotes/service.ts";
 import { pickSbiAccount } from "@/lib/sbi/evaluate.ts";
 import { parseImports } from "@/lib/sbi/parse.ts";
+import { SbiImportFileError } from "@/lib/sbi/store.ts";
 import { getQuoteService, getSbiStore, getStore } from "@/lib/server.ts";
 import { localDate } from "@/lib/store/snapshots.ts";
 import { PortfolioFileError } from "@/lib/store/types.ts";
@@ -33,8 +35,8 @@ export default async function HoldingsPage({ searchParams }: { searchParams: Pro
   let rates: FxRates | null = null;
   try {
     rates = (await getQuoteService().get([])).fx.rates;
-  } catch {
-    rates = null;
+  } catch (err) {
+    if (!(err instanceof NoFxError)) throw err;
   }
 
   const editing = editId ? file.holdings.find((h) => h.id === editId) : undefined;
@@ -49,8 +51,9 @@ export default async function HoldingsPage({ searchParams }: { searchParams: Pro
       ...(portfolio?.ok ? [...portfolio.data.stocks.map((stock) => stock.code), ...portfolio.data.funds.map((fund) => fund.name)] : []),
       ...(loaded.usTrades?.holdings.map((holding) => holding.ticker) ?? []),
     ]).size;
-  } catch {
+  } catch (err) {
     // 저장 파일이 깨졌으면 SBI 손익 화면이 알려 준다
+    if (!(err instanceof SbiImportFileError)) throw err;
   }
 
   return (
