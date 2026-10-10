@@ -7,7 +7,7 @@ import { createSbiImportStore, SbiImportFileError, type SbiImport } from "./stor
 
 const entry = (fileName: string): SbiImport => ({ fileName, fileModifiedAt: null, importedAt: "2026-09-28T00:00:00.000Z", text: "x" });
 
-async function withDir(fn: (dir: string) => Promise<void>) {
+async function withTempDir(fn: (dir: string) => Promise<void>) {
   const dir = await mkdtemp(join(tmpdir(), "trizon-sbi-"));
   try {
     await fn(dir);
@@ -17,7 +17,7 @@ async function withDir(fn: (dir: string) => Promise<void>) {
 }
 
 test("파일이 없으면 빈 값, 넣은 종류만 바꾸고 지운다", () =>
-  withDir(async (dir) => {
+  withTempDir(async (dir) => {
     const path = join(dir, "data", "sbi-imports.json");
     const store = createSbiImportStore(path);
     assert.deepEqual(await store.load(), {});
@@ -32,7 +32,7 @@ test("파일이 없으면 빈 값, 넣은 종류만 바꾸고 지운다", () =>
   }));
 
 test("v1 파일을 읽고 다음 저장에서 v2로 올린다", () =>
-  withDir(async (dir) => {
+  withTempDir(async (dir) => {
     const path = join(dir, "sbi-imports.json");
     await writeFile(path, JSON.stringify({ version: 1, imports: { realized: entry("old.csv") } }), "utf8");
     const store = createSbiImportStore(path);
@@ -44,7 +44,7 @@ test("v1 파일을 읽고 다음 저장에서 v2로 올린다", () =>
   }));
 
 test("미국주식 여러 CSV와 확인 잔고를 원자적으로 저장하고 지운다", () =>
-  withDir(async (dir) => {
+  withTempDir(async (dir) => {
     const path = join(dir, "sbi-imports.json");
     const store = createSbiImportStore(path);
     await store.updateUsTrades(() => ({
@@ -61,7 +61,7 @@ test("미국주식 여러 CSV와 확인 잔고를 원자적으로 저장하고 �
   }));
 
 test("깨진 파일은 덮어쓰지 않는다", () =>
-  withDir(async (dir) => {
+  withTempDir(async (dir) => {
     const path = join(dir, "sbi-imports.json");
     await writeFile(path, "{ broken", "utf8");
     const store = createSbiImportStore(path);
