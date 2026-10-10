@@ -92,14 +92,12 @@ export const holdingFormSchema = z.object({
   ),
   costBasisUnknown: checkbox,
 });
-export type HoldingFormInput = z.infer<typeof holdingFormSchema>;
 
 export const accountFormSchema = z.object({
   broker: z.enum(BROKERS, { error: "증권사를 고르세요" }),
   label: z.string().trim().min(1, "계좌 이름을 입력하세요"),
   homeCurrency: z.enum(CURRENCIES, { error: "계좌 통화를 고르세요" }),
 });
-export type AccountFormInput = z.infer<typeof accountFormSchema>;
 
 /** FormData → 스키마 입력용 plain object (체크박스는 없으면 키 자체가 빠진다) */
 export function formDataToObject(formData: FormData): Record<string, string> {

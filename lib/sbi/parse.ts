@@ -14,7 +14,6 @@ import type {
   RealizedRow,
   SbiDataByKind,
   SbiDividends,
-  SbiDataByImportKind,
   SbiImportKind,
   SbiKind,
   SbiPortfolio,
@@ -515,11 +514,10 @@ function periodFrom(rows: readonly string[][], label: string): Period | null {
   return null;
 }
 
-export const PARSERS: { [K in SbiImportKind]: (text: string) => Parsed<SbiDataByImportKind[K]> } = {
+export const PARSERS: { [K in SbiKind]: (text: string) => Parsed<SbiDataByKind[K]> } = {
   realized: parseRealized,
   portfolio: parsePortfolio,
   dividends: parseDividends,
-  usTrades: parseUsTrades,
 };
 
 export type LoadedImport<T> = {
