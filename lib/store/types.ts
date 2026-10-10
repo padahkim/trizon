@@ -10,14 +10,21 @@ export interface PortfolioStore {
   update(mutator: (current: PortfolioFile) => PortfolioFile): Promise<PortfolioFile>;
 }
 
-/** 저장 파일이 깨졌을 때. 파일은 건드리지 않고 그대로 둔다. */
-export class PortfolioFileError extends Error {
+/**
+ * data/ 의 저장 파일이 깨졌을 때. 파일은 건드리지 않고 그대로 둔다.
+ * 화면이 파일마다 다르게 대응하므로(대시보드를 멈출지, 경고만 띄울지) 파일마다 하위 클래스를 둔다.
+ */
+export class DataFileError extends Error {
   readonly filePath: string;
   readonly details: string[];
   constructor(filePath: string, message: string, details: string[] = []) {
     super(message);
-    this.name = "PortfolioFileError";
     this.filePath = filePath;
     this.details = details;
   }
+}
+
+/** data/portfolio.json 이 깨졌을 때 */
+export class PortfolioFileError extends DataFileError {
+  name = "PortfolioFileError";
 }

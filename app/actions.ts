@@ -5,7 +5,7 @@ import { refresh, revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { TRADE_CURRENCY } from "@/lib/domain/model.ts";
-import { accountFormSchema, formDataToObject, holdingFormSchema, type Holding } from "@/lib/domain/schema.ts";
+import { accountFormSchema, formDataToObject, holdingFormSchema, zodIssueLines, type Holding } from "@/lib/domain/schema.ts";
 import { quoteSymbolCandidates } from "@/lib/domain/symbols.ts";
 import { resolveCostBasisHome } from "@/lib/portfolio/cost-basis.ts";
 import { decodeCsvBytes } from "@/lib/sbi/csv.ts";
@@ -263,7 +263,7 @@ export async function saveSbiUsHoldings(_prev: FormState, formData: FormData): P
   }
   const parsed = sbiUsHoldingsSchema.safeParse(json);
   if (!parsed.success) {
-    const detail = parsed.error.issues.slice(0, 3).map((issue) => `${issue.path.join(".")}: ${issue.message}`).join(" · ");
+    const detail = zodIssueLines(parsed.error).slice(0, 3).join(" · ");
     return fail(`입력값을 확인하세요${detail ? ` — ${detail}` : ""}`);
   }
 

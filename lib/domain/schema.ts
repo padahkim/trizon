@@ -99,6 +99,11 @@ export const accountFormSchema = z.object({
   homeCurrency: z.enum(CURRENCIES, { error: "계좌 통화를 고르세요" }),
 });
 
+/** zod 검증 오류 → "경로: 메시지" 줄들. 저장 파일 오류 화면과 폼 오류 문구가 같이 쓴다 */
+export function zodIssueLines(error: z.ZodError): string[] {
+  return error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`);
+}
+
 /** FormData → 스키마 입력용 plain object (체크박스는 없으면 키 자체가 빠진다) */
 export function formDataToObject(formData: FormData): Record<string, string> {
   const out: Record<string, string> = {};

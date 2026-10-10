@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
+import { zodIssueLines } from "../domain/schema.ts";
 import { createSerialQueue, isNotFound, writeFileAtomic } from "../store/fs-utils.ts";
+import { DataFileError } from "../store/types.ts";
 import type { SbiImportKind, SbiKind } from "./types.ts";
 
 // data/sbi-imports.json:
@@ -66,16 +68,9 @@ export type SbiUsTradeState = z.infer<typeof usTradeStateSchema>;
 export type SbiCoreImports = Partial<Record<SbiKind, SbiImport>>;
 export type SbiImports = SbiCoreImports & { usTrades?: SbiUsTradeState };
 
-/** 저장 파일이 깨졌을 때. portfolio.json 과 같은 규칙으로 파일은 건드리지 않는다. */
-export class SbiImportFileError extends Error {
-  readonly filePath: string;
-  readonly details: string[];
-  constructor(filePath: string, message: string, details: string[] = []) {
-    super(message);
-    this.name = "SbiImportFileError";
-    this.filePath = filePath;
-    this.details = details;
-  }
+/** data/sbi-imports.json 이 깨졌을 때. portfolio.json 과 같은 규칙으로 파일은 건드리지 않는다. */
+export class SbiImportFileError extends DataFileError {
+  name = "SbiImportFileError";
 }
 
 export interface SbiImportStore {
@@ -112,7 +107,7 @@ export function createSbiImportStore(filePath: string): SbiImportStore {
       throw new SbiImportFileError(
         filePath,
         "SBI CSV 저장 파일의 내용이 형식과 맞지 않습니다",
-        parsed.error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`),
+        zodIssueLines(parsed.error),
       );
     }
     return parsed.data.version === 1 ? parsed.data.imports : { ...parsed.data.imports, ...(parsed.data.usTrades ? { usTrades: parsed.data.usTrades } : {}) };
