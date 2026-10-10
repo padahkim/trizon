@@ -1,3 +1,4 @@
+import { quoteSymbolCandidates } from "../domain/symbols.ts";
 import { formatMoney } from "../format/money.ts";
 import { findColumn, parseAmount, parseCsv, parseDate, parsePeriod } from "./csv.ts";
 import type { SbiImport, SbiImports } from "./store.ts";
@@ -135,9 +136,10 @@ export function parseUsTrades(text: string): Parsed<SbiUsTrades> {
   return { ok: true, data: { period: usTradePeriod(rows.slice(0, h)), trades, sourceRowCount }, warnings: [...new Set(warnings)] };
 }
 
+/** SBI 는 클래스 주식을 "BRK/B"·"BRK B" 로도 쓴다 → "BRK.B". 형식 판정은 폼과 같은 규칙(quoteSymbolCandidates)을 쓴다 */
 function normalizeUsTicker(value: string): string {
-  const ticker = value.trim().toUpperCase().replace(/[\s/]+/g, ".");
-  return /^[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)?$/.test(ticker) && ticker.length <= 10 ? ticker : "";
+  const symbol = quoteSymbolCandidates("US", value.trim().replace(/[\s/]+/g, "."));
+  return symbol.ok ? symbol.code : "";
 }
 
 function currencyAmount(value: string | undefined): { amount: number; currency: string } | null {

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
 import { zodIssueLines } from "../domain/schema.ts";
+import { quoteSymbolCandidates } from "../domain/symbols.ts";
 import { createSerialQueue, isNotFound, writeFileAtomic } from "../store/fs-utils.ts";
 import { DataFileError } from "../store/types.ts";
 import type { SbiImportKind, SbiKind } from "./types.ts";
@@ -27,7 +28,11 @@ const coreImportsSchema = z.object({
 
 export const sbiUsHoldingSchema = z.object({
   id: z.string().min(1),
-  ticker: z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)?$/, "미국 티커 형식을 확인하세요").max(10),
+  ticker: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .refine((ticker) => quoteSymbolCandidates("US", ticker).ok, "미국 티커 형식을 확인하세요"),
   name: z.string().trim().min(1, "종목명을 입력하세요"),
   quantity: z.number().positive("보유수량은 0보다 커야 합니다"),
   avgCost: z.number().nonnegative("평균 취득단가는 0 이상이어야 합니다"),

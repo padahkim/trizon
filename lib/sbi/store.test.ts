@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createSbiImportStore, SbiImportFileError, type SbiImport } from "./store.ts";
+import { createSbiImportStore, SbiImportFileError, sbiUsHoldingSchema, type SbiImport } from "./store.ts";
 
 const entry = (fileName: string): SbiImport => ({ fileName, fileModifiedAt: null, importedAt: "2026-09-28T00:00:00.000Z", text: "x" });
 
@@ -72,3 +72,9 @@ test("깨진 파일은 덮어쓰지 않는다", () =>
     await writeFile(path, JSON.stringify({ version: 1, imports: { realized: { fileName: 1 } } }), "utf8");
     await assert.rejects(store.load(), SbiImportFileError);
   }));
+
+test("보정 잔고의 티커는 폼과 같은 규칙으로 판정한다", () => {
+  const row = { id: "us-brk", name: "Berkshire", quantity: 1, avgCost: 1, costCurrency: "USD", accountType: "特定", source: "manual" };
+  assert.equal(sbiUsHoldingSchema.parse({ ...row, ticker: " brk.b " }).ticker, "BRK.B");
+  for (const ticker of ["AAPL!", "7203", "ABCDEFGHIJK"]) assert.equal(sbiUsHoldingSchema.safeParse({ ...row, ticker }).success, false, ticker);
+});
