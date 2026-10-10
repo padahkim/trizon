@@ -78,7 +78,7 @@ npm run symbols:smoke -- 삼성전자 トヨタ      # 실제 종목 목록을 �
 - 005 테스트는 프레임워크 없이 `node --test`: docs/decisions/005-node-test.md
 - 006 지침·문서는 도구 중립 파일 한 벌(`AGENTS.md`, `docs/`): docs/decisions/006-agents-md.md
 - 007 에이전트가 끝내기 전에 Stop 훅으로 `npm run check`: docs/decisions/007-agent-stop-check.md
-- 008 같은 일은 한 가지 방법으로, 판단 기준은 Consistency over DRY: docs/decisions/008-consistency-over-dry.md
+- 009 같은 일은 한 가지 방법으로, 판단 기준은 Consistency over DRY: docs/decisions/009-consistency-over-dry.md
 
 ## 지침 파일 관리
 

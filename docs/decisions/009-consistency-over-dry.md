@@ -1,4 +1,4 @@
-# 008. 같은 일은 한 가지 방법으로 하고, 판단 기준은 Consistency over DRY로 한다
+# 009. 같은 일은 한 가지 방법으로 하고, 판단 기준은 Consistency over DRY로 한다
 
 - 상태: 채택 (2026-10-11)
 - 관련: 006(도구 중립 지침), 007(Stop 훅 검사), 표준과 폐기 목록은 `docs/golden-rules.md`
