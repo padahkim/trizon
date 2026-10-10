@@ -19,7 +19,7 @@ function git(...args: string[]): string {
   return r.stdout;
 }
 
-/** 작업 트리의 코드 상태 지문. 커밋해도, 문서만 바꿔도 그대로다 */
+/** 작업 트리의 코드 상태 지문. 문서만 바꾸면 그대로다. stage 여부도 들어가서, add하지 않은 변경을 커밋하면 내용이 같아도 바뀐다(검사가 한 번 더 돌 뿐이다) */
 function fingerprint(): string {
   const hash = createHash("sha256");
   hash.update(git("ls-files", "-s", "--", ...CODE));
