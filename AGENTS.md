@@ -29,7 +29,7 @@ npm run symbols:smoke -- 삼성전자 トヨタ      # 실제 종목 목록을 �
 
 ## TypeScript 규칙
 
-테스트는 빌드 없이 Node(>= 22.18)의 타입 스트리핑으로 `.ts`를 바로 실행한다. 그래서 다음을 지킨다.
+테스트는 빌드 없이 Node(>= 22.18)의 타입 스트리핑으로 `.ts`를 바로 실행한다(이유: docs/decisions/005-node-test.md). 그래서 다음을 지킨다.
 
 - 상대 경로 import에 `.ts` 확장자를 붙인다 (`allowImportingTsExtensions`).
 - 지워지는 문법만 쓴다 (`erasableSyntaxOnly`: enum·namespace·생성자 parameter property 금지). 타입만 가져올 때는 `import type`을 쓴다 (`verbatimModuleSyntax`).
@@ -37,7 +37,7 @@ npm run symbols:smoke -- 삼성전자 トヨタ      # 실제 종목 목록을 �
 
 ## 아키텍처
 
-코드 구조, 금액·통화 모델, 데이터 파일은 `architecture.md`에 정리한다. 코드를 고치기 전에 먼저 읽는다: @architecture.md
+코드 구조, 금액·통화 모델, 데이터 파일은 `docs/architecture.md`에 정리한다. 코드를 고치기 전에 먼저 읽는다: @docs/architecture.md
 
 ## 폴더별 지침
 
@@ -53,8 +53,29 @@ npm run symbols:smoke -- 삼성전자 トヨタ      # 실제 종목 목록을 �
 - **Claude Code(v2.1.277+)·Antigravity:** 그 폴더의 파일을 열 때 폴더의 `AGENTS.md`를 자동으로 읽는다.
 - **Codex:** 그 폴더에서 실행하지 않으면 자동으로 읽지 않으니 직접 연다.
 
+## 결정 기록
+
+설계를 바꾸기 전이나 "왜 이렇게 했지?" 싶을 때는 아래에서 해당 기록을 찾아 먼저 읽는다. 필요할 때만 읽도록 `@`로 불러오지 않는다.
+
+- 001 로컬 전용(DB·로그인·배포 없음): docs/decisions/001-local-only.md
+- 002 보유종목은 직접 입력, SBI만 CSV, v2 후보는 한국 증권사 API: docs/decisions/002-manual-input.md
+- 003 수익률은 증권사 화면 기준(계좌통화 평가): docs/decisions/003-broker-screen-returns.md
+- 004 시세는 Yahoo 비공식 API, 환율은 Frankfurter로 대비: docs/decisions/004-yahoo-quotes.md
+- 005 테스트는 프레임워크 없이 `node --test`: docs/decisions/005-node-test.md
+- 006 지침·문서는 도구 중립 파일 한 벌(`AGENTS.md`, `docs/`): docs/decisions/006-agents-md.md
+
 ## 지침 파일 관리
 
-- 지침은 `AGENTS.md`(루트·폴더별)와 `architecture.md`에만 둔다. Claude Code는 `CLAUDE.md`가 없으면 `AGENTS.md`를 직접 읽는다.
+- 지침과 문서는 `AGENTS.md`(루트·폴더별)와 `docs/`에만 둔다. `.claude/` 같은 도구 전용 폴더에는 두지 않는다. Codex·Antigravity가 읽지 않기 때문이다.
+- 내용에 따라 둘 곳을 정한다. 같은 내용을 두 곳에 쓰지 말고, 다른 문서의 내용이 필요하면 경로를 가리킨다.
+  - 지금 어떻게 동작하나: `docs/architecture.md`(공통), 폴더별 `AGENTS.md`(외부 API·파일 형식)
+  - 왜 그렇게 정했나, 무엇을 버렸나: `docs/decisions/`
+- 에이전트 메모리나 리포 밖 계획서에만 있는 결정은 리포로 옮긴다. 다른 PC나 다른 도구에서는 보이지 않는다.
+- 결정 기록은 다음을 지킨다.
+  - 파일 이름은 `NNN-짧은-영문.md`이고 번호는 이어서 붙인다. 형식은 기존 기록(상태·맥락·결정·버린 대안·감수하는 것·다시 볼 조건)을 따른다.
+  - 채택한 기록의 내용은 고치지 않는다. 결정이 바뀌면 새 기록을 쓰고, 옛 기록과 위 목록에 `대체됨 → NNN`을 적는다. `-v2`·`-final` 같은 사본을 만들지 않는다.
+  - 새로 만들면 위 "결정 기록" 목록에 한 줄을 추가한다.
+  - public 리포라 금액·계좌번호 같은 실제 자산 정보는 쓰지 않는다.
+- Claude Code는 `CLAUDE.md`가 없으면 `AGENTS.md`를 직접 읽는다.
 - **`CLAUDE.md`나 `CLAUDE.local.md`를 만들지 않는다.** 이 폴더나 상위 폴더에 하나라도 있으면 Claude Code가 `AGENTS.md`를 읽지 않게 된다.
 - `/init`도 `CLAUDE.md`를 만든다. 실행했다면 결과를 `AGENTS.md`로 옮기고 `CLAUDE.md`는 지운다.

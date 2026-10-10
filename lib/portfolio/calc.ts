@@ -3,7 +3,7 @@ import type { Account, Holding } from "../domain/schema.ts";
 import type { Quote } from "../quotes/types.ts";
 import { convert, type FxRates } from "./fx.ts";
 
-// 계산 규칙 (계획서 "계산 규칙" 절):
+// 계산 규칙 (docs/architecture.md "금액·통화 모델", 이유는 docs/decisions/003-broker-screen-returns.md):
 // - 종목은 계좌통화(home) 기준으로 평가한다 → 증권사 화면의 수익률과 같은 값.
 // - 합계는 계좌별 home 금액을 "현재 환율"로 표시 통화에 모은다. 그래서 총수익률(%)은
 //   표시 통화를 무엇으로 바꿔도 같다. 대신 원↔엔 교차환율 변동은 수익률에 들어가지 않는다.
