@@ -17,6 +17,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ```bash
 npm run dev
 npm run build
+npm run check        # typecheck + test. 끝내기 전에 돌린다 (아래 "완료 전 검증")
 npm run typecheck    # 린터는 없다. 정적 검사는 tsc 뿐
 npm test             # node --test "lib/**/*.test.ts" (네트워크 없음)
 node --test lib/quotes/resolve.test.ts                          # 파일 하나만
@@ -26,6 +27,15 @@ npm run symbols:smoke -- 삼성전자 トヨタ      # 실제 종목 목록을 �
 ```
 
 앱을 띄워 확인할 때는 `TRIZON_DATA_DIR=<임시 폴더> npm run dev`로 실제 자산 데이터(`data/`)와 분리한다.
+
+## 완료 전 검증
+
+코드(`.ts`·`.tsx`·`package.json`·`package-lock.json`·`tsconfig.json`)를 바꿨으면, 끝났다고 말하기 전에 `npm run check`를 통과시킨다(이유: docs/decisions/007-agent-stop-check.md).
+
+- `app/`을 바꿨으면 `npm run build`도 돌린다. 서버·클라이언트 컴포넌트 경계 오류는 tsc가 잡지 못한다.
+- Claude Code와 Codex는 Stop 훅(`scripts/agent-check.ts`)이 이를 확인한다. 실패하면 출력이 돌아오니 고친 뒤 다시 끝낸다. 실패 원인이 이번 작업과 무관하면 고치지 말고 사용자에게 알린다.
+- 훅은 같은 턴에서 두 번째 실패부터는 막지 않는다. 그때는 실패한 채로 끝났다고 보고한다.
+- Codex는 이 프로젝트의 `.codex/`를 trust해야 훅이 로드된다.
 
 ## TypeScript 규칙
 
@@ -63,10 +73,12 @@ npm run symbols:smoke -- 삼성전자 トヨタ      # 실제 종목 목록을 �
 - 004 시세는 Yahoo 비공식 API, 환율은 Frankfurter로 대비: docs/decisions/004-yahoo-quotes.md
 - 005 테스트는 프레임워크 없이 `node --test`: docs/decisions/005-node-test.md
 - 006 지침·문서는 도구 중립 파일 한 벌(`AGENTS.md`, `docs/`): docs/decisions/006-agents-md.md
+- 007 에이전트가 끝내기 전에 Stop 훅으로 `npm run check`: docs/decisions/007-agent-stop-check.md
 
 ## 지침 파일 관리
 
 - 지침과 문서는 `AGENTS.md`(루트·폴더별)와 `docs/`에만 둔다. `.claude/` 같은 도구 전용 폴더에는 두지 않는다. Codex·Antigravity가 읽지 않기 때문이다.
+- 도구 전용 폴더(`.claude/settings.json`, `.codex/hooks.json`)에는 훅 설정만 두고, 실행할 로직은 `scripts/`에 둔다. 도구마다 같은 스크립트를 가리키게 한다.
 - 내용에 따라 둘 곳을 정한다. 같은 내용을 두 곳에 쓰지 말고, 다른 문서의 내용이 필요하면 경로를 가리킨다.
   - 지금 어떻게 동작하나: `docs/architecture.md`(공통), 폴더별 `AGENTS.md`(외부 API·파일 형식)
   - 왜 그렇게 정했나, 무엇을 버렸나: `docs/decisions/`
