@@ -21,8 +21,6 @@ import styles from "./page.module.css";
 const SORTS = ["account", "value", "pnl", "returnHome", "returnTrade"] as const;
 type Sort = (typeof SORTS)[number];
 
-const CURRENCY_NAME: Record<Currency, string> = { KRW: "원", JPY: "엔", USD: "달러" };
-
 const timeText = (iso: string) =>
   iso
     ? new Date(iso).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
@@ -93,7 +91,18 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   // 하루 한 줄 스냅샷 — 응답을 보낸 뒤 기록한다. 그날 기록은 나중에 고쳐도 덮어쓰지 않으므로,
   // SBI 종목이 겹치거나 빠져 합계가 틀린 줄 알 때는 남기지 않는다 (고친 뒤 대시보드를 열면 그때 남는다)
   if (holdings.length > 0 && !sbi.unreliable) {
-    after(() => appendDailySnapshot(SNAPSHOTS_PATH, snapshotFromView(view, rates, now)).catch((e) => console.error("snapshot", e)));
+    after(() =>
+      appendDailySnapshot(SNAPSHOTS_PATH, snapshotFromView(view, rates, now)).catch((err) =>
+        console.error(
+          JSON.stringify({
+            ts: new Date().toISOString(),
+            event: "snapshot_failed",
+            path: SNAPSHOTS_PATH,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        ),
+      ),
+    );
   }
 
   const toDisplay = (e: HoldingEval, amount: number) => convert(amount, e.homeCurrency, ccy, rates);
@@ -110,7 +119,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <nav className="segmented" aria-label="표시 통화">
             {CURRENCIES.map((c) => (
               <Link key={c} href={hrefWith("/", sp, { ccy: c === "KRW" ? undefined : c })} aria-current={c === ccy}>
-                {CURRENCY_NAME[c]}
+                {CURRENCY_SUFFIX[c]}
               </Link>
             ))}
           </nav>
@@ -231,7 +240,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <section className="panel">
             <div className={styles.sectionHead}>
               <h2>시장별 비중</h2>
-              <span className="muted">{CURRENCY_NAME[ccy]} 기준 평가액</span>
+              <span className="muted">{CURRENCY_SUFFIX[ccy]} 기준 평가액</span>
             </div>
             <div className={styles.allocBar} role="img" aria-label="시장별 비중 막대 (아래 범례에 값이 있습니다)">
               {view.byMarket
@@ -292,7 +301,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <section className="panel">
             <div className={styles.sectionHead}>
               <h2>보유종목</h2>
-              <span className="muted">열 제목을 누르면 정렬됩니다 · 평가액·손익은 {CURRENCY_NAME[ccy]} 기준</span>
+              <span className="muted">열 제목을 누르면 정렬됩니다 · 평가액·손익은 {CURRENCY_SUFFIX[ccy]} 기준</span>
             </div>
             <div className="table-wrap">
               <table className="data">

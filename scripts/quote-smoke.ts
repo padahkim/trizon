@@ -1,17 +1,16 @@
 // 실제 시세 조회 확인용 (npm test 에는 넣지 않는다 — 네트워크에 의존한다).
 // 사용법: npm run quote:smoke -- 005930 7203 285A AAPL BRK.B
-//   시장은 코드 형식으로 추정한다: 6자리 → KR, 4자리 → JP, 그 외 → US
+//   시장은 코드 형식으로 추정한다: 폼과 같은 규칙(quoteSymbolCandidates)으로 KR → JP → US 순으로 맞는 쪽
 
 import { quoteSymbolCandidates } from "../lib/domain/symbols.ts";
-import type { Market } from "../lib/domain/model.ts";
+import { MARKETS, type Market } from "../lib/domain/model.ts";
 import { createFrankfurterProvider } from "../lib/quotes/frankfurter.ts";
 import { createYahooProvider, FX_SYMBOLS } from "../lib/quotes/yahoo.ts";
 
 const codes = process.argv.slice(2);
 if (codes.length === 0) codes.push("005930", "7203", "285A", "AAPL", "BRK.B");
 
-const guessMarket = (code: string): Market =>
-  /^A?[0-9][0-9A-Z]{5}$/i.test(code) ? "KR" : /^\d[0-9A-Z]{3}$/i.test(code) ? "JP" : "US";
+const guessMarket = (code: string): Market => MARKETS.find((market) => quoteSymbolCandidates(market, code).ok) ?? "US";
 
 const candidates = codes.flatMap((code) => {
   const r = quoteSymbolCandidates(guessMarket(code), code);

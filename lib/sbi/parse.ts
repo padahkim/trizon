@@ -1,8 +1,9 @@
+import { quoteSymbolCandidates } from "../domain/symbols.ts";
 import { formatMoney } from "../format/money.ts";
 import { findColumn, parseAmount, parseCsv, parseDate, parsePeriod } from "./csv.ts";
 import type { SbiImport, SbiImports } from "./store.ts";
 import type { SbiUsTradeState } from "./store.ts";
-import { inferUsHoldings, mergeUsTrades, type MergedUsTrades } from "./us-trades.ts";
+import { inferUsHoldings, mergeUsTrades, type InferredUsHoldings, type MergedUsTrades } from "./us-trades.ts";
 import type {
   DividendByProduct,
   DividendItem,
@@ -14,7 +15,6 @@ import type {
   RealizedRow,
   SbiDataByKind,
   SbiDividends,
-  SbiDataByImportKind,
   SbiImportKind,
   SbiKind,
   SbiPortfolio,
@@ -136,9 +136,10 @@ export function parseUsTrades(text: string): Parsed<SbiUsTrades> {
   return { ok: true, data: { period: usTradePeriod(rows.slice(0, h)), trades, sourceRowCount }, warnings: [...new Set(warnings)] };
 }
 
+/** SBI 는 클래스 주식을 "BRK/B"·"BRK B" 로도 쓴다 → "BRK.B". 형식 판정은 폼과 같은 규칙(quoteSymbolCandidates)을 쓴다 */
 function normalizeUsTicker(value: string): string {
-  const ticker = value.trim().toUpperCase().replace(/[\s/]+/g, ".");
-  return /^[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)?$/.test(ticker) && ticker.length <= 10 ? ticker : "";
+  const symbol = quoteSymbolCandidates("US", value.trim().replace(/[\s/]+/g, "."));
+  return symbol.ok ? symbol.code : "";
 }
 
 function currencyAmount(value: string | undefined): { amount: number; currency: string } | null {
@@ -515,11 +516,10 @@ function periodFrom(rows: readonly string[][], label: string): Period | null {
   return null;
 }
 
-export const PARSERS: { [K in SbiImportKind]: (text: string) => Parsed<SbiDataByImportKind[K]> } = {
+export const PARSERS: { [K in SbiKind]: (text: string) => Parsed<SbiDataByKind[K]> } = {
   realized: parseRealized,
   portfolio: parsePortfolio,
   dividends: parseDividends,
-  usTrades: parseUsTrades,
 };
 
 export type LoadedImport<T> = {
@@ -551,9 +551,23 @@ export function parseImports(imports: SbiImports): LoadedSbi {
   return { realized: load("realized"), portfolio: load("portfolio"), dividends: load("dividends"), usTrades: loadUsTrades(imports.usTrades) };
 }
 
+/**
+ * 약정이력 CSV 원문들 → 파일별 파싱 결과, 파일 사이 중복을 지운 체결, 추정 잔고.
+ * 저장한 상태를 읽을 때(loadUsTrades)와 새 CSV를 넣을 때(importSbiCsv)가 같은 순서로 계산하도록 여기 한 곳에 둔다.
+ */
+export function inferUsTradeFiles(files: readonly { text: string }[]): {
+  parsed: Parsed<SbiUsTrades>[];
+  merged: MergedUsTrades;
+  inferred: InferredUsHoldings;
+} {
+  const parsed = files.map((file) => parseUsTrades(file.text));
+  const merged = mergeUsTrades(parsed);
+  return { parsed, merged, inferred: inferUsHoldings(merged.trades) };
+}
+
 function loadUsTrades(state: SbiUsTradeState | undefined): LoadedUsTrades | null {
   if (!state || state.files.length === 0) return null;
-  const parsedFiles = state.files.map((file) => parseUsTrades(file.text));
+  const { parsed: parsedFiles, merged, inferred } = inferUsTradeFiles(state.files);
   const failed = parsedFiles.filter((result): result is Extract<Parsed<SbiUsTrades>, { ok: false }> => !result.ok);
   const metas = state.files.map(({ text: _text, fingerprint: _fingerprint, ...meta }) => meta);
   const asOf = metas
@@ -571,8 +585,6 @@ function loadUsTrades(state: SbiUsTradeState | undefined): LoadedUsTrades | null
       closedCount: 0,
     };
   }
-  const merged = mergeUsTrades(parsedFiles);
-  const inferred = inferUsHoldings(merged.trades);
   const warnings = [...new Set([...merged.warnings, ...inferred.warnings, ...(failed.length > 0 ? [`${failed.length}개 파일을 읽지 못해 제외했습니다`] : [])])];
   return {
     files: metas,

@@ -1,5 +1,7 @@
+import type { DataFileError } from "@/lib/store/types.ts";
+
 /** 저장 파일이 깨졌을 때. 파일은 그대로 두고, 무엇이 문제인지 보여준다. */
-export function FileErrorPanel({ error, hint }: { error: { message: string; filePath: string; details: string[] }; hint?: string }) {
+export function FileErrorPanel({ error, hint }: { error: DataFileError; hint?: string }) {
   return (
     <div className="panel notice-danger">
       <h2>저장 파일을 읽을 수 없습니다</h2>

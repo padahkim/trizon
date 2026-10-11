@@ -8,10 +8,6 @@ export type SbiKind = (typeof SBI_KINDS)[number];
 export const SBI_IMPORT_KINDS = [...SBI_KINDS, "usTrades"] as const;
 export type SbiImportKind = (typeof SBI_IMPORT_KINDS)[number];
 
-export function isSbiKind(value: unknown): value is SbiKind {
-  return typeof value === "string" && (SBI_KINDS as readonly string[]).includes(value);
-}
-
 export function isSbiImportKind(value: unknown): value is SbiImportKind {
   return typeof value === "string" && (SBI_IMPORT_KINDS as readonly string[]).includes(value);
 }
@@ -166,4 +162,3 @@ export type SbiUsHolding = {
 };
 
 export type SbiDataByKind = { realized: SbiRealized; portfolio: SbiPortfolio; dividends: SbiDividends };
-export type SbiDataByImportKind = SbiDataByKind & { usTrades: SbiUsTrades };

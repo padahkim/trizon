@@ -7,6 +7,7 @@ export type SecurityName = { name: string; code: string | null };
 /**
  * SBI 가 이름 뒤에 붙이는 코드·티커를 떼어 낸다.
  * "トヨタ自動車 7203" → 7203, "ユナイテッドヘルス グループ UNH" → UNH, 코드가 없으면 code null.
+ * 이름에서 떼어 내는 용도라 느슨하다. 코드 형식 판정에는 쓰지 말고 quoteSymbolCandidates(lib/domain/symbols.ts)를 쓴다.
  */
 export function splitSecurityName(full: string): SecurityName {
   const m = full.match(/^(.*\S)\s+(\d[0-9A-Z]{3}|[A-Z][A-Z0-9.-]{0,9})$/);

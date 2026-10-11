@@ -25,7 +25,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) {
+  :root {
     color-scheme: dark;
     --page: #0d0d0d;
     --surface: #1a1a19;
@@ -48,30 +48,6 @@
     --mk-JP: #d95926;
     --mk-US: #199e70;
   }
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --page: #0d0d0d;
-  --surface: #1a1a19;
-  --surface-2: #242422;
-  --ink: #ffffff;
-  --ink-2: #c3c2b7;
-  --muted: #9a988f;
-  --hairline: #2c2c2a;
-  --axis: #383835;
-  --border: rgba(255, 255, 255, 0.1);
-  --accent: #3987e5;
-  --accent-ink: #86b6ef;
-  --up: #ff6b6b;
-  --down: #6aa5ff;
-  --warn-bg: #3a2e10;
-  --warn-ink: #f5c865;
-  --danger-bg: #3a1a1a;
-  --danger-ink: #ff8a8a;
-  --mk-KR: #3987e5;
-  --mk-JP: #d95926;
-  --mk-US: #199e70;
 }
 
 * {
@@ -327,8 +303,7 @@ table.data tr:last-child td {
   min-width: 0;
 }
 
-.field label,
-.field .label {
+.field label {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--ink-2);

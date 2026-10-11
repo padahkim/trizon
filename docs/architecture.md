@@ -6,7 +6,8 @@
 - `lib/domain/`
   - `model.ts`: 의존성 없는 상수.
   - `schema.ts`: zod 스키마이자 타입의 단일 출처(`z.infer`). 저장 파일과 폼 입력이 같은 스키마를 쓴다.
-  - `symbols.ts`: 종목코드 형식 규칙(KR 6자리, JP 4자리, US 티커 → Yahoo 심볼 후보)은 여기 한 곳에만 둔다. 폼 검증과 종목 목록 파서가 모두 이 파일을 쓴다.
+  - `symbols.ts`: 종목코드 형식 규칙(KR 6자리, JP 4자리, US 티커 → Yahoo 심볼 후보)은 여기 한 곳에만 둔다. 폼 검증, 종목 목록 파서, SBI CSV의 티커 판정이 모두 이 파일을 쓴다.
+  - `input.ts`: 폼 입력 문자열 → 숫자(`parseNumberInput`). 서버 스키마와 클라이언트 폼이 같이 쓰므로 zod를 import하지 않는다.
 - `app/`
   - `page.tsx`(대시보드), `holdings/`(입력 화면), `sbi/`(SBI CSV 가져오기·누적손익)는 서버 컴포넌트이고, 쓰기는 `app/actions.ts`의 Server Actions가 한다.
   - `sbi/SbiImport.tsx`는 화면 어디에 떨군 파일이든 받아 `importSbiCsv`로 올린다. 종류는 서버가 내용으로 가린다. 미국주식 約定履歴는 여러 파일을 합쳐 잔고를 추정하고, `sbi/UsHoldingsEditor.tsx`에서 사용자가 오래된 보유분·수량·평균단가를 보정한다.

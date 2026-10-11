@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { portfolioFileSchema, type PortfolioFile } from "../domain/schema.ts";
+import { portfolioFileSchema, zodIssueLines, type PortfolioFile } from "../domain/schema.ts";
 import { createSerialQueue, isNotFound, writeFileAtomic } from "./fs-utils.ts";
 import { PortfolioFileError, type PortfolioStore } from "./types.ts";
 
@@ -34,7 +34,7 @@ export function createJsonFileStore(filePath: string, seed: () => PortfolioFile)
       throw new PortfolioFileError(
         filePath,
         "저장 파일의 내용이 스키마와 맞지 않습니다",
-        parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`),
+        zodIssueLines(parsed.error),
       );
     }
     return parsed.data;
