@@ -61,6 +61,11 @@ data/의 파일은 원본과 캐시로 나뉘고, 깨졌을 때의 규칙이 반
 - 쓰기 액션은 데이터를 읽는 화면 `/`·`/holdings`·`/sbi`를 모두 revalidate한다. /sbi도 계좌를 읽고, /holdings도 SBI 종목 수를 읽기 때문이다.
 - 폼에 들어온 숫자("1,234", " 12.5 ")는 서버 스키마의 `toNumber`(lib/domain/schema.ts)와 같은 규칙으로 읽는다. 콤마와 공백을 지우고, 빈 칸은 값 없음으로 본다.
 - 링크는 `hrefWith`(app/_components/href.ts)로 만들고, 삭제 확인은 `ConfirmSubmit`으로 받는다.
+- 액션을 부르는 방식과 pending 표시는 상호작용에 따라 고른다. 네 가지는 서로 바꿔 쓰는 것이 아니다.
+  - 폼을 제출하고 결과(성공 문구·필드 오류)를 받는다: `useActionState`와 `FormState`(app/actions.ts). 초기값은 `{ ok: true }`다. 예: AccountForm·HoldingForm.
+  - 폼 안의 버튼이 제출 중인지만 알면 된다(액션이 `void`): `useFormStatus`. 예: RefreshButton.
+  - 폼 제출이 아닌 이벤트(드래그앤드롭·파일 선택)에서 액션을 부른다: `useTransition`. 예: SbiImport.
+  - 결과도 pending 표시도 필요 없는 삭제: `<form action>`과 `ConfirmSubmit`.
 
 ### 오류
 
@@ -141,7 +146,7 @@ data/의 파일은 원본과 캐시로 나뉘고, 깨졌을 때의 규칙이 반
   - app/sbi/page.tsx 안의 `money` 클로저 세 개. 이름은 같은데 동작이 다르다.
   - JSX 안에서 바로 부른 `formatMoney`. 정확한 금액 툴팁이 빠진다.
   - 수량 단위(주·좌)와 빈 값 "—" 표시도 화면마다 다르다.
-- **폼 상태 처리 네 가지:** `useActionState`(AccountForm·HoldingForm·UsHoldingsEditor), `useFormStatus`(RefreshButton), `useTransition`(SbiImport), pending 표시 없음(삭제 폼). 초기값도 `{ ok: true }`와 `{ ok: false }`가 섞여 있다. 새 폼은 `useActionState`와 `{ ok: true }`로 시작한다.
+- **`useActionState` 폼의 초기값·결과 메시지:** UsHoldingsEditor만 초기값이 `{ ok: false }`(`INITIAL_STATE`)다. 결과 메시지도 셋이 다르게 보여 준다. AccountForm은 `<span className={ok ? "muted" : "error"}>`, HoldingForm은 오류만, UsHoldingsEditor는 `styles.formSuccess`·`notice notice-danger`를 쓴다. 새 폼은 `{ ok: true }`로 시작한다. 어느 hook을 쓸지는 3절 "화면·Server Actions"를 따른다.
 - **CSS·화면 조각 복사:**
   - app/page.module.css와 app/sbi/sbi.module.css에 같은 클래스 14개(`stack`·`controls`·`kpi*`·`notices` 등)가 있다.
   - 두 파일에서 `.hero`의 뜻이 서로 반대다. 대시보드의 `.hero`는 SBI의 `.heroMain`이고, 대시보드의 `.heroPanel`은 SBI의 `.hero`다.
