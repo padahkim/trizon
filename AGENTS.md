@@ -19,11 +19,12 @@ npm run dev
 npm run build
 npm run check        # typecheck + test. 끝내기 전에 돌린다 (아래 "완료 전 검증")
 npm run typecheck    # 린터는 없다. 정적 검사는 tsc 뿐
-npm test             # node --test "lib/**/*.test.ts" (네트워크 없음)
+npm test             # node --test "lib/**/*.test.ts" "scripts/**/*.test.ts" (네트워크 없음)
 node --test lib/quotes/resolve.test.ts                          # 파일 하나만
 node --test --test-name-pattern "KOSDAQ" "lib/**/*.test.ts"     # 테스트 이름으로 골라서
 npm run quote:smoke -- 005930 7203 AAPL     # 실제 Yahoo 시세 확인 (네트워크)
 npm run symbols:smoke -- 삼성전자 トヨタ      # 실제 종목 목록을 받아 검색 확인 (네트워크, data/ 는 건드리지 않음)
+npm run review:status -- 8                  # PR 리뷰가 머지해도 될 만큼 정리됐는지 (GitHub 조회, 번호를 빼면 현재 브랜치의 PR)
 ```
 
 앱을 띄워 확인할 때는 `TRIZON_DATA_DIR=<임시 폴더> npm run dev`로 실제 자산 데이터(`data/`)와 분리한다.
@@ -36,6 +37,18 @@ npm run symbols:smoke -- 삼성전자 トヨタ      # 실제 종목 목록을 �
 - Claude Code와 Codex는 Stop 훅(`scripts/agent-check.ts`)이 이를 확인한다. 실패하면 출력이 돌아오니 고친 뒤 다시 끝낸다. 실패 원인이 이번 작업과 무관하면 고치지 말고 사용자에게 알린다.
 - 훅은 같은 턴에서 두 번째 실패부터는 막지 않는다. 그때는 실패한 채로 끝났다고 보고한다.
 - Codex는 이 프로젝트의 `.codex/`를 trust해야 훅이 로드된다.
+
+## PR 리뷰와 머지
+
+PR을 열면 몇 분 안에 Codex 봇(`chatgpt-codex-connector`)이 인라인 리뷰를 단다. 이 리포에서는 사실상 유일한 리뷰라서, 대응하지 않고 머지하면 지적이 묻힌다(이유: docs/decisions/008-review-gate.md).
+
+- 리뷰는 PR을 열 때 한 번만 달린다. 대응 커밋을 push해도 다시 리뷰하지 않는다.
+- 지적마다 지금 코드와 대조해서 맞는지 판단한다.
+  - 고칠 지적은 하나당 커밋 하나로 고친다. 커밋 메시지 끝에 `(PR #N review, chatgpt-codex-connector)`를 붙인다.
+  - push한 뒤 그 스레드에 커밋 해시와 무엇을 고쳤는지 답글을 단다. 고치지 않는 지적에도 근거를 답글로 남긴다.
+- 리뷰가 실패하면 요약 코멘트에 `⚠️ Failed`가 뜬다. PR에 `@codex review`를 코멘트하면 다시 받을 수 있는데, 다시 받을지는 사용자에게 묻는다.
+- 머지하기 전에 `npm run review:status -- <PR>`로 확인한다. Claude Code와 Codex에서는 PreToolUse 훅(`scripts/review-gate.ts`)이 `gh pr merge` 직전에 같은 확인을 하고, 정리되지 않았으면 이유를 돌려주며 막는다.
+- 사용자가 이 상태로 머지하라고 명시했을 때만 `TRIZON_SKIP_REVIEW_GATE=1 gh pr merge ...`로 건너뛴다.
 
 ## TypeScript 규칙
 
@@ -74,6 +87,7 @@ npm run symbols:smoke -- 삼성전자 トヨタ      # 실제 종목 목록을 �
 - 005 테스트는 프레임워크 없이 `node --test`: docs/decisions/005-node-test.md
 - 006 지침·문서는 도구 중립 파일 한 벌(`AGENTS.md`, `docs/`): docs/decisions/006-agents-md.md
 - 007 에이전트가 끝내기 전에 Stop 훅으로 `npm run check`: docs/decisions/007-agent-stop-check.md
+- 008 머지하기 전에 PreToolUse 훅으로 PR 리뷰 확인: docs/decisions/008-review-gate.md
 
 ## 지침 파일 관리
 
