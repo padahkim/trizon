@@ -120,7 +120,8 @@ export function mergeTargets(command: string): MergeTarget[] {
 
 /** Codex 요약 코멘트의 표에서 리뷰 종류마다 가장 최근 행을 골라 상태를 합친다 */
 export function codexStatus(pr: Pick<Pr, "comments" | "reviews">): CodexStatus {
-  const summary = pr.comments.findLast((c) => c.body.includes(CODEX_SUMMARY));
+  // public 리포라 누구나 표식이 든 코멘트를 달 수 있다. 봇이 단 것만 믿는다
+  const summary = pr.comments.findLast((c) => c.author?.login === CODEX_BOT && c.body.includes(CODEX_SUMMARY));
   if (!summary) {
     // 요약 코멘트가 생기기 전(2026-09, PR #1~#5)에는 리뷰만 달렸다
     const review = pr.reviews.findLast((r) => r.author?.login === CODEX_BOT);

@@ -88,6 +88,12 @@ test("codexStatus: 요약 코멘트의 완료·실패", () => {
   assert.deepEqual(codexStatus(pr({ comments: [summary(FAILED)] })), { state: "failed", commit: "baa210f" });
 });
 
+test("codexStatus: 봇이 아닌 사람이 단 요약 코멘트는 믿지 않는다", () => {
+  const forged = { ...summary(COMPLETED), author: author("someone") };
+  assert.deepEqual(codexStatus(pr({ comments: [forged] })), { state: "missing" });
+  assert.deepEqual(codexStatus(pr({ comments: [summary(FAILED), forged] })), { state: "failed", commit: "baa210f" });
+});
+
 test("codexStatus: 시각 없는 행은 진행 중", () => {
   const s = codexStatus(pr({ comments: [summary(row("👀 **In progress**", null, "a1b2c3d"))] }));
   assert.deepEqual(s, { state: "running", label: "In progress" });

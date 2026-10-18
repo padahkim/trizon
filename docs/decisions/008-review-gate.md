@@ -18,7 +18,7 @@
 
 - `gh pr merge`가 실행되기 직전에 도는 PreToolUse(Bash) 훅으로 막는다. 로직은 도구 중립인 `scripts/review-gate.ts` 하나에 두고, `.claude/settings.json`과 `.codex/hooks.json`은 이 스크립트를 가리키기만 한다(007과 같은 구조).
 - 다음 중 하나라도 해당하면 exit 2로 막고, 이유와 스레드 URL을 stderr로 에이전트에게 돌려준다.
-  1. Codex 리뷰가 아직 없거나 끝나지 않았다. 요약 코멘트(`<!-- codex-pull-request-review-summary -->`)의 상태를 보고, 요약 코멘트가 생기기 전의 PR(#1~#5)은 리뷰 본문을 본다.
+  1. Codex 리뷰가 아직 없거나 끝나지 않았다. Codex 봇이 단 요약 코멘트(`<!-- codex-pull-request-review-summary -->`)의 상태를 보고(public 리포라 다른 사람이 단 같은 표식은 믿지 않는다), 요약 코멘트가 생기기 전의 PR(#1~#5)은 리뷰 본문을 본다.
   2. Codex 리뷰가 실패했다.
   3. resolve되지도 않았고 답글도 없는 리뷰 스레드가 있다. Codex뿐 아니라 Copilot·사람 리뷰도 같게 본다.
   4. 로컬 PR 브랜치에 PR head에 없는 커밋이 있다. `--repo`로 다른 리포의 PR을 가리키면 로컬 브랜치와 비교할 수 없어 보지 않는다. `--repo`로 이 리포(origin)를 적은 경우는 비교한다.
