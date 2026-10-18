@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState, type FormEvent } from "react";
+import { parseNumberInput } from "@/lib/domain/input.ts";
 import { MARKET_LABEL, MARKETS, TRADE_CURRENCY, type Currency, type Market } from "@/lib/domain/model.ts";
 import type { Account, Holding } from "@/lib/domain/schema.ts";
 import { quoteSymbolCandidates } from "@/lib/domain/symbols.ts";
@@ -12,11 +13,9 @@ import { saveHolding, type FormState } from "../actions.ts";
 import styles from "./holdings.module.css";
 import { SymbolSearch, type PickedSymbol } from "./SymbolSearch.tsx";
 
-/** 폼 입력 문자열 → 숫자 (서버 스키마와 같은 규칙: 콤마·공백 제거, 빈 칸은 undefined) */
+/** 폼 입력 문자열 → 숫자 (서버 스키마와 같은 parseNumberInput 규칙). 숫자가 아니면 undefined */
 function num(s: string): number | undefined {
-  const t = s.replace(/[,\s]/g, "");
-  if (t === "") return undefined;
-  const n = Number(t);
+  const n = parseNumberInput(s);
   return Number.isFinite(n) ? n : undefined;
 }
 

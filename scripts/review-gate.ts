@@ -289,7 +289,7 @@ function checkMerge(target: MergeTarget, lookup: Lookup): string | null {
     const local = !target.repo || repoOf(pr.url) === lookup.localRepo();
     found = problems(pr, lookup.reviewThreads(pr), local ? lookup.unpushedCommits(pr) : null);
   } catch (e) {
-    found = [`리뷰 상태를 확인하지 못했다(${(e as Error).message}). gh 인증·네트워크를 확인하고, 풀리지 않으면 사용자에게 알린다.`];
+    found = [`리뷰 상태를 확인하지 못했다(${e instanceof Error ? e.message : String(e)}). gh 인증·네트워크를 확인하고, 풀리지 않으면 사용자에게 알린다.`];
   }
   if (found.length === 0) return null;
 
@@ -328,7 +328,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
   try {
     process.exitCode = process.argv[2] === "--hook" ? hook() : cli(process.argv[2]);
   } catch (e) {
-    console.error((e as Error).message);
+    console.error(e instanceof Error ? e.message : String(e));
     process.exitCode = 1;
   }
 }

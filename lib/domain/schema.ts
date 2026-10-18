@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseNumberInput } from "./input.ts";
 import { BROKERS, CURRENCIES, MARKETS } from "./model.ts";
 
 // 저장 파일(data/portfolio.json)과 폼 입력이 같은 스키마를 공유한다. 타입은 z.infer 가 단일 출처.
@@ -67,10 +68,7 @@ export type PortfolioFile = z.infer<typeof portfolioFileSchema>;
 
 /** 증권사 화면에서 복사한 "1,234,567" / " 12.5 " 를 숫자로. 빈 칸은 undefined. */
 function toNumber(value: unknown): unknown {
-  if (typeof value !== "string") return value;
-  const s = value.replace(/[,\s]/g, "");
-  if (s === "") return undefined;
-  return Number(s);
+  return typeof value === "string" ? parseNumberInput(value) : value;
 }
 
 const numberError = (label: string) => ({ error: `${label}: 숫자를 입력하세요` });
@@ -92,14 +90,17 @@ export const holdingFormSchema = z.object({
   ),
   costBasisUnknown: checkbox,
 });
-export type HoldingFormInput = z.infer<typeof holdingFormSchema>;
 
 export const accountFormSchema = z.object({
   broker: z.enum(BROKERS, { error: "증권사를 고르세요" }),
   label: z.string().trim().min(1, "계좌 이름을 입력하세요"),
   homeCurrency: z.enum(CURRENCIES, { error: "계좌 통화를 고르세요" }),
 });
-export type AccountFormInput = z.infer<typeof accountFormSchema>;
+
+/** zod 검증 오류 → "경로: 메시지" 줄들. 저장 파일 오류 화면과 폼 오류 문구가 같이 쓴다 */
+export function zodIssueLines(error: z.ZodError): string[] {
+  return error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`);
+}
 
 /** FormData → 스키마 입력용 plain object (체크박스는 없으면 키 자체가 빠진다) */
 export function formDataToObject(formData: FormData): Record<string, string> {

@@ -5,14 +5,14 @@ import { refresh, revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { TRADE_CURRENCY } from "@/lib/domain/model.ts";
-import { accountFormSchema, formDataToObject, holdingFormSchema, type Holding } from "@/lib/domain/schema.ts";
+import { accountFormSchema, formDataToObject, holdingFormSchema, zodIssueLines, type Holding } from "@/lib/domain/schema.ts";
 import { quoteSymbolCandidates } from "@/lib/domain/symbols.ts";
 import { resolveCostBasisHome } from "@/lib/portfolio/cost-basis.ts";
 import { decodeCsvBytes } from "@/lib/sbi/csv.ts";
 import { SBI_GUIDE } from "@/lib/sbi/guide.ts";
-import { detectKind, PARSERS, parseUsTrades } from "@/lib/sbi/parse.ts";
+import { detectKind, inferUsTradeFiles, PARSERS, parseUsTrades } from "@/lib/sbi/parse.ts";
 import { sbiUsHoldingsSchema, type SbiCoreImports, type SbiUsTradeFile } from "@/lib/sbi/store.ts";
-import { inferUsHoldings, mergeUsTrades, reconcileReviewedUsHoldings } from "@/lib/sbi/us-trades.ts";
+import { reconcileReviewedUsHoldings } from "@/lib/sbi/us-trades.ts";
 import { isSbiImportKind, type SbiImportKind } from "@/lib/sbi/types.ts";
 import { getQuoteService, getSbiStore, getStore } from "@/lib/server.ts";
 
@@ -25,6 +25,13 @@ export type FormState = {
 const fail = (message: string, fieldErrors?: FormState["fieldErrors"]): FormState => ({ ok: false, message, fieldErrors });
 
 class ConflictError extends Error {}
+
+/** 쓰기 뒤 다시 그릴 화면. 세 화면 모두 portfolio.json 과 sbi-imports.json 을 함께 읽으므로 항상 셋 다 */
+function revalidateDataPages() {
+  revalidatePath("/");
+  revalidatePath("/holdings");
+  revalidatePath("/sbi");
+}
 
 export async function saveHolding(_prev: FormState, formData: FormData): Promise<FormState> {
   const parsed = holdingFormSchema.safeParse(formDataToObject(formData));
@@ -93,16 +100,14 @@ export async function saveHolding(_prev: FormState, formData: FormData): Promise
     throw err;
   }
 
-  revalidatePath("/");
-  revalidatePath("/holdings");
+  revalidateDataPages();
   redirect("/holdings");
 }
 
 export async function deleteHolding(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   await getStore().update((f) => ({ ...f, holdings: f.holdings.filter((h) => h.id !== id) }));
-  revalidatePath("/");
-  revalidatePath("/holdings");
+  revalidateDataPages();
   redirect("/holdings");
 }
 
@@ -114,8 +119,7 @@ export async function addAccount(_prev: FormState, formData: FormData): Promise<
     ...f,
     accounts: [...f.accounts, { id: `${broker.toLowerCase()}-${randomUUID().slice(0, 6)}`, broker, label, homeCurrency }],
   }));
-  revalidatePath("/");
-  revalidatePath("/holdings");
+  revalidateDataPages();
   return { ok: true, message: `${label} 계좌를 추가했습니다` };
 }
 
@@ -125,8 +129,7 @@ export async function deleteAccount(formData: FormData): Promise<void> {
   await getStore().update((f) =>
     f.holdings.some((h) => h.accountId === id) ? f : { ...f, accounts: f.accounts.filter((a) => a.id !== id) },
   );
-  revalidatePath("/");
-  revalidatePath("/holdings");
+  revalidateDataPages();
 }
 
 export async function refreshQuotes(): Promise<void> {
@@ -155,15 +158,15 @@ export async function importSbiCsv(formData: FormData): Promise<SbiImportResult[
 
   for (const [i, file] of files.entries()) {
     const fileName = file.name || `파일 ${i + 1}`;
-    const fail = (message: string) => results.push({ fileName, ok: false, message, warnings: [] });
+    const failFile = (message: string) => results.push({ fileName, ok: false, message, warnings: [] });
     if (file.size > MAX_SBI_CSV_BYTES) {
-      fail("파일이 너무 큽니다. SBI에서 받은 CSV가 맞는지 확인하세요");
+      failFile("파일이 너무 큽니다. SBI에서 받은 CSV가 맞는지 확인하세요");
       continue;
     }
     const text = decodeCsvBytes(new Uint8Array(await file.arrayBuffer()));
     const kind = detectKind(text);
     if (!kind) {
-      fail("지원하는 실현손익·포트폴리오·미국주식 약정이력·배당 CSV가 아닙니다. SBI에서 받은 CSV를 그대로 넣어 주세요");
+      failFile("지원하는 실현손익·포트폴리오·미국주식 약정이력·배당 CSV가 아닙니다. SBI에서 받은 CSV를 그대로 넣어 주세요");
       continue;
     }
     const ms = modified[i];
@@ -171,7 +174,7 @@ export async function importSbiCsv(formData: FormData): Promise<SbiImportResult[
     if (kind === "usTrades") {
       const parsed = parseUsTrades(text);
       if (!parsed.ok) {
-        fail(`${SBI_GUIDE[kind].jpTitle} CSV로 보이지만 읽지 못했습니다: ${parsed.error}`);
+        failFile(`${SBI_GUIDE[kind].jpTitle} CSV로 보이지만 읽지 못했습니다: ${parsed.error}`);
         continue;
       }
       const fingerprint = createHash("sha256").update(text).digest("hex");
@@ -192,7 +195,7 @@ export async function importSbiCsv(formData: FormData): Promise<SbiImportResult[
     }
     const parsed = PARSERS[kind](text);
     if (!parsed.ok) {
-      fail(`${SBI_GUIDE[kind].jpTitle} CSV로 보이지만 읽지 못했습니다: ${parsed.error}`);
+      failFile(`${SBI_GUIDE[kind].jpTitle} CSV로 보이지만 읽지 못했습니다: ${parsed.error}`);
       continue;
     }
     // 같은 종류를 한 번에 여러 개 넣으면 SBI 에서 더 나중에 받은 쪽을 쓴다
@@ -221,12 +224,8 @@ export async function importSbiCsv(formData: FormData): Promise<SbiImportResult[
         fingerprints.add(file.fingerprint);
         return true;
       });
-      const merged = mergeUsTrades(files.map((file) => parseUsTrades(file.text)));
-      const inferred = inferUsHoldings(merged.trades);
-      const previousInferred =
-        current && !current.needsReview
-          ? inferUsHoldings(mergeUsTrades(current.files.map((file) => parseUsTrades(file.text))).trades).holdings
-          : [];
+      const { inferred } = inferUsTradeFiles(files);
+      const previousInferred = current && !current.needsReview ? inferUsTradeFiles(current.files).inferred.holdings : [];
       const holdings =
         current && !current.needsReview
           ? reconcileReviewedUsHoldings(previousInferred, inferred.holdings, current.holdings)
@@ -235,9 +234,7 @@ export async function importSbiCsv(formData: FormData): Promise<SbiImportResult[
     });
   }
   if (Object.keys(entries).length > 0 || usFiles.length > 0) {
-    revalidatePath("/");
-    revalidatePath("/sbi");
-    revalidatePath("/holdings");
+    revalidateDataPages();
   }
   return results;
 }
@@ -246,9 +243,7 @@ export async function clearSbiImport(formData: FormData): Promise<void> {
   const kind = formData.get("kind");
   if (!isSbiImportKind(kind)) return;
   await getSbiStore().remove(kind);
-  revalidatePath("/");
-  revalidatePath("/sbi");
-  revalidatePath("/holdings");
+  revalidateDataPages();
 }
 
 /** 미국주식 추정 잔고 확인 화면에서 수정·추가한 현재 잔고를 저장한다. */
@@ -263,7 +258,7 @@ export async function saveSbiUsHoldings(_prev: FormState, formData: FormData): P
   }
   const parsed = sbiUsHoldingsSchema.safeParse(json);
   if (!parsed.success) {
-    const detail = parsed.error.issues.slice(0, 3).map((issue) => `${issue.path.join(".")}: ${issue.message}`).join(" · ");
+    const detail = zodIssueLines(parsed.error).slice(0, 3).join(" · ");
     return fail(`입력값을 확인하세요${detail ? ` — ${detail}` : ""}`);
   }
 
@@ -275,8 +270,6 @@ export async function saveSbiUsHoldings(_prev: FormState, formData: FormData): P
   });
   if (!saved) return fail("먼저 미국주식 약정이력 CSV를 넣어 주세요");
 
-  revalidatePath("/");
-  revalidatePath("/sbi");
-  revalidatePath("/holdings");
+  revalidateDataPages();
   return { ok: true, message: `현재 보유종목 ${parsed.data.length}개를 저장했습니다` };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { parseNumberInput } from "@/lib/domain/input.ts";
 import type { SbiUsHolding } from "@/lib/sbi/types.ts";
 import { saveSbiUsHoldings, type FormState } from "../actions.ts";
 import styles from "./sbi.module.css";
@@ -28,7 +29,13 @@ export function UsHoldingsEditor(props: {
   const [state, action, pending] = useActionState(saveSbiUsHoldings, INITIAL_STATE);
 
   const update = (id: string, patch: Partial<Draft>) => setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
-  const payload = rows.map((row) => ({ ...row, ticker: row.ticker.trim().toUpperCase(), quantity: Number(row.quantity), avgCost: Number(row.avgCost) }));
+  // 서버 스키마와 같은 규칙으로 읽는다("1,000" 허용). 빈 칸은 지금처럼 0 으로 보내 서버가 수량 0 을 거부하게 한다
+  const payload = rows.map((row) => ({
+    ...row,
+    ticker: row.ticker.trim().toUpperCase(),
+    quantity: parseNumberInput(row.quantity) ?? 0,
+    avgCost: parseNumberInput(row.avgCost) ?? 0,
+  }));
 
   return (
     <section className={`panel ${styles.usReview}`}>
@@ -112,9 +119,7 @@ export function UsHoldingsEditor(props: {
                     <input
                       className="num"
                       aria-label={`${row.ticker || "새 종목"} 현재 보유수량`}
-                      type="number"
-                      min="0.00000001"
-                      step="any"
+                      type="text"
                       inputMode="decimal"
                       value={row.quantity}
                       onChange={(event) => update(row.id, { quantity: event.target.value })}
@@ -125,9 +130,7 @@ export function UsHoldingsEditor(props: {
                     <input
                       className="num"
                       aria-label={`${row.ticker || "새 종목"} 평균 취득단가`}
-                      type="number"
-                      min="0"
-                      step="any"
+                      type="text"
                       inputMode="decimal"
                       value={row.avgCost}
                       onChange={(event) => update(row.id, { avgCost: event.target.value })}

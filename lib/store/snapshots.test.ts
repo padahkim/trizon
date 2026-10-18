@@ -6,6 +6,15 @@ import { join } from "node:path";
 import { makeRates } from "../portfolio/fx.ts";
 import { appendDailySnapshot, type DailySnapshot } from "./snapshots.ts";
 
+async function withTempDir(fn: (dir: string) => Promise<void>) {
+  const dir = await mkdtemp(join(tmpdir(), "trizon-snap-"));
+  try {
+    await fn(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 const snap = (date: string, value = 100): DailySnapshot => ({
   date,
   recordedAt: `${date}T00:00:00Z`,
@@ -15,9 +24,8 @@ const snap = (date: string, value = 100): DailySnapshot => ({
   stalePrices: 0,
 });
 
-test("하루 한 줄: 같은 날은 건너뛰고, 다음 날은 이어 쓴다", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "trizon-snap-"));
-  try {
+test("하루 한 줄: 같은 날은 건너뛰고, 다음 날은 이어 쓴다", () =>
+  withTempDir(async (dir) => {
     const path = join(dir, "data", "snapshots.jsonl");
     assert.equal(await appendDailySnapshot(path, snap("2026-09-26")), true);
     assert.equal(await appendDailySnapshot(path, snap("2026-09-26", 999)), false);
@@ -25,19 +33,12 @@ test("하루 한 줄: 같은 날은 건너뛰고, 다음 날은 이어 쓴다", 
     const lines = (await readFile(path, "utf8")).trimEnd().split("\n").map((l) => JSON.parse(l) as DailySnapshot);
     assert.deepEqual(lines.map((l) => l.date), ["2026-09-26", "2026-09-27"]);
     assert.equal(lines[0].accounts[0].value, 100);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
+  }));
 
-test("줄바꿈 없이 끝난 파일에도 새 줄로 이어 쓴다", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "trizon-snap-"));
-  try {
+test("줄바꿈 없이 끝난 파일에도 새 줄로 이어 쓴다", () =>
+  withTempDir(async (dir) => {
     const path = join(dir, "snapshots.jsonl");
     await writeFile(path, JSON.stringify(snap("2026-09-25")), "utf8");
     await appendDailySnapshot(path, snap("2026-09-26"));
     assert.equal((await readFile(path, "utf8")).trimEnd().split("\n").length, 2);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
+  }));

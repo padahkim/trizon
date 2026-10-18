@@ -114,7 +114,7 @@ export function createQuoteService(opts: {
         const prev = quotes.get(s);
         if (prev) prev.lastAttemptFailed = true;
       }
-      errors.push(`시세 조회 실패 (${opts.quoteProvider.name}): ${message(err)}`);
+      errors.push(`시세 조회 실패 (${opts.quoteProvider.name}): ${err instanceof Error ? err.message : String(err)}`);
       return false;
     }
   }
@@ -131,7 +131,7 @@ export function createQuoteService(opts: {
         fx = { value: await provider.fetchFx(), fetchedAtMs: nowMs, lastAttemptFailed: false };
         return true;
       } catch (err) {
-        failures.push(`${provider.name}: ${message(err)}`);
+        failures.push(`${provider.name}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
     fxFailedAtMs = nowMs;
@@ -154,7 +154,7 @@ export function createQuoteService(opts: {
         ]).finally(() => {
           forced = false;
         });
-        if (quotesChanged || fxChanged) await saveDisk().catch((err) => errors.push(`시세 캐시 저장 실패: ${message(err)}`));
+        if (quotesChanged || fxChanged) await saveDisk().catch((err) => errors.push(`시세 캐시 저장 실패: ${err instanceof Error ? err.message : String(err)}`));
         // 다시 묻지 않는 동안에도 경고는 계속 띄운다
         const missing = unique.filter((s) => missedAtMs.has(s));
         if (missing.length > 0) errors.push(`시세를 받지 못한 종목: ${missing.join(", ")}`);
@@ -175,7 +175,7 @@ export function createQuoteService(opts: {
       try {
         got = await opts.quoteProvider.fetchQuotes([...candidates]);
       } catch (err) {
-        return { ok: false, error: `시세 서버가 응답하지 않습니다. 잠시 뒤 다시 시도하세요 (${message(err)})` };
+        return { ok: false, error: `시세 서버가 응답하지 않습니다. 잠시 뒤 다시 시도하세요 (${err instanceof Error ? err.message : String(err)})` };
       }
       const result = pickBestQuote(candidates, got, expectedCurrency, now());
       if (result.ok) {
@@ -195,8 +195,4 @@ export function createQuoteService(opts: {
       });
     },
   };
-}
-
-function message(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

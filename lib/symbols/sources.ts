@@ -24,14 +24,14 @@ export async function downloadSymbolIndex(fetchImpl: typeof fetch = fetch): Prom
 
   // KIS 는 한·미 종목의 유일한 소스라 하나라도 빠지면 목록을 만들지 않는다 (반쪽 목록이 하루 동안 남지 않게)
   const required = { kospi, kosdaq, nas, nys, ams, tse };
-  const failed = Object.entries(required).flatMap(([k, r]) => (r.status === "rejected" ? [`${k} ${reason(r)}`] : []));
+  const failed = Object.entries(required).flatMap(([k, r]) => (r.status === "rejected" ? [`${k} ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`] : []));
   if (failed.length > 0) throw new Error(`한국투자증권 종목 마스터: ${failed.join(" / ")}`);
   const text = (r: PromiseSettledResult<string>) => (r as PromiseFulfilledResult<string>).value;
 
   const warnings: string[] = [];
   let jpxRows: JpxRow[] = [];
   if (jpx.status === "fulfilled") jpxRows = jpx.value;
-  else warnings.push(`JPX 목록을 받지 못해 일본 종목은 한글·영문명으로만 검색됩니다 (${reason(jpx)})`);
+  else warnings.push(`JPX 목록을 받지 못해 일본 종목은 한글·영문명으로만 검색됩니다 (${jpx.reason instanceof Error ? jpx.reason.message : String(jpx.reason)})`);
 
   const entries: SymbolEntry[] = [
     ...parseKisKrMaster(text(kospi), "코스피"),
@@ -64,5 +64,3 @@ function parseJpx(bytes: Uint8Array): JpxRow[] {
 
 // WHATWG 의 "euc-kr" 디코더는 CP949(확장 완성형)까지 읽는다
 const cp949 = (b: Buffer) => new TextDecoder("euc-kr").decode(b);
-
-const reason = (r: PromiseRejectedResult) => (r.reason instanceof Error ? r.reason.message : String(r.reason));
