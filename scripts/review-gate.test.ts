@@ -144,6 +144,7 @@ function lookup(over: Partial<Lookup> = {}, calls: string[] = []): Lookup {
     viewPr: (target) => (calls.push(`viewPr ${target.selector ?? ""}`), pr()),
     reviewThreads: () => (calls.push("reviewThreads"), [thread(["chatgpt-codex-connector"])]),
     unpushedCommits: () => (calls.push("unpushedCommits"), 0),
+    localRepo: () => "padahkim/trizon",
     ...over,
   };
 }
@@ -211,6 +212,16 @@ test("gate: 리뷰를 읽지 못하면 막는다", () => {
 
 test("gate: --repo로 다른 리포를 가리키면 로컬 커밋은 비교하지 않는다", () => {
   const calls: string[] = [];
-  gate("gh pr merge 3 --repo other/repo", lookup({}, calls));
+  const other = lookup({ viewPr: (target) => (calls.push(`viewPr ${target.selector}`), pr({ url: "https://github.com/other/repo/pull/3" })) }, calls);
+  gate("gh pr merge 3 --repo other/repo", other);
   assert.deepEqual(calls, ["viewPr 3", "reviewThreads"]);
+});
+
+test("gate: --repo로 이 리포를 적었으면 로컬 커밋도 비교한다", () => {
+  for (const repo of ["padahkim/trizon", "PadahKim/Trizon", "github.com/padahkim/trizon"]) {
+    const calls: string[] = [];
+    gate(`gh pr merge 8 --repo ${repo}`, lookup({ unpushedCommits: () => (calls.push("unpushedCommits"), 2) }, calls));
+    assert.ok(calls.includes("unpushedCommits"), repo);
+  }
+  assert.match(gate("gh pr merge 8 -R padahkim/trizon", lookup({ reviewThreads: () => [], unpushedCommits: () => 2 })) ?? "", /PR에 없는 커밋이 2개/);
 });

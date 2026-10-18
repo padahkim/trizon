@@ -221,6 +221,19 @@ function unpushedCommits(pr: Pr): number | null {
   return r.ok ? Number(r.out.trim()) : null;
 }
 
+/** 이 체크아웃의 origin 리포("owner/name", 소문자). github-personal:owner/name.git·https URL 모두 받는다. 알 수 없으면 null */
+function localRepo(): string | null {
+  const r = run("git", ["remote", "get-url", "origin"]);
+  if (!r.ok) return null;
+  const parts = r.out.trim().replace(/\.git$/, "").split(/[/:]/);
+  return parts.length >= 2 ? parts.slice(-2).join("/").toLowerCase() : null;
+}
+
+/** PR URL(https://github.com/owner/name/pull/N)의 "owner/name", 소문자 */
+export function repoOf(url: string): string {
+  return new URL(url).pathname.split("/").slice(1, 3).join("/").toLowerCase();
+}
+
 function readCommand(): string | undefined {
   try {
     const command = JSON.parse(readFileSync(0, "utf8") || "{}").tool_input?.command;
@@ -235,9 +248,10 @@ export type Lookup = {
   viewPr: (target: MergeTarget) => Pr;
   reviewThreads: (pr: Pr) => Thread[];
   unpushedCommits: (pr: Pr) => number | null;
+  localRepo: () => string | null;
 };
 
-const github: Lookup = { viewPr, reviewThreads, unpushedCommits };
+const github: Lookup = { viewPr, reviewThreads, unpushedCommits, localRepo };
 
 /** 훅의 판정. 명령 속 머지마다 확인해서, 하나라도 막아야 하면 에이전트에게 돌려줄 메시지, 모두 통과면 null */
 export function gate(command: string, lookup: Lookup): string | null {
@@ -261,8 +275,9 @@ function checkMerge(target: MergeTarget, lookup: Lookup): string | null {
 
   let found: string[];
   try {
-    // --repo로 다른 리포를 가리키면 로컬 브랜치와 비교할 수 없다
-    found = problems(pr, lookup.reviewThreads(pr), target.repo ? null : lookup.unpushedCommits(pr));
+    // --repo로 다른 리포를 가리키면 로컬 브랜치와 비교할 수 없다. 이 리포를 --repo로 적었으면 비교한다
+    const local = !target.repo || repoOf(pr.url) === lookup.localRepo();
+    found = problems(pr, lookup.reviewThreads(pr), local ? lookup.unpushedCommits(pr) : null);
   } catch (e) {
     found = [`리뷰 상태를 확인하지 못했다(${(e as Error).message}). gh 인증·네트워크를 확인하고, 풀리지 않으면 사용자에게 알린다.`];
   }
