@@ -62,6 +62,10 @@ PR을 열면 몇 분 안에 Codex 봇(`chatgpt-codex-connector`)이 인라인 �
 
 코드 구조, 금액·통화 모델, 데이터 파일은 `docs/architecture.md`에 정리한다. 코드를 고치기 전에 먼저 읽는다: @docs/architecture.md
 
+## Golden Rules
+
+같은 일을 하는 두 번째 방법을 만들지 않는다. 무엇을 어디에 어떻게 쓰는지(표준)와 따라 쓰면 안 되는 옛 코드(폐기된 패턴)는 `docs/golden-rules.md`에 있다. 새 코드를 쓰거나 둘 곳·방식을 정하기 전에 먼저 읽는다: @docs/golden-rules.md
+
 ## 폴더별 지침
 
 아래 폴더의 코드를 고치기 전에 그 폴더의 `AGENTS.md`를 먼저 읽는다.
@@ -88,6 +92,7 @@ PR을 열면 몇 분 안에 Codex 봇(`chatgpt-codex-connector`)이 인라인 �
 - 006 지침·문서는 도구 중립 파일 한 벌(`AGENTS.md`, `docs/`): docs/decisions/006-agents-md.md
 - 007 에이전트가 끝내기 전에 Stop 훅으로 `npm run check`: docs/decisions/007-agent-stop-check.md
 - 008 머지하기 전에 PreToolUse 훅으로 PR 리뷰 확인: docs/decisions/008-review-gate.md
+- 009 같은 일은 한 가지 방법으로, 판단 기준은 Consistency over DRY: docs/decisions/009-consistency-over-dry.md
 
 ## 지침 파일 관리
 
@@ -95,6 +100,7 @@ PR을 열면 몇 분 안에 Codex 봇(`chatgpt-codex-connector`)이 인라인 �
 - 도구 전용 폴더(`.claude/settings.json`, `.codex/hooks.json`)에는 훅 설정만 두고, 실행할 로직은 `scripts/`에 둔다. 도구마다 같은 스크립트를 가리키게 한다.
 - 내용에 따라 둘 곳을 정한다. 같은 내용을 두 곳에 쓰지 말고, 다른 문서의 내용이 필요하면 경로를 가리킨다.
   - 지금 어떻게 동작하나: `docs/architecture.md`(공통), 폴더별 `AGENTS.md`(외부 API·파일 형식)
+  - 새 코드를 어떻게 쓰나(표준·폐기된 패턴): `docs/golden-rules.md`
   - 왜 그렇게 정했나, 무엇을 버렸나: `docs/decisions/`
 - 에이전트 메모리나 리포 밖 계획서에만 있는 결정은 리포로 옮긴다. 다른 PC나 다른 도구에서는 보이지 않는다.
 - 결정 기록은 다음을 지킨다.
