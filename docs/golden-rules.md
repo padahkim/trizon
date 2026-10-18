@@ -34,6 +34,7 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 - 문자열이 필요할 때(툴팁, prop, 경고 문구)만 `formatMoney`·`formatPercent`·`formatUnitPrice`·`formatQuantity`(lib/format/money.ts)를 직접 부른다.
 - 통화 이름(원·엔·달러)은 `CURRENCY_SUFFIX`(lib/format/money.ts)에서 가져온다.
 - `toLocaleString`과 `Intl`은 lib/format/ 안에서만 쓴다(테스트로 강제). 새 표시 형식이 필요하면 lib/format/에 함수를 더한다. 날짜·시각 표시는 lib/format/date.ts에 둔다.
+  - 표시가 아니라 저장 키를 만드는 곳은 예외다. 스냅샷 날짜 키 `localDate`(lib/store/snapshots.ts)가 여기에 해당한다. 화면용 포맷과 섞지 않는다. 테스트에서는 `STORAGE_KEY_FORMATS`로 따로 둔다.
 
 ### 통화·종목코드·스키마
 
@@ -43,9 +44,18 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 
 ### 저장 파일(data/)
 
-- 쓰기는 `writeFileAtomic`, 읽기·쓰기 순서 보장은 `createSerialQueue`(lib/store/fs-utils.ts)로 한다.
-- 읽는 순서는 lib/store/json-file.ts의 `read()`와 같게 쓴다: 파일 읽기 → `JSON.parse` → `safeParse`.
-- 파일이 깨졌으면 `DataFileError`(lib/store/types.ts)를 상속한 그 파일 전용 오류(`PortfolioFileError`·`SbiImportFileError`처럼)를 던지고 **파일을 덮어쓰지 않는다**. 스키마 오류의 `details`는 `zodIssueLines`(lib/domain/schema.ts)로 만든다. 화면은 `FileErrorPanel`로 보여 준다.
+data/의 파일은 원본과 캐시로 나뉘고, 깨졌을 때의 규칙이 반대다. 파일마다 어느 쪽인지는 docs/architecture.md의 "데이터 파일"에 있다.
+
+- 쓰기는 어느 쪽이든 `writeFileAtomic`(lib/store/fs-utils.ts)으로 한다.
+- **원본**(`portfolio.json`, `sbi-imports.json`): 사용자가 넣은 데이터라 다시 만들 수 없다.
+  - 읽기·쓰기 순서는 `createSerialQueue`로 보장한다.
+  - 읽는 순서는 lib/store/json-file.ts의 `read()`와 같게 쓴다: 파일 읽기 → `JSON.parse` → `safeParse`.
+  - 깨졌으면 `DataFileError`(lib/store/types.ts)를 상속한 그 파일 전용 오류(`PortfolioFileError`·`SbiImportFileError`처럼)를 던지고 **파일을 덮어쓰지 않는다**. 스키마 오류의 `details`는 `zodIssueLines`(lib/domain/schema.ts)로 만든다. 화면은 `FileErrorPanel`로 보여 준다.
+  - 형식을 바꾸면 `version`을 올린다. 옛 버전도 읽고, 다음 쓰기에서 새 버전으로 올린다(lib/sbi/store.ts).
+- **캐시**(`quotes-cache.json`, `symbols.json`): 지워도 다시 받는 파일이다.
+  - 없거나 깨졌으면 버리고 새로 받는다. 오류를 던지거나 `FileErrorPanel`을 띄우지 않는다(lib/quotes/service.ts·lib/symbols/service.ts의 `loadDisk`).
+  - 형식을 바꾸면 `version`을 두고, 다르면 버리고 새로 받는다(lib/symbols/service.ts).
+- **`snapshots.jsonl`:** 하루 한 줄씩 덧붙이는 기록이다. 깨진 줄은 고치지 않고 그 뒤에 새 줄로 이어 쓴다(lib/store/snapshots.ts).
 
 ### 화면·Server Actions
 
@@ -54,6 +64,11 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 - 폼에 들어온 숫자("1,234", " 12.5 ")는 `parseNumberInput`(lib/domain/input.ts)으로 읽는다. 서버 스키마와 클라이언트 폼이 같이 쓴다. zod를 import하지 않아 클라이언트 컴포넌트에서도 쓸 수 있다.
 - 숫자 입력칸은 `type="text"`와 `inputMode="decimal"`로 둔다. `type="number"`는 증권사 화면에서 복사한 "1,000"을 브라우저가 빈 값으로 버린다.
 - 링크는 `hrefWith`(app/_components/href.ts)로 만들고, 삭제 확인은 `ConfirmSubmit`으로 받는다.
+- 액션을 부르는 방식과 pending 표시는 상호작용에 따라 고른다. 네 가지는 서로 바꿔 쓰는 것이 아니다.
+  - 폼을 제출하고 결과(성공 문구·필드 오류)를 받는다: `useActionState`와 `FormState`(app/actions.ts). 초기값은 `{ ok: true }`다. 예: AccountForm·HoldingForm.
+  - 폼 안의 버튼이 제출 중인지만 알면 된다(액션이 `void`): `useFormStatus`. 예: RefreshButton.
+  - 폼 제출이 아닌 이벤트(드래그앤드롭·파일 선택)에서 액션을 부른다: `useTransition`. 예: SbiImport.
+  - 결과도 pending 표시도 필요 없는 삭제: `<form action>`과 `ConfirmSubmit`.
 
 ### 오류
 
@@ -97,7 +112,7 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 - **비치명 메시지 이름:** lib/quotes/service.ts만 `errors[]`이고 나머지는 `warnings[]`다. 새 코드는 `warnings`를 쓴다.
 - **시계 직접 호출:** lib/symbols/sources.ts와 lib/quotes/frankfurter.ts가 `new Date()`를 직접 부른다.
 - **캐시 정책 이름:** TTL 옵션이 lib/quotes/service.ts는 `ttlMs`, lib/symbols/service.ts는 `maxAgeMs`다. `RETRY_AFTER_FAILURE_MS`도 두 서비스에 따로 있다. 새 캐시는 `ttlMs`를 쓴다.
-- **저장 파일 버전 정책 세 가지:** lib/sbi/store.ts는 v1을 읽고 다음 쓰기에서 v2로 올린다. lib/symbols/service.ts는 `version`이 다르면 다시 받는다. quotes 캐시는 버전이 없다. 새 저장 파일은 `version`을 두고 lib/sbi/store.ts 방식으로 올린다.
+- **시세 캐시의 버전:** `quotes-cache.json`에는 `version`이 없고, 읽을 때 검증 없이 `as CacheFile`로 받는다(lib/quotes/service.ts). 형식을 바꾸기 전에 lib/symbols/service.ts처럼 `version`을 먼저 붙인다.
 - **평균단가 계산이 여러 벌:** lib/sbi/evaluate.ts 안에 가중평균이 두 방식(`addTo`, 인라인 `reduce`)으로 있다. 매도 때 취득원가를 줄이는 계산도 lib/sbi/us-trades.ts와 lib/portfolio/cost-basis.ts `scaleCostBasis`에 따로 있다. 새로 필요하면 복사하지 말고 먼저 하나로 정리한다.
 - **실수 오차 지우기:** `Number(v.toFixed(10))`가 `cleanMoney`(lib/sbi/parse.ts)와 `clean`(lib/sbi/us-trades.ts)이라는 다른 이름으로 있다.
 - **NFKC 정규화 범위:** SBI CSV 셀(lib/sbi/csv.ts)과 종목 검색(lib/symbols/search.ts)은 NFKC를 거치지만, 폼의 종목코드(`quoteSymbolCandidates`)는 거치지 않는다. 그래서 전각으로 입력한 코드는 폼에서 거부된다.
@@ -108,7 +123,7 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
   - `formatMonthDay`(lib/format/date.ts)
   - `timeText` 두 개: app/page.tsx는 월·일이 두 자리, app/sbi/page.tsx는 한 자리다.
   - `ymd`(app/sbi/page.tsx)
-  - 표시에 쓰는 `localDate`(lib/store/snapshots.ts → app/holdings/page.tsx)
+  - app/holdings/page.tsx의 "수정일" 표시에 쓰는 `localDate`(lib/store/snapshots.ts). 이 함수는 표시용이 아니라 스냅샷의 저장 키다. `DailySnapshot.date`(시스템 시간대의 YYYY-MM-DD)를 만들고, `appendDailySnapshot`이 이 값으로 "하루 한 줄"을 판정한다. 표시를 통일할 때 `localDate`는 바꾸거나 lib/format/으로 옮기지 않는다. 화면 쪽만 lib/format/date.ts의 새 함수로 바꾼다. 출력이 달라지면 같은 날 스냅샷이 두 번 남거나 빠진다.
   - 새 코드는 lib/format/date.ts에 함수를 더해 쓴다. 남은 파일은 lib/golden-rules.test.ts의 `FORMAT_EXCEPTIONS`에 있다.
 - **평균 매입환율 표시 세 벌(자릿수가 다르다):** app/holdings/HoldingForm.tsx `rateText`, app/holdings/page.tsx의 인라인 `toLocaleString`, app/page.tsx의 `formatUnitPrice`. 새 코드는 lib/format/money.ts에 함수를 더한다(남은 파일은 `FORMAT_EXCEPTIONS`).
 - **`<Money>`를 손으로 다시 만든 곳:**
@@ -116,7 +131,7 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
   - app/sbi/page.tsx 안의 `money` 클로저 세 개. 이름은 같은데 동작이 다르다.
   - JSX 안에서 바로 부른 `formatMoney`. 정확한 금액 툴팁이 빠진다.
   - 수량 단위(주·좌)와 빈 값 "—" 표시도 화면마다 다르다.
-- **폼 상태 처리 네 가지:** `useActionState`(AccountForm·HoldingForm·UsHoldingsEditor), `useFormStatus`(RefreshButton), `useTransition`(SbiImport), pending 표시 없음(삭제 폼). 초기값도 `{ ok: true }`와 `{ ok: false }`가 섞여 있다. 새 폼은 `useActionState`와 `{ ok: true }`로 시작한다.
+- **`useActionState` 폼의 초기값·결과 메시지:** UsHoldingsEditor만 초기값이 `{ ok: false }`(`INITIAL_STATE`)다. 결과 메시지도 셋이 다르게 보여 준다. AccountForm은 `<span className={ok ? "muted" : "error"}>`, HoldingForm은 오류만, UsHoldingsEditor는 `styles.formSuccess`·`notice notice-danger`를 쓴다. 새 폼은 `{ ok: true }`로 시작한다. 어느 hook을 쓸지는 3절 "화면·Server Actions"를 따른다.
 - **CSS·화면 조각 복사:**
   - app/page.module.css와 app/sbi/sbi.module.css에 같은 클래스 14개(`stack`·`controls`·`kpi*`·`notices` 등)가 있다.
   - 두 파일에서 `.hero`의 뜻이 서로 반대다. 대시보드의 `.hero`는 SBI의 `.heroMain`이고, 대시보드의 `.heroPanel`은 SBI의 `.hero`다.
