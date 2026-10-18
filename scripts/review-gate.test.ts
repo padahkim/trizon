@@ -116,16 +116,19 @@ test("codexStatus: 요약 코멘트가 없으면 Codex 리뷰 본문으로 판�
   assert.deepEqual(codexStatus(pr({ comments: [], reviews: [] })), { state: "missing" });
 });
 
-test("unansweredThreads: 답글·resolve가 있으면 대응한 것으로 본다", () => {
+test("unansweredThreads: PR 작성자의 답글·resolve가 있으면 대응한 것으로 본다", () => {
   const bot = "chatgpt-codex-connector";
   const threads = [
     thread([bot]), // 미대응
     thread([bot, bot]), // 봇끼리만 → 미대응
-    thread([bot, "padahkim"]), // 답글
+    thread([bot, "someone"]), // 다른 사람의 "+1" → 미대응
+    thread([bot, "padahkim"]), // 작성자 답글
+    thread([bot, "someone", "padahkim"]), // 작성자 답글
     thread([bot], true), // resolve
     thread(["padahkim"]), // 작성자가 스스로 연 스레드
   ];
-  assert.deepEqual(unansweredThreads(threads, "padahkim"), [threads[0], threads[1]]);
+  assert.deepEqual(unansweredThreads(threads, "padahkim"), [threads[0], threads[1], threads[2]]);
+  assert.equal(unansweredThreads([thread([bot, "padahkim"])], undefined).length, 1);
 });
 
 test("problems: 정리되면 비어 있고, 미대응 스레드·push 안 한 커밋은 막는다", () => {

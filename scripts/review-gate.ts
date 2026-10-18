@@ -151,13 +151,16 @@ export function codexStatus(pr: Pick<Pr, "comments" | "reviews">): CodexStatus {
   return { state: "completed", commit: rows[0].commit };
 }
 
-/** resolve되지 않았고, 처음 단 사람 말고는 아무도 답하지 않은 스레드. PR 작성자가 스스로 연 스레드는 뺀다 */
+/**
+ * resolve되지 않았고 PR 작성자가 답하지 않은 스레드. PR 작성자가 스스로 연 스레드는 뺀다.
+ * 다른 리뷰어나 봇의 "+1"은 대응이 아니므로 작성자의 답글만 본다.
+ */
 export function unansweredThreads(threads: Thread[], prAuthor: string | undefined): Thread[] {
   return threads.filter((thread) => {
     if (thread.isResolved) return false;
     const [opener, ...replies] = thread.comments.nodes.map((c) => c.author?.login);
     if (opener === prAuthor) return false;
-    return !replies.some((login) => login !== opener);
+    return prAuthor === undefined || !replies.includes(prAuthor);
   });
 }
 
@@ -179,7 +182,7 @@ export function problems(pr: Pr, threads: Thread[], unpushed: number | null): st
       const first = thread.comments.nodes[0];
       return `  - ${first?.author?.login ?? "?"} · ${thread.path}${thread.line ? `:${thread.line}` : ""} · ${first?.url ?? ""}`;
     });
-    out.push(`답글도 resolve도 없는 리뷰 스레드가 ${open.length}개 있다.\n${lines.join("\n")}`);
+    out.push(`PR 작성자의 답글도 resolve도 없는 리뷰 스레드가 ${open.length}개 있다.\n${lines.join("\n")}`);
   }
 
   if (unpushed) out.push(`로컬 ${pr.headRefName} 브랜치에 PR에 없는 커밋이 ${unpushed}개 있다. push한 뒤 머지한다.`);
