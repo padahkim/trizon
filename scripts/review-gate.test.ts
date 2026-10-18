@@ -62,6 +62,13 @@ test("mergeTargets: 값을 받는 옵션의 값은 PR 지정으로 보지 않는
   assert.deepEqual(mergeTargets("gh pr merge 4 | tee log"), [{ selector: "4" }]);
 });
 
+test("mergeTargets: 서브커맨드 앞에 온 -R·--repo도 읽는다", () => {
+  assert.deepEqual(mergeTargets("gh -R other/repo pr merge 3"), [{ selector: "3", repo: "other/repo" }]);
+  assert.deepEqual(mergeTargets("gh pr -Rother/repo merge 3"), [{ selector: "3", repo: "other/repo" }]);
+  assert.deepEqual(mergeTargets("gh pr --repo=other/repo merge 3 --merge"), [{ selector: "3", repo: "other/repo" }]);
+  assert.deepEqual(mergeTargets("gh -R other/repo pr view 3"), []);
+});
+
 test("mergeTargets: 명령 위치가 아닌 gh pr merge와 다른 gh 명령은 무시", () => {
   assert.deepEqual(mergeTargets('git commit -m "gh pr merge 직전에 막는다"'), []);
   assert.deepEqual(mergeTargets('git commit -m "제목\ngh pr merge 8 이후"'), []);

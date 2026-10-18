@@ -78,25 +78,28 @@ function commands(text: string): string[][] {
   return out;
 }
 
-/** 한 명령의 단어들이 `gh pr merge`면 PR 지정(번호·URL·브랜치)과 `--repo`를 꺼낸다. 아니면 null */
+/**
+ * 한 명령의 단어들이 `gh pr merge`면 PR 지정(번호·URL·브랜치)과 `--repo`를 꺼낸다. 아니면 null.
+ * `-R`은 상위 명령에서 물려받는 옵션이라 `gh -R a/b pr merge 3`, `gh pr -Ra/b merge 3`처럼 서브커맨드 앞에도 온다.
+ */
 function parseMerge(args: readonly string[]): MergeTarget | null {
   let i = 0;
   let skip = false;
   // 앞에 붙은 환경변수 대입. 건너뛰기는 이 머지 명령에 붙은 것만 인정한다(echo 속 문자열 등은 무시)
   for (; i < args.length && /^[A-Za-z_]\w*=/.test(args[i]); i++) if (args[i] === SKIP) skip = true;
-  if (args[i] !== "gh" || args[i + 1] !== "pr" || args[i + 2] !== "merge") return null;
+  if (args[i] !== "gh") return null;
   const target: MergeTarget = skip ? { skip } : {};
-  for (i += 3; i < args.length; i++) {
+  const positional: string[] = [];
+  for (i++; i < args.length; i++) {
     const arg = args[i];
-    if (VALUE_FLAGS.has(arg)) {
-      if (arg === "-R" || arg === "--repo") target.repo = args[i + 1];
-      i++;
-    } else if (arg.startsWith("--repo=")) {
-      target.repo = arg.slice("--repo=".length);
-    } else if (!arg.startsWith("-")) {
-      target.selector ??= arg;
-    }
+    if (arg === "-R" || arg === "--repo") target.repo = args[++i];
+    else if (arg.startsWith("--repo=")) target.repo = arg.slice("--repo=".length);
+    else if (/^-R./.test(arg)) target.repo = arg.slice(2);
+    else if (VALUE_FLAGS.has(arg)) i++;
+    else if (!arg.startsWith("-")) positional.push(arg);
   }
+  if (positional[0] !== "pr" || positional[1] !== "merge") return null;
+  if (positional[2] !== undefined) target.selector = positional[2];
   return target;
 }
 
