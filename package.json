@@ -8,10 +8,11 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"lib/**/*.test.ts\"",
+    "test": "node --test \"lib/**/*.test.ts\" \"scripts/**/*.test.ts\"",
     "check": "npm run typecheck && npm test",
     "quote:smoke": "node scripts/quote-smoke.ts",
-    "symbols:smoke": "node scripts/symbols-smoke.ts"
+    "symbols:smoke": "node scripts/symbols-smoke.ts",
+    "review:status": "node scripts/review-gate.ts"
   },
   "engines": {
     "node": ">=22.18"
