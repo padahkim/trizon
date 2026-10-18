@@ -32,6 +32,7 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 - 문자열이 필요할 때(툴팁, prop, 경고 문구)만 `formatMoney`·`formatPercent`·`formatUnitPrice`·`formatQuantity`(lib/format/money.ts)를 직접 부른다.
 - 통화 이름(원·엔·달러)은 `CURRENCY_SUFFIX`(lib/format/money.ts)에서 가져온다.
 - `toLocaleString`과 `Intl`은 lib/format/ 안에서만 쓴다. 새 표시 형식이 필요하면 lib/format/에 함수를 더한다. 날짜·시각 표시는 lib/format/date.ts에 둔다.
+  - 표시가 아니라 저장 키를 만드는 곳은 예외다. 스냅샷 날짜 키 `localDate`(lib/store/snapshots.ts)가 여기에 해당한다. 화면용 포맷과 섞지 않는다.
 
 ### 통화·종목코드·스키마
 
@@ -132,7 +133,7 @@ data/의 파일은 원본과 캐시로 나뉘고, 깨졌을 때의 규칙이 반
   - `formatMonthDay`(lib/format/date.ts)
   - `timeText` 두 개: app/page.tsx는 월·일이 두 자리, app/sbi/page.tsx는 한 자리다.
   - `ymd`(app/sbi/page.tsx)
-  - 표시에 쓰는 `localDate`(lib/store/snapshots.ts → app/holdings/page.tsx)
+  - app/holdings/page.tsx의 "수정일" 표시에 쓰는 `localDate`(lib/store/snapshots.ts). 이 함수는 표시용이 아니라 스냅샷의 저장 키다. `DailySnapshot.date`(시스템 시간대의 YYYY-MM-DD)를 만들고, `appendDailySnapshot`이 이 값으로 "하루 한 줄"을 판정한다. 표시를 통일할 때 `localDate`는 바꾸거나 lib/format/으로 옮기지 않는다. 화면 쪽만 lib/format/date.ts의 새 함수로 바꾼다. 출력이 달라지면 같은 날 스냅샷이 두 번 남거나 빠진다.
   - 새 코드는 lib/format/date.ts에 함수를 더해 쓴다.
 - **평균 매입환율 표시 세 벌(자릿수가 다르다):** app/holdings/HoldingForm.tsx `rateText`, app/holdings/page.tsx의 인라인 `toLocaleString`, app/page.tsx의 `formatUnitPrice`. 새 코드는 lib/format/money.ts에 함수를 더한다.
 - **`<Money>`를 손으로 다시 만든 곳:**
