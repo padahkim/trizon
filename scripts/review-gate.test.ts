@@ -77,6 +77,12 @@ test("mergeTargets: 명령 위치가 아닌 gh pr merge와 다른 gh 명령은 �
   assert.deepEqual(mergeTargets("gh pr merged 8"), []);
 });
 
+test("mergeTargets: 자동 머지 취소(--disable-auto)는 머지가 아니다", () => {
+  assert.deepEqual(mergeTargets("gh pr merge 8 --disable-auto"), []);
+  assert.deepEqual(mergeTargets("gh pr merge 8 --disable-auto && gh pr merge 9"), [{ selector: "9" }]);
+  assert.equal(gate("gh pr merge 8 --disable-auto", lookup()), null);
+});
+
 test("codexStatus: 요약 코멘트의 완료·실패", () => {
   assert.deepEqual(codexStatus(pr()), { state: "completed", commit: "3d4afe9" });
   assert.deepEqual(codexStatus(pr({ comments: [summary(FAILED)] })), { state: "failed", commit: "baa210f" });

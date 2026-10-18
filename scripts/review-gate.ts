@@ -99,6 +99,8 @@ function parseMerge(args: readonly string[]): MergeTarget | null {
     else if (!arg.startsWith("-")) positional.push(arg);
   }
   if (positional[0] !== "pr" || positional[1] !== "merge") return null;
+  // 자동 머지 취소는 머지가 아니다. 리뷰가 덜 됐을 때야말로 취소해야 하므로 막지 않는다
+  if (args.includes("--disable-auto")) return null;
   if (positional[2] !== undefined) target.selector = positional[2];
   return target;
 }
