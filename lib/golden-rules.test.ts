@@ -25,27 +25,28 @@ const app = files("app", /\.tsx?$/);
  * 아직 고치지 못한 표시 포맷. docs/golden-rules.md 5절의 "날짜·시각 표시 다섯 벌"과 "평균 매입환율 표시 세 벌"이다.
  * 고쳤으면 여기서 지운다. 목록은 줄기만 한다.
  */
-const FORMAT_EXCEPTIONS = [
-  "app/holdings/HoldingForm.tsx",
-  "app/holdings/page.tsx",
-  "app/page.tsx",
-  "app/sbi/page.tsx",
-  "lib/store/snapshots.ts",
-];
+const FORMAT_EXCEPTIONS = ["app/holdings/HoldingForm.tsx", "app/holdings/page.tsx", "app/page.tsx", "app/sbi/page.tsx"];
+
+/**
+ * 표시가 아니라 저장 키를 만드느라 로캘 API를 쓰는 곳. lib/format/ 으로 옮기지 않는다(docs/golden-rules.md 3절).
+ * lib/store/snapshots.ts 의 localDate 는 DailySnapshot.date 이고, 출력이 바뀌면 "하루 한 줄" 판정이 틀어진다.
+ */
+const STORAGE_KEY_FORMATS = ["lib/store/snapshots.ts"];
 
 test("표시 포맷(toLocaleString·Intl)은 lib/format/ 에만 둔다", () => {
   const offenders = [...lib, ...app]
     .filter((f) => !f.path.startsWith("lib/format/") && /\.toLocale\w*String\(|\bIntl\./.test(f.text))
     .map((f) => f.path);
+  const allowed = [...FORMAT_EXCEPTIONS, ...STORAGE_KEY_FORMATS];
   assert.deepEqual(
-    offenders.filter((path) => !FORMAT_EXCEPTIONS.includes(path)),
+    offenders.filter((path) => !allowed.includes(path)),
     [],
     "새 표시 형식은 lib/format/ 에 함수를 더해 쓴다",
   );
   assert.deepEqual(
-    FORMAT_EXCEPTIONS.filter((path) => !offenders.includes(path)),
+    allowed.filter((path) => !offenders.includes(path)),
     [],
-    "고친 파일은 FORMAT_EXCEPTIONS 와 docs/golden-rules.md 5절에서 지운다",
+    "더는 로캘 API를 쓰지 않는 파일은 FORMAT_EXCEPTIONS·STORAGE_KEY_FORMATS 와 docs/golden-rules.md 에서 지운다",
   );
 });
 
