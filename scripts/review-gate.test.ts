@@ -181,6 +181,23 @@ test("gate: 정리된 PR, 이미 머지된 PR, 찾지 못한 PR은 통과", () =
     },
   });
   assert.equal(gate("gh pr merge", missing), null);
+  const noNumber = lookup({
+    viewPr: () => {
+      throw new Error("gh pr view: GraphQL: Could not resolve to a PullRequest with the number of 9999. (repository.pullRequest)");
+    },
+  });
+  assert.equal(gate("gh pr merge 9999", noNumber), null);
+});
+
+test("gate: PR이 없다는 답이 아닌 조회 실패는 막는다", () => {
+  for (const reason of ["gh pr view: HTTP 401: Bad credentials", "gh pr view: API rate limit exceeded", 'gh pr view: Unknown JSON field: "headRefOid"']) {
+    const broken = lookup({
+      viewPr: () => {
+        throw new Error(reason);
+      },
+    });
+    assert.match(gate("gh pr merge 8", broken) ?? "", /PR 8을 조회하지 못해/, reason);
+  }
 });
 
 test("gate: 머지가 아닌 명령과 건너뛰기는 조회하지 않고 통과", () => {

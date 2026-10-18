@@ -12,6 +12,8 @@ export const SKIP = "TRIZON_SKIP_REVIEW_GATE=1";
 const CODEX_SUMMARY = "<!-- codex-pull-request-review-summary -->";
 const CODEX_BOT = "chatgpt-codex-connector";
 /** `gh pr merge`에서 값을 받는 옵션. 바로 다음 토큰은 PR 지정이 아니다 */
+/** gh가 "그런 PR이 없다"고 답할 때의 문구 (2026-10-18 gh 2.x 관측). 이것만 통과시키고 다른 조회 실패는 막는다 */
+const NO_PR = /no pull requests found|Could not resolve to a PullRequest/i;
 const VALUE_FLAGS = new Set(["-A", "--author-email", "-b", "--body", "-F", "--body-file", "--match-head-commit", "-t", "--subject", "-R", "--repo"]);
 
 type Author = { login: string } | null;
@@ -268,8 +270,12 @@ function checkMerge(target: MergeTarget, lookup: Lookup): string | null {
   let pr: Pr;
   try {
     pr = lookup.viewPr(target);
-  } catch {
-    return null; // PR을 찾지 못하면 통과시킨다. 진짜 머지 명령이면 gh가 같은 이유로 실패한다
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    // PR이 없다고 확인된 경우만 통과시킨다(번호 오타, PR이 없는 브랜치). 진짜 머지 명령이면 gh도 같은 이유로 실패한다.
+    // 인증·rate limit·일시 오류는 머지 요청만 성공할 수 있으므로 막는다
+    if (NO_PR.test(message)) return null;
+    return `PR ${target.selector ?? "(현재 브랜치)"}을 조회하지 못해 gh pr merge를 막았다(${message}). gh 인증·네트워크를 확인하고, 풀리지 않으면 사용자에게 알린다.`;
   }
   if (pr.state !== "OPEN") return null;
 
