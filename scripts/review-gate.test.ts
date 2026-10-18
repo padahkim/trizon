@@ -176,6 +176,17 @@ test("gate: 머지가 아닌 명령과 건너뛰기는 조회하지 않고 통�
   assert.deepEqual(calls, []);
 });
 
+test("gate: 건너뛰기는 그 머지 명령에 환경변수로 붙였을 때만", () => {
+  const calls: string[] = [];
+  assert.match(gate(`echo '${SKIP}' && gh pr merge 8`, lookup({}, calls)) ?? "", /PR #8의 리뷰가 정리되지 않아/);
+  assert.match(gate(`git commit -m "${SKIP}"; gh pr merge 8`, lookup()) ?? "", /PR #8/);
+
+  calls.length = 0;
+  const both = gate(`${SKIP} gh pr merge 8 && gh pr merge 9`, lookup({ viewPr: (target) => (calls.push(`viewPr ${target.selector}`), pr({ number: 9 })) }, calls));
+  assert.deepEqual(calls.filter((c) => c.startsWith("viewPr")), ["viewPr 9"]);
+  assert.match(both ?? "", /PR #9/);
+});
+
 test("gate: 리뷰를 읽지 못하면 막는다", () => {
   const broken = lookup({
     reviewThreads: () => {

@@ -35,7 +35,8 @@ export type Thread = {
   comments: { nodes: { author: Author; url: string }[] };
 };
 
-export type MergeTarget = { selector?: string; repo?: string };
+/** skip: 그 머지 명령 앞에 SKIP을 환경변수로 붙였다 */
+export type MergeTarget = { selector?: string; repo?: string; skip?: boolean };
 
 export type CodexStatus =
   | { state: "missing" }
@@ -80,9 +81,11 @@ function commands(text: string): string[][] {
 /** 한 명령의 단어들이 `gh pr merge`면 PR 지정(번호·URL·브랜치)과 `--repo`를 꺼낸다. 아니면 null */
 function parseMerge(args: readonly string[]): MergeTarget | null {
   let i = 0;
-  while (i < args.length && /^[A-Za-z_]\w*=/.test(args[i])) i++; // 앞에 붙은 환경변수 대입
+  let skip = false;
+  // 앞에 붙은 환경변수 대입. 건너뛰기는 이 머지 명령에 붙은 것만 인정한다(echo 속 문자열 등은 무시)
+  for (; i < args.length && /^[A-Za-z_]\w*=/.test(args[i]); i++) if (args[i] === SKIP) skip = true;
   if (args[i] !== "gh" || args[i + 1] !== "pr" || args[i + 2] !== "merge") return null;
-  const target: MergeTarget = {};
+  const target: MergeTarget = skip ? { skip } : {};
   for (i += 3; i < args.length; i++) {
     const arg = args[i];
     if (VALUE_FLAGS.has(arg)) {
@@ -233,8 +236,8 @@ const github: Lookup = { viewPr, reviewThreads, unpushedCommits };
 
 /** 훅의 판정. 명령 속 머지마다 확인해서, 하나라도 막아야 하면 에이전트에게 돌려줄 메시지, 모두 통과면 null */
 export function gate(command: string, lookup: Lookup): string | null {
-  if (command.includes(SKIP)) return null;
   const blocked = mergeTargets(command).flatMap((target) => {
+    if (target.skip) return [];
     const message = checkMerge(target, lookup);
     return message ? [message] : [];
   });
