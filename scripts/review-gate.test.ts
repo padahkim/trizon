@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { codexStatus, gate, mergeTarget, problems, SKIP, unansweredThreads } from "./review-gate.ts";
+import { codexStatus, gate, mergeTargets, problems, SKIP, unansweredThreads } from "./review-gate.ts";
 import type { Lookup, Pr, Thread } from "./review-gate.ts";
 
 const author = (login: string) => ({ login });
@@ -42,26 +42,32 @@ const thread = (logins: string[], isResolved = false): Thread => ({
   comments: { nodes: logins.map((login, i) => ({ author: author(login), url: `https://example.test/c${i}` })) },
 });
 
-test("mergeTarget: 번호·현재 브랜치·이어 붙인 명령", () => {
-  assert.deepEqual(mergeTarget("gh pr merge 8 --merge"), { selector: "8" });
-  assert.deepEqual(mergeTarget("gh pr merge --merge --delete-branch=false"), {});
-  assert.deepEqual(mergeTarget("git push && gh pr merge 9 --squash"), { selector: "9" });
-  assert.deepEqual(mergeTarget("cd /tmp; GH_CONFIG_DIR=/x gh pr merge feat/x"), { selector: "feat/x" });
-  assert.deepEqual(mergeTarget("gh pr merge https://github.com/padahkim/trizon/pull/7 -m"), { selector: "https://github.com/padahkim/trizon/pull/7" });
+test("mergeTargets: 번호·현재 브랜치·이어 붙인 명령", () => {
+  assert.deepEqual(mergeTargets("gh pr merge 8 --merge"), [{ selector: "8" }]);
+  assert.deepEqual(mergeTargets("gh pr merge --merge --delete-branch=false"), [{}]);
+  assert.deepEqual(mergeTargets("git push && gh pr merge 9 --squash"), [{ selector: "9" }]);
+  assert.deepEqual(mergeTargets("cd /tmp; GH_CONFIG_DIR=/x gh pr merge feat/x"), [{ selector: "feat/x" }]);
+  assert.deepEqual(mergeTargets("gh pr merge https://github.com/padahkim/trizon/pull/7 -m"), [{ selector: "https://github.com/padahkim/trizon/pull/7" }]);
 });
 
-test("mergeTarget: 값을 받는 옵션의 값은 PR 지정으로 보지 않는다", () => {
-  assert.deepEqual(mergeTarget('gh pr merge -t "merge 3" --body-file b.md 10'), { selector: "10" });
-  assert.deepEqual(mergeTarget("gh pr merge --repo padahkim/trizon 3"), { selector: "3", repo: "padahkim/trizon" });
-  assert.deepEqual(mergeTarget("gh pr merge 3 --repo=a/b"), { selector: "3", repo: "a/b" });
-  assert.deepEqual(mergeTarget("gh pr merge 4 | tee log"), { selector: "4" });
+test("mergeTargets: 한 명령에 머지가 여럿이면 모두 찾는다", () => {
+  assert.deepEqual(mergeTargets("gh pr merge 8 && gh pr merge 9"), [{ selector: "8" }, { selector: "9" }]);
+  assert.deepEqual(mergeTargets("gh pr merge 8 --merge\ngh pr merge 9 --merge"), [{ selector: "8" }, { selector: "9" }]);
 });
 
-test("mergeTarget: 명령 위치가 아닌 gh pr merge와 다른 gh 명령은 무시", () => {
-  assert.equal(mergeTarget('git commit -m "gh pr merge 직전에 막는다"'), null);
-  assert.equal(mergeTarget("echo gh pr merge 8"), null);
-  assert.equal(mergeTarget("gh pr view 8"), null);
-  assert.equal(mergeTarget("gh pr merged 8"), null);
+test("mergeTargets: 값을 받는 옵션의 값은 PR 지정으로 보지 않는다", () => {
+  assert.deepEqual(mergeTargets('gh pr merge -t "merge 3" --body-file b.md 10'), [{ selector: "10" }]);
+  assert.deepEqual(mergeTargets("gh pr merge --repo padahkim/trizon 3"), [{ selector: "3", repo: "padahkim/trizon" }]);
+  assert.deepEqual(mergeTargets("gh pr merge 3 --repo=a/b"), [{ selector: "3", repo: "a/b" }]);
+  assert.deepEqual(mergeTargets("gh pr merge 4 | tee log"), [{ selector: "4" }]);
+});
+
+test("mergeTargets: 명령 위치가 아닌 gh pr merge와 다른 gh 명령은 무시", () => {
+  assert.deepEqual(mergeTargets('git commit -m "gh pr merge 직전에 막는다"'), []);
+  assert.deepEqual(mergeTargets('git commit -m "제목\ngh pr merge 8 이후"'), []);
+  assert.deepEqual(mergeTargets("echo gh pr merge 8"), []);
+  assert.deepEqual(mergeTargets("gh pr view 8"), []);
+  assert.deepEqual(mergeTargets("gh pr merged 8"), []);
 });
 
 test("codexStatus: 요약 코멘트의 완료·실패", () => {
@@ -135,6 +141,21 @@ test("gate: 열린 PR에 미대응 스레드가 있으면 막고 이유를 돌�
   assert.match(message, /PR #8의 리뷰가 정리되지 않아/);
   assert.match(message, /https:\/\/example\.test\/c0/);
   assert.match(message, new RegExp(SKIP));
+});
+
+test("gate: 한 명령의 머지 중 하나라도 정리되지 않았으면 막는다", () => {
+  const calls: string[] = [];
+  const mixed = lookup(
+    {
+      viewPr: (target) => (calls.push(`viewPr ${target.selector}`), pr({ number: Number(target.selector) })),
+      reviewThreads: (p) => (p.number === 9 ? [thread(["chatgpt-codex-connector"])] : []),
+    },
+    calls,
+  );
+  const message = gate("gh pr merge 8 --merge && gh pr merge 9 --merge", mixed);
+  assert.match(message ?? "", /PR #9의 리뷰가 정리되지 않아/);
+  assert.doesNotMatch(message ?? "", /PR #8/);
+  assert.deepEqual(calls.filter((c) => c.startsWith("viewPr")), ["viewPr 8", "viewPr 9"]);
 });
 
 test("gate: 정리된 PR, 이미 머지된 PR, 찾지 못한 PR은 통과", () => {

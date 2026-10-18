@@ -42,12 +42,18 @@ export type CodexStatus =
   | { state: "running"; label: string }
   | { state: "failed" | "completed"; commit: string };
 
-/** 따옴표만 처리해 단어로 나눈다. 셸 구분자(; & | 괄호 줄바꿈)를 만나면 거기서 멈춘다 */
-function words(text: string): string[] {
-  const out: string[] = [];
+/** 따옴표만 처리해 단어로 나누고, 따옴표 밖의 셸 구분자(; & | 괄호 줄바꿈)마다 명령을 끊는다 */
+function commands(text: string): string[][] {
+  const out: string[][] = [];
+  let current: string[] = [];
   let word = "";
   let started = false;
   let quote = "";
+  const endWord = () => {
+    if (started) current.push(word);
+    word = "";
+    started = false;
+  };
   for (const ch of text) {
     if (quote) {
       if (ch === quote) quote = "";
@@ -56,28 +62,28 @@ function words(text: string): string[] {
       quote = ch;
       started = true;
     } else if (/[;&|()\n]/.test(ch)) {
-      break;
+      endWord();
+      if (current.length > 0) out.push(current);
+      current = [];
     } else if (/\s/.test(ch)) {
-      if (started) out.push(word);
-      word = "";
-      started = false;
+      endWord();
     } else {
       word += ch;
       started = true;
     }
   }
-  if (started) out.push(word);
+  endWord();
+  if (current.length > 0) out.push(current);
   return out;
 }
 
-/** 명령 위치에 있는 `gh pr merge`를 찾아 PR 지정(번호·URL·브랜치)과 `--repo`를 꺼낸다. 없으면 null */
-export function mergeTarget(command: string): MergeTarget | null {
-  // 줄 첫머리나 ; & | ( 뒤(환경변수 대입은 건너뛴다)만 본다. 문장 속 "gh pr merge"에 덜 걸리게 하려는 것이다
-  const m = /(?:^|[;&|(])\s*(?:[A-Za-z_]\w*=\S*\s+)*gh\s+pr\s+merge(?![\w-])/m.exec(command);
-  if (!m) return null;
-  const args = words(command.slice(m.index + m[0].length));
+/** 한 명령의 단어들이 `gh pr merge`면 PR 지정(번호·URL·브랜치)과 `--repo`를 꺼낸다. 아니면 null */
+function parseMerge(args: readonly string[]): MergeTarget | null {
+  let i = 0;
+  while (i < args.length && /^[A-Za-z_]\w*=/.test(args[i])) i++; // 앞에 붙은 환경변수 대입
+  if (args[i] !== "gh" || args[i + 1] !== "pr" || args[i + 2] !== "merge") return null;
   const target: MergeTarget = {};
-  for (let i = 0; i < args.length; i++) {
+  for (i += 3; i < args.length; i++) {
     const arg = args[i];
     if (VALUE_FLAGS.has(arg)) {
       if (arg === "-R" || arg === "--repo") target.repo = args[i + 1];
@@ -89,6 +95,17 @@ export function mergeTarget(command: string): MergeTarget | null {
     }
   }
   return target;
+}
+
+/**
+ * 명령 위치에 있는 `gh pr merge`를 모두 찾는다. 첫 단어가 gh인 명령만 보므로 문장이나 따옴표 속 "gh pr merge"에는 걸리지 않는다.
+ * 하나만 보면 `gh pr merge 8 && gh pr merge 9`에서 9가 검사 없이 머지된다.
+ */
+export function mergeTargets(command: string): MergeTarget[] {
+  return commands(command).flatMap((args) => {
+    const target = parseMerge(args);
+    return target ? [target] : [];
+  });
 }
 
 /** Codex 요약 코멘트의 표에서 리뷰 종류마다 가장 최근 행을 골라 상태를 합친다 */
@@ -214,12 +231,18 @@ export type Lookup = {
 
 const github: Lookup = { viewPr, reviewThreads, unpushedCommits };
 
-/** 훅의 판정. 막아야 하면 에이전트에게 돌려줄 메시지, 통과면 null */
+/** 훅의 판정. 명령 속 머지마다 확인해서, 하나라도 막아야 하면 에이전트에게 돌려줄 메시지, 모두 통과면 null */
 export function gate(command: string, lookup: Lookup): string | null {
   if (command.includes(SKIP)) return null;
-  const target = mergeTarget(command);
-  if (!target) return null;
+  const blocked = mergeTargets(command).flatMap((target) => {
+    const message = checkMerge(target, lookup);
+    return message ? [message] : [];
+  });
+  return blocked.length > 0 ? blocked.join("\n\n") : null;
+}
 
+/** 머지 하나의 판정. 막아야 하면 메시지, 통과면 null */
+function checkMerge(target: MergeTarget, lookup: Lookup): string | null {
   let pr: Pr;
   try {
     pr = lookup.viewPr(target);
