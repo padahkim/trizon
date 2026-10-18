@@ -41,9 +41,18 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 
 ### 저장 파일(data/)
 
-- 쓰기는 `writeFileAtomic`, 읽기·쓰기 순서 보장은 `createSerialQueue`(lib/store/fs-utils.ts)로 한다.
-- 읽는 순서는 lib/store/json-file.ts의 `read()`와 같게 쓴다: 파일 읽기 → `JSON.parse` → `safeParse`.
-- 파일이 깨졌으면 `filePath`·`details`를 담은 오류를 던지고 **파일을 덮어쓰지 않는다**. 화면은 `FileErrorPanel`로 보여 준다.
+data/의 파일은 원본과 캐시로 나뉘고, 깨졌을 때의 규칙이 반대다. 파일마다 어느 쪽인지는 docs/architecture.md의 "데이터 파일"에 있다.
+
+- 쓰기는 어느 쪽이든 `writeFileAtomic`(lib/store/fs-utils.ts)으로 한다.
+- **원본**(`portfolio.json`, `sbi-imports.json`): 사용자가 넣은 데이터라 다시 만들 수 없다.
+  - 읽기·쓰기 순서는 `createSerialQueue`로 보장한다.
+  - 읽는 순서는 lib/store/json-file.ts의 `read()`와 같게 쓴다: 파일 읽기 → `JSON.parse` → `safeParse`.
+  - 깨졌으면 `filePath`·`details`를 담은 오류를 던지고 **파일을 덮어쓰지 않는다**. 화면은 `FileErrorPanel`로 보여 준다.
+  - 형식을 바꾸면 `version`을 올린다. 옛 버전도 읽고, 다음 쓰기에서 새 버전으로 올린다(lib/sbi/store.ts).
+- **캐시**(`quotes-cache.json`, `symbols.json`): 지워도 다시 받는 파일이다.
+  - 없거나 깨졌으면 버리고 새로 받는다. 오류를 던지거나 `FileErrorPanel`을 띄우지 않는다(lib/quotes/service.ts·lib/symbols/service.ts의 `loadDisk`).
+  - 형식을 바꾸면 `version`을 두고, 다르면 버리고 새로 받는다(lib/symbols/service.ts).
+- **`snapshots.jsonl`:** 하루 한 줄씩 덧붙이는 기록이다. 깨진 줄은 고치지 않고 그 뒤에 새 줄로 이어 쓴다(lib/store/snapshots.ts).
 
 ### 화면·Server Actions
 
@@ -106,7 +115,7 @@ DRY를 버리는 것이 아니다. "코드가 줄어드나"보다 "다음 에이
 - **비치명 메시지 이름:** lib/quotes/service.ts만 `errors[]`이고 나머지는 `warnings[]`다. 새 코드는 `warnings`를 쓴다.
 - **시계 직접 호출:** lib/symbols/sources.ts와 lib/quotes/frankfurter.ts가 `new Date()`를 직접 부른다.
 - **캐시 정책 이름:** TTL 옵션이 lib/quotes/service.ts는 `ttlMs`, lib/symbols/service.ts는 `maxAgeMs`다. `RETRY_AFTER_FAILURE_MS`도 두 서비스에 따로 있다. 새 캐시는 `ttlMs`를 쓴다.
-- **저장 파일 버전 정책 세 가지:** lib/sbi/store.ts는 v1을 읽고 다음 쓰기에서 v2로 올린다. lib/symbols/service.ts는 `version`이 다르면 다시 받는다. quotes 캐시는 버전이 없다. 새 저장 파일은 `version`을 두고 lib/sbi/store.ts 방식으로 올린다.
+- **시세 캐시의 버전:** `quotes-cache.json`에는 `version`이 없고, 읽을 때 검증 없이 `as CacheFile`로 받는다(lib/quotes/service.ts). 형식을 바꾸기 전에 lib/symbols/service.ts처럼 `version`을 먼저 붙인다.
 - **평균단가 계산이 여러 벌:** lib/sbi/evaluate.ts 안에 가중평균이 두 방식(`addTo`, 인라인 `reduce`)으로 있다. 매도 때 취득원가를 줄이는 계산도 lib/sbi/us-trades.ts와 lib/portfolio/cost-basis.ts `scaleCostBasis`에 따로 있다. 새로 필요하면 복사하지 말고 먼저 하나로 정리한다.
 - **실수 오차 지우기:** `Number(v.toFixed(10))`가 `cleanMoney`(lib/sbi/parse.ts)와 `clean`(lib/sbi/us-trades.ts)이라는 다른 이름으로 있다.
 - **NFKC 정규화 범위:** SBI CSV 셀(lib/sbi/csv.ts)과 종목 검색(lib/symbols/search.ts)은 NFKC를 거치지만, 폼의 종목코드(`quoteSymbolCandidates`)는 거치지 않는다. 그래서 전각으로 입력한 코드는 폼에서 거부된다.
