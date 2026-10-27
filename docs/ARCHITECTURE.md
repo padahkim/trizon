@@ -303,12 +303,15 @@ erDiagram
 
 ## 1단계 구현 순서
 1. Next.js 스캐폴드: `create-next-app`, TS, App Router, ESLint, `src/` 없음, Tailwind 포함. 이어서 `shadcn init`으로 `components.json`·`lib/utils.ts`·`app/globals.css`를 만들고, `DESIGN.md`의 토큰 값을 `globals.css`의 CSS 변수로 옮긴다. 옮긴 뒤 `DESIGN.md` 토큰 표의 값 열은 CSS 변수 이름으로 바꾼다. 「스택」의 Node·`"type": "module"`·`serverExternalPackages`, Vitest 설정과 dev 주소 고정을 함께 한다. `.gitignore`는 지금 항목을 유지하고, Next 기본 항목과 `*.csv`를 더한다.
-2. `lib/sbi`(import, 約定履歴 누적 포함) + 단위 테스트
-3. `lib/quotes`(yahoo · fake, 현재가·전일 종가) + `/api/quotes` + `quote:smoke`
-4. `lib/portfolio`(types, saved, evaluate) · `lib/format.ts` + 단위 테스트
-5. `Dashboard` 셸 + `PortfolioView` + `error.tsx`
-6. Playwright e2e (`TRIZON_QUOTES=fake`)
-7. 이 문서를 실제 구조로 고친다. 「데이터 모델」·「인터페이스」의 타입은 코드 파일을 가리키는 포인터로 바꾼다.
+2. 나머지는 화면 동작 단위로 자른 이슈로 진행한다. 무엇을 먼저 할지는 각 이슈의 선행 관계(GitHub 이슈 의존성)를 따른다.
+   - [#17](https://github.com/padahkim/trizon/issues/17) 빈 대시보드 첫 화면
+   - [#18](https://github.com/padahkim/trizon/issues/18) `ポートフォリオ` 올리기 → 일본주식 표
+   - [#19](https://github.com/padahkim/trizon/issues/19) 시세 받기 → 현재가·전일 대비
+   - [#20](https://github.com/padahkim/trizon/issues/20) `約定履歴` 올리기 → 미국주식 표
+   - [#21](https://github.com/padahkim/trizon/issues/21) 읽지 못한 파일과 건너뛴 표 알리기
+   - [#22](https://github.com/padahkim/trizon/issues/22) 데이터 지우기와 저장 실패
+   - [#23](https://github.com/padahkim/trizon/issues/23) 1단계 완료 기준 전체 e2e와 문서를 실제 구조로
+   - [#24](https://github.com/padahkim/trizon/issues/24) 실제 SBI CSV로 숫자 대조
 
 ## 열린 질문
 기본값으로 진행한다. 정해지면 해당 절로 옮기고 여기서 지운다.
