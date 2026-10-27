@@ -297,7 +297,7 @@ J4. 다른 사용자의 처음 시작 (8단계 배포 뒤)
 - 대상 아님: 일본·미국·한국 외 시장의 주식, SBI·KB·NH·토스 밖의 증권사, 일본 증권사만 쓰는 사람(일본어 화면), 현금(예수금).
 
 ## 디자인
-정해 둔 방향과 색상은 없다. UI 가이드는 Claude Design으로 만들어 docs/에 둘 예정이다.
+UI는 shadcn/ui + Tailwind로 만든다([ARCHITECTURE.md](ARCHITECTURE.md) 「스택」). 디자인 시스템은 [DESIGN.md](../DESIGN.md)에 있다.
 
 ## 열린 질문
 기본값으로 진행한다. 정해지면 해당 절로 옮기고 여기서 지운다.
