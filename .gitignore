@@ -1,0 +1,9 @@
+# 개인 자산 데이터 — 절대 커밋하지 않는다
+/data
+# 증권사에서 받은 CSV 를 잠깐 두는 곳 — 개인 자산 데이터다
+/download
+
+# 프로젝트 스킬만 공유한다 (전역 gitignore 가 .claude/ 를 무시해도). settings.local.json · worktrees/ 는 개인용이라 숨긴다
+!/.claude/
+/.claude/*
+!/.claude/skills/
