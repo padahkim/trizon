@@ -5,13 +5,9 @@
 ## 스택
 - Next.js 16.4 (App Router) + React 19 + TypeScript, npm. Node ≥22.18(`engines`), `"type": "module"`.
 - 시세: `yahoo-finance2` 4.x. 서버(`/api/quotes`)에서만 부르고 `next.config.ts`의 `serverExternalPackages`에 넣는다.
-- 테스트: 순수 로직은 `node --test`(Node의 type stripping으로 `.ts`를 바로 돌린다), 화면 완료 기준은 Playwright 1.64.
+- 테스트: 순수 로직은 Vitest, 화면 완료 기준은 Playwright 1.64.
 - 1단계는 로컬 실행 전용이다. 로그인·DB가 없다.
 - 2단계부터: Supabase(Postgres · Auth · RLS · Vault).
-
-### `node --test`로 TS 돌리기
-- tsconfig에 `allowImportingTsExtensions` · `erasableSyntaxOnly` · `verbatimModuleSyntax`를 켠다.
-- `lib/` 안의 import는 상대 경로에 `.ts`를 붙인다. `lib/`에서는 `@/` 별칭, `server-only`, enum · parameter property · namespace를 쓰지 않는다. Node가 그대로 읽지 못한다.
 
 ## 디렉토리 구조 (예정)
 ```
@@ -21,7 +17,7 @@ app/
   PortfolioView.tsx         표시 전용: Portfolio → 증권사 국가 › 증권사 › 시장 › 종목 표
   error.tsx                 예상하지 못한 오류: "문제가 생겼습니다 · 새로고침"
   api/quotes/route.ts       GET /api/quotes?keys=JP:7203,US:AAPL → QuoteProvider
-lib/                        Next 없이 도는 순수 모듈. 브라우저와 node --test에서 같이 돈다
+lib/                        Next 없이 도는 순수 모듈. 브라우저와 Vitest에서 같이 돈다
   sbi/csv.ts                바이트 → 텍스트(UTF-8, 실패하면 Shift_JIS) → 행·셀, 열 이름으로 찾기, 숫자 읽기
   sbi/detect.ts             내용으로 CSV 종류 판별
   sbi/portfolio.ts          ポートフォリオ → 일본주식 Holding[]
@@ -71,7 +67,7 @@ type UsTrade = {
   account: string;      // 預り区分
   quantity: number;
   price: number;        // USD 約定単価
-  settlement?: { amount: number; currency: "JPY" | "USD" }; // 受渡金額 (3단계 엔화 취득가에 쓴다)
+  settlement?: { amount: number; currency: "JPY" | "USD" }; // 受渡金額. USD면 1단계 취득원가에, JPY면 3단계 엔화 취득가에 쓴다
 };
 
 // portfolio/saved.ts — localStorage 키 "trizon"
@@ -99,7 +95,7 @@ function importSbiFiles(
 // sbi/us-trades.ts
 function mergeTrades(stored: UsTrade[], incoming: UsTrade[]): UsTrade[];   // key로 중복 제거 (U41)
 function holdingsFromTrades(trades: UsTrade[]): { holdings: Holding[]; notices: string[] };
-// - 날짜순으로 계산하고, 같은 날은 매수를 먼저 계산한다. 취득단가는 이동평균이고, 수량이 0이 되면 새로 시작한다.
+// - 날짜순으로 계산하고, 같은 날은 매수를 먼저 계산한다. 취득단가는 이동평균이고(취득원가에 넣는 값은 PRD 「핵심 기능」 2), 수량이 0이 되면 새로 시작한다.
 // - 수량이 0인 종목은 뺀다. 매도가 매수보다 많은 종목도 빼고, notices에 "계산할 수 없음: 2년 이전 매수분 필요" (U11).
 
 // portfolio/saved.ts
@@ -155,9 +151,24 @@ function evaluate(holdings: Holding[], quotes: Partial<Record<QuoteKey, Quote>>)
 
 ## CSV 읽기
 - 인코딩: `TextDecoder('utf-8', { fatal: true })`로 먼저 읽고, 실패하면 Shift_JIS(CP932)로 읽는다. `fatal`이 없으면 UTF-8 디코드는 실패하지 않고 글자를 깨뜨린다. BOM은 지운다. 셀은 NFKC로 정규화한다. 모두 브라우저와 Node에서 돈다.
-- 숫자: 쉼표·全角 숫자를 받고, `-`·`--`는 빈 값으로 읽는다. 숫자를 읽지 못하면 그 파일을 실패로 처리하고 줄 번호를 보인다. `NaN`은 합계에 들어가지 않는다.
+- 분리: 따옴표 안의 쉼표·줄바꿈은 셀 내용으로 두고, `""`는 따옴표 하나로 읽는다. CRLF도 받는다. 셀은 앞뒤 공백을 지운다. 행 끝의 빈 셀은 버리고, 빈 줄은 표의 경계로 남긴다.
+- 숫자: 쉼표·공백·`円`·全角 숫자를 받고, `-`·`--`는 빈 값으로 읽는다. `100.0000USD`처럼 통화가 붙은 값은 금액과 통화로 나눈다. 숫자를 읽지 못하면 그 파일을 실패로 처리하고 줄 번호를 보인다. `NaN`은 합계에 들어가지 않는다.
 - 종류는 파일 이름이 아니라 내용(`ポートフォリオ一覧`, `約定履歴` 머리글)으로 가린다. 업로드 입력 하나로 여러 파일을 받는다.
-- 열은 위치가 아니라 이름으로 찾는다.
+- 열은 위치가 아니라 이름으로 찾는다. 정확히 같은 이름을 먼저 찾고, 없으면 괄호 설명이 붙은 이름(`이름(…)`)을 찾는다.
+
+### `ポートフォリオ`
+- 셀이 하나인 행은 표 제목이다. 제목에서 預り区分(特定·一般·NISA 등)을 읽어 `Holding.account`에 넣는다.
+- 現物 표: 첫 열이 `銘柄(コード)`이고 `取得単価` 열이 있는 머리글. `銘柄(コード)`·`数量`·`取得単価`·`現在値`를 읽는다.
+- `7203 トヨタ`는 코드 `7203`과 이름으로 나눈다. `130A` 같은 영문 포함 코드도 받는다.
+- 信用 표(`建単価` 열)와 投資信託 표(첫 열 `ファンド名`)는 건너뛰고 "건너뛴 표 N개"로 알린다(PRD U13).
+- `…合計`·`総合計` 블록은 보유 종목으로 읽지 않는다.
+- 잘린 페이지(`総件数` > `選択範囲`)는 경고한다.
+
+### `約定履歴`
+- 머리글: 첫 열이 `国内約定日`이고 `銘柄コード` 열이 있는 행.
+- 필수 열: `国内約定日`·`銘柄`·`銘柄コード`·`商品区分`·`取引`·`預り区分`·`約定数量`·`約定単価`. 하나라도 없으면 그 파일을 실패로 처리한다(PRD U4). `受渡金額/決済損益`은 있으면 읽는다(PRD 「핵심 기능」 2의 취득원가).
+- `商品区分`이 `米国株式`이고 `取引`이 `現買`·`現売`인 행만 쓴다. 나머지는 건너뛰고 "건너뛴 거래 N건"으로 알린다(PRD U48).
+- 1,000건에 닿은 파일은 파일당 한도에 걸려 잘렸을 수 있다. 기간을 나눠 다시 받으라고 경고한다.
 
 ## 상태 관리
 - 저장한 데이터(`SavedV1`)는 localStorage에 둔다. 시세는 저장하지 않는다. 1단계는 서버에 아무것도 저장하지 않는다.
@@ -253,8 +264,8 @@ erDiagram
 - 데이터 흐름이 서버 중심으로 바뀐다. 동기화 결과도 `sources`·`holdings`에 같은 규칙으로 쓴다(U27: 실패하면 마지막 성공을 유지).
 
 ## 테스트
-- `lib/`는 Next 없이 돈다. 외부 시세는 QuoteProvider 뒤에 두고, 테스트는 가짜 provider를 쓴다. 테스트는 네트워크를 쓰지 않는다.
-- 실제 시세는 `npm run quote:smoke -- 7203 AAPL`로 따로 확인한다.
+- `lib/`는 Next 없이 Vitest로 돈다. 외부 시세는 QuoteProvider 뒤에 두고, 테스트는 가짜 provider를 쓴다. 테스트는 네트워크를 쓰지 않는다.
+- 실제 시세는 `npm test`에 넣지 않고 `npm run quote:smoke`로 따로 확인한다.
 - Shift_JIS fixture는 hex 바이트로 둔다. `TextEncoder`는 UTF-8만 만든다.
 - 가짜 종목은 형식이 맞는 가짜 코드를 쓴다. PRD 표의 JP-A 등과의 대응은 `fixtures.ts`에 둔다.
 - "N일 전"은 `now`를 주입해 테스트한다. `format`은 반올림한 뒤에 부호를 정한다(`-0.00` 방지).
@@ -269,6 +280,8 @@ erDiagram
 | U4 파일별 실패: 인코딩(`fatal`), 숫자 규칙, 전부 아니면 반영 안 함, 5MB | `sbi/csv` · `sbi/import` 단위 |
 | U5 교체·누적, U41 중복 제거(같은 값끼리 출현 순번), U48 現買·現売 밖 건너뜀 | `sbi/import` · `sbi/us-trades` 단위 |
 | U11 매도 > 매수는 빼고 안내, 같은 날 매수 먼저, 수량 0 뒤 취득단가 새로 시작 | `sbi/us-trades` 단위 |
+| 미국 취득원가: USD `受渡金額`, 엔 결제·`受渡金額` 없음 → 수량 × `約定単価` | `sbi/us-trades` 단위 |
+| CSV 분리(따옴표·`""`·CRLF), 통화가 붙은 값, `ポートフォリオ` 표 판별·合計 제외, `約定履歴` 필수 열·`商品区分` | `sbi/csv` · `sbi/portfolio` · `sbi/us-trades` 단위 |
 | U12 預り区分별 행, U13 건너뛴 표, U45 0행 | `sbi/portfolio` 단위 |
 | U8 시세 없음·통화 불일치·7일 넘은 시세 → 취득가, 전일 종가 없음 → 전일 대비 0 | `evaluate` 단위 |
 | U16 못 읽는 저장 데이터 → `trizon:backup` | `saved` 단위 |
@@ -283,7 +296,7 @@ erDiagram
 - 1단계에 필요한 부분만 새로 쓴다. 信用·投信·実現損益·配当 파서, 보정 UI, 로컬 파일 저장은 가져오지 않는다.
 
 ## 1단계 구현 순서
-1. Next.js 스캐폴드: `create-next-app`, TS, App Router, ESLint, `src/` 없음, Tailwind 없음. 「스택」의 Node·tsconfig·`"type": "module"`·`serverExternalPackages`와 dev 주소 고정을 함께 한다. `.gitignore`는 지금 항목을 유지하고, Next 기본 항목과 `*.csv`를 더한다.
+1. Next.js 스캐폴드: `create-next-app`, TS, App Router, ESLint, `src/` 없음, Tailwind 없음. 「스택」의 Node·`"type": "module"`·`serverExternalPackages`, Vitest 설정과 dev 주소 고정을 함께 한다. `.gitignore`는 지금 항목을 유지하고, Next 기본 항목과 `*.csv`를 더한다.
 2. `lib/sbi`(import, 約定履歴 누적 포함) + 단위 테스트
 3. `lib/quotes`(yahoo · fake, 현재가·전일 종가) + `/api/quotes` + `quote:smoke`
 4. `lib/portfolio`(types, saved, evaluate) · `lib/format.ts` + 단위 테스트
@@ -295,9 +308,8 @@ erDiagram
 기본값으로 진행한다. 정해지면 해당 절로 옮기고 여기서 지운다.
 
 1. 시세 API: 기본: `yahoo-finance2`. 무료이고 키가 없지만 비공식이라 깨질 수 있다.
-2. 테스트 도구: 기본: `node --test`(v1과 같고 의존성 없음) + Playwright(새로 넣음, Chromium 다운로드 필요).
-3. 스타일: 기본: CSS Modules로 최소한만, 표 중심. Claude Design 가이드가 나오면 맞춘다.
-4. 저장 형식 검증: 기본: zod 스키마를 타입의 단일 출처로 쓴다(v1과 같다). 2단계 서버 검사도 같은 스키마를 쓴다.
-5. DB 접근(2단계): 기본: supabase-js와 생성된 타입을 쓰고, ORM은 쓰지 않는다.
-6. 한 번에 올린 `ポートフォリオ` 여러 개: 기본: 받지 않고 하나만 올리라고 안내한다. 잘린 페이지(`総件数` > `選択範囲`)는 경고한다.
-7. 8단계 시세 출처: 기본: Yahoo를 서버 캐시 뒤에 두고, 로그인한 사용자만 부르게 한다. 다른 사용자에게 열기 전에 약관과 호출 한도를 확인한다. 한 서버 IP에서 여러 사용자의 호출이 몰린다.
+2. 스타일: 기본: CSS Modules로 최소한만, 표 중심. Claude Design 가이드가 나오면 맞춘다.
+3. 저장 형식 검증: 기본: zod 스키마를 타입의 단일 출처로 쓴다(v1과 같다). 2단계 서버 검사도 같은 스키마를 쓴다.
+4. DB 접근(2단계): 기본: supabase-js와 생성된 타입을 쓰고, ORM은 쓰지 않는다.
+5. 한 번에 올린 `ポートフォリオ` 여러 개: 기본: 받지 않고 하나만 올리라고 안내한다.
+6. 8단계 시세 출처: 기본: Yahoo를 서버 캐시 뒤에 두고, 로그인한 사용자만 부르게 한다. 다른 사용자에게 열기 전에 약관과 호출 한도를 확인한다. 한 서버 IP에서 여러 사용자의 호출이 몰린다.
