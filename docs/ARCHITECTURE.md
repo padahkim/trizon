@@ -4,6 +4,9 @@
 
 ## 스택
 - Next.js 16.4 (App Router) + React 19 + TypeScript, npm. Node ≥22.18(`engines`), `"type": "module"`.
+- UI: shadcn/ui + Tailwind CSS 4. shadcn 컴포넌트는 패키지로 받지 않고, CLI(`npx shadcn add`)로 소스를 `components/ui/`에 복사해 고쳐 쓴다.
+  - 색·글꼴·간격 같은 디자인 토큰은 `app/globals.css`의 CSS 변수에 둔다. 화면 코드는 색 값을 직접 쓰지 않고 토큰 클래스(`bg-primary` 등)를 쓴다. 그래야 디자인 시스템을 넣을 때 `globals.css`만 바꾸면 된다.
+  - 디자인 시스템은 Claude Design으로 만들어 사용자가 넣는다(PRD 「디자인」). 그 전까지는 shadcn 기본 테마를 쓴다.
 - 시세: `yahoo-finance2` 4.x. 서버(`/api/quotes`)에서만 부르고 `next.config.ts`의 `serverExternalPackages`에 넣는다.
 - 테스트: 순수 로직은 Vitest, 화면 완료 기준은 Playwright 1.64.
 - 1단계는 로컬 실행 전용이다. 로그인·DB가 없다.
@@ -16,7 +19,9 @@ app/
   Dashboard.tsx             1단계 셸 (client): localStorage 읽기·쓰기, 파일 받기, /api/quotes 호출, evaluate
   PortfolioView.tsx         표시 전용: Portfolio → 증권사 국가 › 증권사 › 시장 › 종목 표
   error.tsx                 예상하지 못한 오류: "문제가 생겼습니다 · 새로고침"
+  globals.css               Tailwind 진입점 + 디자인 토큰(CSS 변수)
   api/quotes/route.ts       GET /api/quotes?keys=JP:7203,US:AAPL → QuoteProvider
+components/ui/              shadcn/ui 컴포넌트. CLI가 복사한 소스라 직접 고쳐 쓴다
 lib/                        Next 없이 도는 순수 모듈. 브라우저와 Vitest에서 같이 돈다
   sbi/csv.ts                바이트 → 텍스트(UTF-8, 실패하면 Shift_JIS) → 행·셀, 열 이름으로 찾기, 숫자 읽기
   sbi/detect.ts             내용으로 CSV 종류 판별
@@ -32,6 +37,7 @@ lib/                        Next 없이 도는 순수 모듈. 브라우저와 Vi
   portfolio/saved.ts        SavedV1 ↔ 문자열, 모양 전체 검사
   portfolio/evaluate.ts     Holding[] + 시세 → Portfolio
   format.ts                 통화별 자릿수, 부호(반올림한 뒤에 부호를 정한다), "N일 전"(now 주입)
+  utils.ts                  cn(): 클래스 합치기 (shadcn init이 만든다, clsx + tailwind-merge)
 e2e/acceptance.spec.ts      PRD 「1단계 완료 기준」 1~5
 ```
 
@@ -296,7 +302,7 @@ erDiagram
 - 1단계에 필요한 부분만 새로 쓴다. 信用·投信·実現損益·配当 파서, 보정 UI, 로컬 파일 저장은 가져오지 않는다.
 
 ## 1단계 구현 순서
-1. Next.js 스캐폴드: `create-next-app`, TS, App Router, ESLint, `src/` 없음, Tailwind 없음. 「스택」의 Node·`"type": "module"`·`serverExternalPackages`, Vitest 설정과 dev 주소 고정을 함께 한다. `.gitignore`는 지금 항목을 유지하고, Next 기본 항목과 `*.csv`를 더한다.
+1. Next.js 스캐폴드: `create-next-app`, TS, App Router, ESLint, `src/` 없음, Tailwind 포함. 이어서 `shadcn init`으로 `components.json`·`lib/utils.ts`와 `app/globals.css`의 기본 토큰을 만든다. 「스택」의 Node·`"type": "module"`·`serverExternalPackages`, Vitest 설정과 dev 주소 고정을 함께 한다. `.gitignore`는 지금 항목을 유지하고, Next 기본 항목과 `*.csv`를 더한다.
 2. `lib/sbi`(import, 約定履歴 누적 포함) + 단위 테스트
 3. `lib/quotes`(yahoo · fake, 현재가·전일 종가) + `/api/quotes` + `quote:smoke`
 4. `lib/portfolio`(types, saved, evaluate) · `lib/format.ts` + 단위 테스트
@@ -308,8 +314,7 @@ erDiagram
 기본값으로 진행한다. 정해지면 해당 절로 옮기고 여기서 지운다.
 
 1. 시세 API: 기본: `yahoo-finance2`. 무료이고 키가 없지만 비공식이라 깨질 수 있다.
-2. 스타일: 기본: CSS Modules로 최소한만, 표 중심. Claude Design 가이드가 나오면 맞춘다.
-3. 저장 형식 검증: 기본: zod 스키마를 타입의 단일 출처로 쓴다(v1과 같다). 2단계 서버 검사도 같은 스키마를 쓴다.
-4. DB 접근(2단계): 기본: supabase-js와 생성된 타입을 쓰고, ORM은 쓰지 않는다.
-5. 한 번에 올린 `ポートフォリオ` 여러 개: 기본: 받지 않고 하나만 올리라고 안내한다.
-6. 8단계 시세 출처: 기본: Yahoo를 서버 캐시 뒤에 두고, 로그인한 사용자만 부르게 한다. 다른 사용자에게 열기 전에 약관과 호출 한도를 확인한다. 한 서버 IP에서 여러 사용자의 호출이 몰린다.
+2. 저장 형식 검증: 기본: zod 스키마를 타입의 단일 출처로 쓴다(v1과 같다). 2단계 서버 검사도 같은 스키마를 쓴다.
+3. DB 접근(2단계): 기본: supabase-js와 생성된 타입을 쓰고, ORM은 쓰지 않는다.
+4. 한 번에 올린 `ポートフォリオ` 여러 개: 기본: 받지 않고 하나만 올리라고 안내한다.
+5. 8단계 시세 출처: 기본: Yahoo를 서버 캐시 뒤에 두고, 로그인한 사용자만 부르게 한다. 다른 사용자에게 열기 전에 약관과 호출 한도를 확인한다. 한 서버 IP에서 여러 사용자의 호출이 몰린다.
