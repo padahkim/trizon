@@ -1,0 +1,168 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* 디자인 토큰. 값의 원본은 이 블록이고, DESIGN.md 토큰 표는 여기 변수 이름을 가리킨다.
+   --text-* · --shadow-* 이름을 더하면 lib/utils.ts 의 themeTokens 에도 더한다 (lib/utils.test.ts 가 확인한다) */
+@theme static {
+  /* 색상 */
+  --color-surface: #f2f4f6;
+  --color-surface-raised: #ffffff;
+  --color-surface-sunken: #e8ebee;
+  --color-surface-summary: var(--color-surface-raised);
+  --color-line: #e5e8eb;
+  --color-line-strong: #78828e;
+  --color-ink: #191f28;
+  --color-ink-2: #444e5c;
+  --color-ink-3: #566170;
+  --color-brand: #1f6b48;
+  --color-brand-hover: #185a3c;
+  --color-brand-soft: #cfe6d6;
+  --color-on-brand: #ffffff;
+  --color-rise: #c41f2b;
+  --color-rise-soft: #fdeced;
+  --color-fall: #1a5bc4;
+  --color-fall-soft: #e6eefb;
+  --color-flat: var(--color-ink-3);
+  --color-warning: #a86a00;
+  --color-warning-soft: #fff1d2;
+  --color-warning-text: #734400;
+  --color-danger: #a8261c;
+  --color-danger-hover: #8c1f17;
+  --color-danger-soft: #fbe9e7;
+  --color-on-danger: #ffffff;
+  --color-ok: var(--color-brand);
+  --color-ok-soft: var(--color-brand-soft);
+  --color-overlay: rgba(25, 31, 40, 0.48);
+
+  /* 글꼴. --font-plex-kr · --font-plex-jp 는 app/layout.tsx 의 next/font 가 <html> 에 단다 */
+  --font-sans: var(--font-plex-kr), var(--font-plex-jp), "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-jp: var(--font-plex-jp), var(--font-plex-kr), "Hiragino Sans", "Yu Gothic UI", system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+
+  /* 글자 크기 · 줄 높이 · 굵기 · 자간 */
+  --text-figure-xl: 40px;
+  --text-figure-xl--line-height: 48px;
+  --text-figure-xl--font-weight: 700;
+  --text-figure-xl--letter-spacing: -0.02em;
+  --text-figure-lg: 28px;
+  --text-figure-lg--line-height: 36px;
+  --text-figure-lg--font-weight: 600;
+  --text-figure-lg--letter-spacing: -0.01em;
+  --text-figure-md: 20px;
+  --text-figure-md--line-height: 28px;
+  --text-figure-md--font-weight: 600;
+  --text-title-lg: 22px;
+  --text-title-lg--line-height: 30px;
+  --text-title-lg--font-weight: 700;
+  --text-title-lg--letter-spacing: -0.01em;
+  --text-title-md: 18px;
+  --text-title-md--line-height: 26px;
+  --text-title-md--font-weight: 600;
+  --text-title-sm: 15px;
+  --text-title-sm--line-height: 22px;
+  --text-title-sm--font-weight: 600;
+  --text-body-md: 15px;
+  --text-body-md--line-height: 24px;
+  --text-body-md--font-weight: 400;
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 20px;
+  --text-body-sm--font-weight: 400;
+  --text-label: 13px;
+  --text-label--line-height: 18px;
+  --text-label--font-weight: 600;
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+  --text-caption--font-weight: 400;
+  --text-button-md: 14px;
+  --text-button-md--line-height: 24px;
+  --text-button-md--font-weight: 600;
+  --text-button-sm: 13px;
+  --text-button-sm--line-height: 24px;
+  --text-button-sm--font-weight: 600;
+  --text-badge: 12px;
+  --text-badge--line-height: 16px;
+  --text-badge--font-weight: 600;
+  --text-name-ja: 14px;
+  --text-name-ja--line-height: 20px;
+  --text-name-ja--font-weight: 500;
+
+  /* 모양 */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --shadow-overlay: 0 12px 32px rgba(25, 31, 40, 0.18), 0 2px 6px rgba(25, 31, 40, 0.08);
+
+  /* 간격 · 레이아웃. 간격 토큰은 --spacing 의 배수로 쓴다(p-3 = 12px). --spacing-md 같은 이름은 max-w-md 를 덮으므로 만들지 않는다 */
+  --spacing: 4px;
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 1024px;
+}
+
+/* @theme 에 두면 w-max · max-w-max(max-content)를 덮으므로 밖에 둔다. 쓸 때는 max-w-(--container-max) */
+:root {
+  --container-max: 1200px;
+}
+
+/* shadcn 컴포넌트가 쓰는 이름. 값은 위 토큰을 가리킨다 */
+:root {
+  --background: var(--color-surface);
+  --foreground: var(--color-ink);
+  --card: var(--color-surface-raised);
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-surface-raised);
+  --popover-foreground: var(--color-ink);
+  --primary: var(--color-brand);
+  --primary-foreground: var(--color-on-brand);
+  --secondary: var(--color-surface-sunken);
+  --secondary-foreground: var(--color-ink-2);
+  --muted: var(--color-surface-sunken);
+  --muted-foreground: var(--color-ink-3);
+  --accent: var(--color-surface-sunken);
+  --accent-foreground: var(--color-ink);
+  --destructive: var(--color-danger);
+  --border: var(--color-line);
+  --input: var(--color-line-strong);
+  --ring: var(--color-brand);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+    word-break: keep-all;
+  }
+  :lang(ja) {
+    @apply font-jp;
+  }
+}

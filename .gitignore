@@ -2,8 +2,51 @@
 /data
 # 증권사에서 받은 CSV 를 잠깐 두는 곳 — 개인 자산 데이터다
 /download
+# 증권사 CSV 는 어디에 두어도 커밋하지 않는다. 테스트 fixture 는 lib/sbi/fixtures.ts 에 바이트로 둔다
+*.csv
 
 # 프로젝트 스킬만 공유한다 (전역 gitignore 가 .claude/ 를 무시해도). settings.local.json · worktrees/ 는 개인용이라 숨긴다
 !/.claude/
 /.claude/*
 !/.claude/skills/
+
+# 이하 create-next-app 기본 항목
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts

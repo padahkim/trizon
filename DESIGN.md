@@ -2,7 +2,7 @@
 
 trizon은 일본·한국 증권사에 흩어진 주식을 한 화면에서 보는 개인용 대시보드입니다. 매일 열어 전체가 얼마인지, 오늘 얼마나 움직였는지, 어느 증권사와 종목이 끌고 있는지 확인하고, 그 숫자를 증권사 앱과 대조합니다. 주식 화면은 보고만 있어도 긴장되므로, 이 시스템은 바탕을 차분한 중립 회색으로 두고, 색은 숫자와 꼭 필요한 곳에만 써서 숫자가 먼저 읽히도록 짭니다.
 
-이 파일이 디자인 시스템의 원본입니다. 구현한 뒤에는 토큰 값의 원본이 `app/globals.css`가 되고, 아래 토큰 표의 값 열은 CSS 변수 이름으로 바뀝니다([ARCHITECTURE.md](docs/ARCHITECTURE.md) 「1단계 구현 순서」).
+이 파일이 디자인 시스템의 원본입니다. 다만 토큰 값의 원본은 `app/globals.css`이고, 아래 토큰 표는 그 CSS 변수 이름을 가리킵니다. 값을 바꿀 때는 `globals.css`만 고칩니다.
 
 화면 동작(어떤 상황에서 무엇을 보이는지)의 원본은 [PRD.md](docs/PRD.md) 「상황별 동작」입니다. 이 파일은 동작을 다시 풀어 쓰지 않고 U번호로 가리키며, 화면에 어떻게 보이는지만 적습니다.
 
@@ -40,92 +40,91 @@ trizon은 일본·한국 증권사에 흩어진 주식을 한 화면에서 보�
 - 주의(`warning` 계열)는 "숫자를 믿기 전에 알아야 할 것"에 씁니다: 시세 없음, CSV `現在値`로 평가한 값, 환차손익 빠짐, `約定履歴`으로 추정한 값.
 - 오류(`danger` 계열)는 읽지 못한 파일, 동기화 실패, 지우기에 씁니다.
 
-| 토큰 | 값 | 쓰는 곳 |
+| 토큰 | CSS 변수 | 쓰는 곳 |
 |---|---|---|
-| `surface` | `#f2f4f6` | 페이지 바탕. 색을 깔지 않은 중립 연회색이며, 흰 카드와의 대비로 깊이를 냅니다. |
-| `surface-raised` | `#ffffff` | 카드, 표, 다이얼로그, 입력. |
-| `surface-sunken` | `#e8ebee` | 세그먼트 트랙, 중립 배지, 비활성 버튼, 호버 배경. |
-| `surface-summary` | `surface-raised`와 같음 | 맨 위 Summary 바탕. 요약만 따로 물들이려면 이 값만 바꿉니다. |
-| `line` | `#e5e8eb` | 표 행 구분선과 카드 안 구분선. 장식용 선이라 대비 기준이 없습니다. |
-| `line-strong` | `#78828e` | 컨트롤 테두리(보조 버튼, 입력, 업로드 점선). 모든 표면에서 3:1 이상. |
-| `ink` | `#191f28` | 기본 텍스트와 숫자. |
-| `ink-2` | `#444e5c` | 보조 텍스트, 표 머리글, 요약 항목 이름. 모든 표면에서 7:1 이상. |
-| `ink-3` | `#566170` | 시각, 각주, 퍼센트 보조, 플레이스홀더, 비활성 라벨. |
-| `brand` | `#1f6b48` | trizon의 초록. 주요 버튼 채움, 선택된 세그먼트, 링크, 포커스 링, 정상 상태. 숫자에는 쓰지 않습니다. 모든 표면에서 5:1 이상(포커스 링 기준). |
-| `brand-hover` | `#185a3c` | 주요 버튼 호버 채움. |
-| `brand-soft` | `#cfe6d6` | 정상 배지 배경, 선택·강조 배경. 그 위 텍스트는 `brand` 또는 `ink`. |
-| `on-brand` | `#ffffff` | `brand`·`brand-hover` 채움 위의 텍스트와 아이콘. |
-| `rise` | `#c41f2b` | 상승·이익 숫자 전용(한국 관례: 빨강). 항상 `+` 부호와 함께. |
-| `rise-soft` | `#fdeced` | 상승 숫자를 강조하는 알약 배경. 그 위 텍스트는 `rise`. |
-| `fall` | `#1a5bc4` | 하락·손실 숫자 전용(한국 관례: 파랑). 항상 `-` 부호와 함께. |
-| `fall-soft` | `#e6eefb` | 하락 숫자를 강조하는 알약 배경. 그 위 텍스트는 `fall`. |
-| `flat` | `ink-3`과 같음 | 변동 없음(0)과 시세가 없어 0으로 둔 손익. 부호 없음. |
-| `warning` | `#a86a00` | 주의 아이콘. `warning-soft` 위에서 4.5:1에 못 미치므로 텍스트에는 쓰지 않고 `warning-text`를 씁니다. |
-| `warning-soft` | `#fff1d2` | 주의 배너와 주의 배지 배경. 그 위 텍스트는 `ink` 또는 `warning-text`. |
-| `warning-text` | `#734400` | 주의 배지 텍스트. `warning-soft` 위에서 4.5:1 이상. |
-| `danger` | `#a8261c` | 오류와 파괴적 동작: 지우기 버튼 채움, 입력 오류 테두리, 오류 아이콘. `rise`와 같은 빨강 계열이므로 숫자에는 쓰지 않고, 언제나 아이콘과 문장이 있는 배너·배지·버튼에만 씁니다. |
-| `danger-hover` | `#8c1f17` | 파괴적 버튼 호버 채움. |
-| `danger-soft` | `#fbe9e7` | 오류 배너와 오류 배지 배경. 그 위 텍스트는 `ink` 또는 `danger`. |
-| `on-danger` | `#ffffff` | `danger`·`danger-hover` 채움 위의 텍스트. |
-| `ok` | `brand`와 같음 | 연결됨, 동기화 완료, 파일 반영 같은 정상 상태의 아이콘과 배지 텍스트. |
-| `ok-soft` | `brand-soft`와 같음 | 정상 상태 배지 배경. |
-| `overlay` | `rgba(25, 31, 40, 0.48)` | 다이얼로그 뒤의 스크림. |
+| `surface` | `--color-surface` | 페이지 바탕. 색을 깔지 않은 중립 연회색이며, 흰 카드와의 대비로 깊이를 냅니다. |
+| `surface-raised` | `--color-surface-raised` | 카드, 표, 다이얼로그, 입력. |
+| `surface-sunken` | `--color-surface-sunken` | 세그먼트 트랙, 중립 배지, 비활성 버튼, 호버 배경. |
+| `surface-summary` | `--color-surface-summary` | 맨 위 Summary 바탕. 요약만 따로 물들이려면 이 값만 바꿉니다. |
+| `line` | `--color-line` | 표 행 구분선과 카드 안 구분선. 장식용 선이라 대비 기준이 없습니다. |
+| `line-strong` | `--color-line-strong` | 컨트롤 테두리(보조 버튼, 입력, 업로드 점선). 모든 표면에서 3:1 이상. |
+| `ink` | `--color-ink` | 기본 텍스트와 숫자. |
+| `ink-2` | `--color-ink-2` | 보조 텍스트, 표 머리글, 요약 항목 이름. 모든 표면에서 7:1 이상. |
+| `ink-3` | `--color-ink-3` | 시각, 각주, 퍼센트 보조, 플레이스홀더, 비활성 라벨. |
+| `brand` | `--color-brand` | trizon의 초록. 주요 버튼 채움, 선택된 세그먼트, 링크, 포커스 링, 정상 상태. 숫자에는 쓰지 않습니다. 모든 표면에서 5:1 이상(포커스 링 기준). |
+| `brand-hover` | `--color-brand-hover` | 주요 버튼 호버 채움. |
+| `brand-soft` | `--color-brand-soft` | 정상 배지 배경, 선택·강조 배경. 그 위 텍스트는 `brand` 또는 `ink`. |
+| `on-brand` | `--color-on-brand` | `brand`·`brand-hover` 채움 위의 텍스트와 아이콘. |
+| `rise` | `--color-rise` | 상승·이익 숫자 전용(한국 관례: 빨강). 항상 `+` 부호와 함께. |
+| `rise-soft` | `--color-rise-soft` | 상승 숫자를 강조하는 알약 배경. 그 위 텍스트는 `rise`. |
+| `fall` | `--color-fall` | 하락·손실 숫자 전용(한국 관례: 파랑). 항상 `-` 부호와 함께. |
+| `fall-soft` | `--color-fall-soft` | 하락 숫자를 강조하는 알약 배경. 그 위 텍스트는 `fall`. |
+| `flat` | `--color-flat` | 변동 없음(0)과 시세가 없어 0으로 둔 손익. 부호 없음. |
+| `warning` | `--color-warning` | 주의 아이콘. `warning-soft` 위에서 4.5:1에 못 미치므로 텍스트에는 쓰지 않고 `warning-text`를 씁니다. |
+| `warning-soft` | `--color-warning-soft` | 주의 배너와 주의 배지 배경. 그 위 텍스트는 `ink` 또는 `warning-text`. |
+| `warning-text` | `--color-warning-text` | 주의 배지 텍스트. `warning-soft` 위에서 4.5:1 이상. |
+| `danger` | `--color-danger` | 오류와 파괴적 동작: 지우기 버튼 채움, 입력 오류 테두리, 오류 아이콘. `rise`와 같은 빨강 계열이므로 숫자에는 쓰지 않고, 언제나 아이콘과 문장이 있는 배너·배지·버튼에만 씁니다. |
+| `danger-hover` | `--color-danger-hover` | 파괴적 버튼 호버 채움. |
+| `danger-soft` | `--color-danger-soft` | 오류 배너와 오류 배지 배경. 그 위 텍스트는 `ink` 또는 `danger`. |
+| `on-danger` | `--color-on-danger` | `danger`·`danger-hover` 채움 위의 텍스트. |
+| `ok` | `--color-ok` | 연결됨, 동기화 완료, 파일 반영 같은 정상 상태의 아이콘과 배지 텍스트. |
+| `ok-soft` | `--color-ok-soft` | 정상 상태 배지 배경. |
+| `overlay` | `--color-overlay` | 다이얼로그 뒤의 스크림. |
 
 ## 타이포그래피
 
-- 한 계열만 씁니다. 한국어 UI는 IBM Plex Sans KR(`sans`), 일본 종목명과 SBI 용어는 같은 계열의 IBM Plex Sans JP(`jp`)입니다. 한글·가나·라틴 숫자가 한 계열로 맞습니다.
-  - `sans`: `"IBM Plex Sans KR", "IBM Plex Sans JP", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif`
-  - `jp`: `"IBM Plex Sans JP", "IBM Plex Sans KR", "Hiragino Sans", "Yu Gothic UI", system-ui, sans-serif`
+- 한 계열만 씁니다. 한국어 UI는 IBM Plex Sans KR(`sans`, `--font-sans`), 일본 종목명과 SBI 용어는 같은 계열의 IBM Plex Sans JP(`jp`, `--font-jp`)입니다. 한글·가나·라틴 숫자가 한 계열로 맞습니다. 대체 글꼴 순서도 이 변수에 있습니다.
 - `lang="ja"`가 붙은 요소는 `jp` 글꼴로 바꿉니다.
 - 한국어는 `word-break: keep-all`로 어절 단위로 줄을 바꿉니다(`body`에 켭니다).
 - 웹 폰트는 Google Fonts에서 400·500·600·700을 받습니다.
 - 글꼴을 따로 적지 않은 토큰은 `sans`입니다. `figure-*`는 언제나 `tabular-nums`입니다.
+- `--text-*` 하나에 크기·줄 높이·굵기·자간(`--text-figure-xl--line-height` 등)이 함께 있고, 클래스는 `text-figure-xl`처럼 씁니다.
 
-| 토큰 | 크기 / 줄 높이 | 굵기 | 자간 | 쓰는 곳 |
-|---|---|---|---|---|
-| `figure-xl` | 40 / 48px | 700 | -0.02em | 맨 위 총자산 금액. |
-| `figure-lg` | 28 / 36px | 600 | -0.01em | 맨 위 총평가손익·오늘 변동. |
-| `figure-md` | 20 / 28px | 600 | | 증권사 국가·증권사·시장 소계. |
-| `title-lg` | 22 / 30px | 700 | -0.01em | 증권사 국가 제목. |
-| `title-md` | 18 / 26px | 600 | | 증권사 카드, 카드, 다이얼로그 제목. |
-| `title-sm` | 15 / 22px | 600 | | 시장 소제목, 업로드 영역 제목. |
-| `body-md` | 15 / 24px | 400 | | 안내문, 다이얼로그 본문. |
-| `body-sm` | 14 / 20px | 400 | | 표 셀, 카드 본문, 배너 문장. |
-| `label` | 13 / 18px | 600 | | 표 머리글, 입력 라벨, 요약 항목 이름. |
-| `caption` | 12 / 16px | 400 | | 시세·업로드 시각, 퍼센트 보조, 도움말. |
-| `button-md` | 14 / 24px | 600 | | 40px 버튼 라벨. |
-| `button-sm` | 13 / 24px | 600 | | 32px 버튼 라벨, 세그먼트 라벨. |
-| `badge` | 12 / 16px | 600 | | 배지 라벨. |
-| `name-ja` | 14 / 20px | 500 | | 글꼴 `jp`. 일본 종목명과 SBI 원문 용어(`ポートフォリオ`, `約定履歴`, 特定, NISA). |
+| 토큰 | CSS 변수 | 쓰는 곳 |
+|---|---|---|
+| `figure-xl` | `--text-figure-xl` | 맨 위 총자산 금액. |
+| `figure-lg` | `--text-figure-lg` | 맨 위 총평가손익·오늘 변동. |
+| `figure-md` | `--text-figure-md` | 증권사 국가·증권사·시장 소계. |
+| `title-lg` | `--text-title-lg` | 증권사 국가 제목. |
+| `title-md` | `--text-title-md` | 증권사 카드, 카드, 다이얼로그 제목. |
+| `title-sm` | `--text-title-sm` | 시장 소제목, 업로드 영역 제목. |
+| `body-md` | `--text-body-md` | 안내문, 다이얼로그 본문. |
+| `body-sm` | `--text-body-sm` | 표 셀, 카드 본문, 배너 문장. |
+| `label` | `--text-label` | 표 머리글, 입력 라벨, 요약 항목 이름. |
+| `caption` | `--text-caption` | 시세·업로드 시각, 퍼센트 보조, 도움말. |
+| `button-md` | `--text-button-md` | 40px 버튼 라벨. |
+| `button-sm` | `--text-button-sm` | 32px 버튼 라벨, 세그먼트 라벨. |
+| `badge` | `--text-badge` | 배지 라벨. |
+| `name-ja` | `--text-name-ja` | 글꼴 `jp`. 일본 종목명과 SBI 원문 용어(`ポートフォリオ`, `約定履歴`, 特定, NISA). |
 
 ## 간격·모양·레이아웃
 
-- 간격은 4px 기반입니다.
+- 간격은 4px 기반입니다. 간격 토큰은 `--spacing`(4px)의 배수이고, 클래스는 배수를 숫자로 씁니다(`spacing-md` = `p-3`). `--spacing-md` 같은 이름은 만들지 않습니다. Tailwind가 `max-w-md` 같은 폭 클래스를 그 값으로 덮기 때문입니다.
 - 날카로운 모서리는 없고, 반경은 바깥 요소일수록 큽니다.
 - 그림자는 떠 있는 요소에만 씁니다. 나머지 깊이는 표면 대비로 냅니다.
 - 버튼은 40px(작은 버튼 32px), 표 행은 44px입니다.
 - PC 우선입니다. 콘텐츠는 `container-max` 안에서 가운데 정렬합니다.
 
-| 토큰 | 값 | 쓰는 곳 |
+| 토큰 | CSS 변수 | 쓰는 곳 |
 |---|---|---|
-| `spacing-xxs` | 2px | 배지 상하 패딩. |
-| `spacing-xs` | 4px | 아이콘과 라벨 사이, 세그먼트 트랙 안쪽, 작은 버튼 상하 패딩. |
-| `spacing-sm` | 8px | 버튼 상하 패딩, 라벨과 입력 사이, 버튼끼리 간격. |
-| `spacing-md` | 12px | 표 셀 패딩, 입력 좌우 패딩, 배너 상하 패딩. |
-| `spacing-lg` | 16px | 버튼·배너 좌우 패딩, 카드 안 요소 사이. |
-| `spacing-xl` | 24px | 카드·다이얼로그 안쪽 패딩, 시장 블록 사이. |
-| `spacing-2xl` | 32px | 증권사 국가 섹션 사이. |
-| `spacing-3xl` | 48px | 페이지 상하 여백. |
-| `rounded-xs` | 4px | 파일 이름 칩. |
-| `rounded-sm` | 8px | 툴팁. |
-| `rounded-md` | 12px | 입력 필드. |
-| `rounded-lg` | 16px | 배너, 업로드 영역, 접힌 증권사 국가 줄, 카드 안 인셋. |
-| `rounded-xl` | 24px | 카드, 요약, 증권사 카드, 다이얼로그. |
-| `rounded-full` | 9999px | 버튼, 배지, 세그먼트, 상태 점. |
-| `shadow-overlay` | `0 12px 32px rgba(25, 31, 40, 0.18), 0 2px 6px rgba(25, 31, 40, 0.08)` | 다이얼로그, 툴팁, 메뉴. |
-| `container-max` | 1200px | 대시보드 콘텐츠 최대 폭. |
-| `breakpoint-tablet` | 768px | 이보다 좁으면 표를 자기 영역 안에서 가로로 스크롤합니다. |
-| `breakpoint-desktop` | 1024px | 이보다 좁으면 요약 블록을 세로로 쌓습니다. |
+| `spacing-xxs` | `--spacing` × 0.5 | 배지 상하 패딩. |
+| `spacing-xs` | `--spacing` × 1 | 아이콘과 라벨 사이, 세그먼트 트랙 안쪽, 작은 버튼 상하 패딩. |
+| `spacing-sm` | `--spacing` × 2 | 버튼 상하 패딩, 라벨과 입력 사이, 버튼끼리 간격. |
+| `spacing-md` | `--spacing` × 3 | 표 셀 패딩, 입력 좌우 패딩, 배너 상하 패딩. |
+| `spacing-lg` | `--spacing` × 4 | 버튼·배너 좌우 패딩, 카드 안 요소 사이. |
+| `spacing-xl` | `--spacing` × 6 | 카드·다이얼로그 안쪽 패딩, 시장 블록 사이. |
+| `spacing-2xl` | `--spacing` × 8 | 증권사 국가 섹션 사이. |
+| `spacing-3xl` | `--spacing` × 12 | 페이지 상하 여백. |
+| `rounded-xs` | `--radius-xs` | 파일 이름 칩. |
+| `rounded-sm` | `--radius-sm` | 툴팁. |
+| `rounded-md` | `--radius-md` | 입력 필드. |
+| `rounded-lg` | `--radius-lg` | 배너, 업로드 영역, 접힌 증권사 국가 줄, 카드 안 인셋. |
+| `rounded-xl` | `--radius-xl` | 카드, 요약, 증권사 카드, 다이얼로그. |
+| `rounded-full` | Tailwind 기본 `rounded-full` | 버튼, 배지, 세그먼트, 상태 점. |
+| `shadow-overlay` | `--shadow-overlay` | 다이얼로그, 툴팁, 메뉴. |
+| `container-max` | `--container-max` | 대시보드 콘텐츠 최대 폭. 클래스는 `max-w-(--container-max)`입니다. |
+| `breakpoint-tablet` | `--breakpoint-tablet` | 이보다 좁으면 표를 자기 영역 안에서 가로로 스크롤합니다. |
+| `breakpoint-desktop` | `--breakpoint-desktop` | 이보다 좁으면 요약 블록을 세로로 쌓습니다. |
 
 ## 포커스와 접근성
 
