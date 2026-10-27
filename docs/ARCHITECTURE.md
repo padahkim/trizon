@@ -6,7 +6,7 @@
 - Next.js 16.4 (App Router) + React 19 + TypeScript, npm. Node ≥22.18(`engines`), `"type": "module"`.
 - UI: shadcn/ui + Tailwind CSS 4. shadcn 컴포넌트는 패키지로 받지 않고, CLI(`npx shadcn add`)로 소스를 `components/ui/`에 복사해 고쳐 쓴다.
   - 색·글꼴·간격 같은 디자인 토큰은 `app/globals.css`의 CSS 변수에 둔다. 화면 코드는 색 값을 직접 쓰지 않고 토큰 클래스(`bg-primary` 등)를 쓴다. 그래야 색을 바꿀 때 `globals.css`만 바꾸면 된다.
-  - 디자인 시스템은 [docs/design-system/](design-system/README.md)에 있고, 이 레포가 원본이다. 구현할 때 `tokens.json` 값을 `app/globals.css`의 CSS 변수로 옮긴다.
+  - 디자인 시스템은 루트 [DESIGN.md](../DESIGN.md)에 있고, 이 레포가 원본이다. 구현할 때 토큰 값을 `app/globals.css`의 CSS 변수로 옮기고, 그 뒤 값의 원본은 `globals.css`다.
 - 시세: `yahoo-finance2` 4.x. 서버(`/api/quotes`)에서만 부르고 `next.config.ts`의 `serverExternalPackages`에 넣는다.
 - 테스트: 순수 로직은 Vitest, 화면 완료 기준은 Playwright 1.64.
 - 1단계는 로컬 실행 전용이다. 로그인·DB가 없다.
@@ -302,7 +302,7 @@ erDiagram
 - 1단계에 필요한 부분만 새로 쓴다. 信用·投信·実現損益·配当 파서, 보정 UI, 로컬 파일 저장은 가져오지 않는다.
 
 ## 1단계 구현 순서
-1. Next.js 스캐폴드: `create-next-app`, TS, App Router, ESLint, `src/` 없음, Tailwind 포함. 이어서 `shadcn init`으로 `components.json`·`lib/utils.ts`와 `app/globals.css`의 기본 토큰을 만든다. 「스택」의 Node·`"type": "module"`·`serverExternalPackages`, Vitest 설정과 dev 주소 고정을 함께 한다. `.gitignore`는 지금 항목을 유지하고, Next 기본 항목과 `*.csv`를 더한다.
+1. Next.js 스캐폴드: `create-next-app`, TS, App Router, ESLint, `src/` 없음, Tailwind 포함. 이어서 `shadcn init`으로 `components.json`·`lib/utils.ts`·`app/globals.css`를 만들고, `DESIGN.md`의 토큰 값을 `globals.css`의 CSS 변수로 옮긴다. 옮긴 뒤 `DESIGN.md` 토큰 표의 값 열은 CSS 변수 이름으로 바꾼다. 「스택」의 Node·`"type": "module"`·`serverExternalPackages`, Vitest 설정과 dev 주소 고정을 함께 한다. `.gitignore`는 지금 항목을 유지하고, Next 기본 항목과 `*.csv`를 더한다.
 2. `lib/sbi`(import, 約定履歴 누적 포함) + 단위 테스트
 3. `lib/quotes`(yahoo · fake, 현재가·전일 종가) + `/api/quotes` + `quote:smoke`
 4. `lib/portfolio`(types, saved, evaluate) · `lib/format.ts` + 단위 테스트
