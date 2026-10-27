@@ -1,0 +1,53 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>trizon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;700&display=swap">
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--surface); color: var(--ink); font-family: var(--font-sans); overflow: hidden; }
+  .cover { position: relative; height: 288px; overflow: hidden; }
+  .art { position: absolute; top: 0; left: 480px; width: 480px; height: 288px; overflow: hidden; }
+  .art svg { display: block; width: 480px; height: 288px; }
+  .brand { fill: var(--brand); }
+  .soft { fill: var(--brand-soft); }
+  .green { fill: var(--brand-soft); }
+  .deep { fill: var(--brand-hover); }
+  .raised { fill: var(--surface-raised); }
+  .blk { rx: var(--rounded-xl); }
+  .words { position: absolute; left: var(--spacing-xl); bottom: var(--spacing-xl); max-width: 440px; }
+  .name { margin: 0; font-family: var(--font-sans); font-size: 120px; line-height: .9; font-weight: 700; letter-spacing: -0.03em; color: var(--ink); }
+  .tag { margin: var(--spacing-sm) 0 0 4px; font-size: 14px; line-height: 20px; color: var(--ink-3); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 480 288" width="480" height="288">
+<!--
+  blocks      brand 240x168 bled off the top-right (the identity green, largest) · brand-soft 192x144 bled off the top · brand-hover hill r144 · surface-raised sun r24 — about 40% of 960x288
+  arrangement a quiet landscape: two flat green fields above, rolling hills along the bottom edge, one pale sun between the fields
+  pattern     discs from "차분한 초록 톤, 오래 봐도 눈이 편하게": overlapping half-discs bleeding off the bottom like hills, in brand-hover, brand and brand-soft (darker behind, like distance), radii in spacing-xl multiples
+  scales      field sides in spacing-xl multiples, gutter spacing-lg; corners rounded-xl; hill radii 72, 96, 120, 144; sun r spacing-xl
+-->
+<rect class="green blk" x="0" y="-24" width="192" height="144" rx="24"/>
+<rect class="brand blk" x="208" y="-24" width="296" height="168" rx="24"/>
+<circle class="raised" cx="120" cy="64" r="24"/>
+<circle class="soft" cx="72" cy="288" r="120"/>
+<circle class="deep" cx="264" cy="312" r="144"/>
+<circle class="brand" cx="168" cy="300" r="96"/>
+<circle class="soft" cx="432" cy="300" r="120"/>
+<circle class="brand" cx="360" cy="296" r="72"/>
+</svg>
+</div>
+<div class="words">
+<h1 class="name">trizon</h1>
+<p class="tag">흩어진 주식을 한 화면에, 눈은 편하게.</p>
+</div>
+</div>
+</body>
+</html>

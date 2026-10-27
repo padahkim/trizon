@@ -5,8 +5,8 @@
 ## 스택
 - Next.js 16.4 (App Router) + React 19 + TypeScript, npm. Node ≥22.18(`engines`), `"type": "module"`.
 - UI: shadcn/ui + Tailwind CSS 4. shadcn 컴포넌트는 패키지로 받지 않고, CLI(`npx shadcn add`)로 소스를 `components/ui/`에 복사해 고쳐 쓴다.
-  - 색·글꼴·간격 같은 디자인 토큰은 `app/globals.css`의 CSS 변수에 둔다. 화면 코드는 색 값을 직접 쓰지 않고 토큰 클래스(`bg-primary` 등)를 쓴다. 그래야 디자인 시스템을 넣을 때 `globals.css`만 바꾸면 된다.
-  - 디자인 시스템은 Claude Design으로 만들어 사용자가 넣는다(PRD 「디자인」). 그 전까지는 shadcn 기본 테마를 쓴다.
+  - 색·글꼴·간격 같은 디자인 토큰은 `app/globals.css`의 CSS 변수에 둔다. 화면 코드는 색 값을 직접 쓰지 않고 토큰 클래스(`bg-primary` 등)를 쓴다. 그래야 색을 바꿀 때 `globals.css`만 바꾸면 된다.
+  - 디자인 시스템은 [docs/design-system/](design-system/README.md)에 있고, 이 레포가 원본이다. 구현할 때 `tokens.json` 값을 `app/globals.css`의 CSS 변수로 옮긴다.
 - 시세: `yahoo-finance2` 4.x. 서버(`/api/quotes`)에서만 부르고 `next.config.ts`의 `serverExternalPackages`에 넣는다.
 - 테스트: 순수 로직은 Vitest, 화면 완료 기준은 Playwright 1.64.
 - 1단계는 로컬 실행 전용이다. 로그인·DB가 없다.

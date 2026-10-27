@@ -1,0 +1,33 @@
+<!-- @dsCard group="Forms" height=360 width=960 subtitle="빈 상태와 올린 뒤 결과" -->
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Uploader — preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+</head>
+<body>
+<div class="tz-pad" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:var(--spacing-xl);background:var(--surface-raised)">
+  <div class="tz-drop">
+    <div><h4 class="title-sm">SBI증권 CSV 올리기</h4><p class="body-sm tz-sub" style="margin:var(--spacing-xs) 0 0">두 파일을 한 번에 올릴 수 있습니다.</p></div>
+    <ul class="tz-need body-sm">
+      <li><span class="tz-file name-ja" lang="ja">ポートフォリオ</span><span>보유목록, 일본주식</span></li>
+      <li><span class="tz-file name-ja" lang="ja">約定履歴</span><span>미국주식 거래, 최근 2년</span></li>
+    </ul>
+    <a class="tz-link caption" href="#">SBI증권에서 받는 곳<svg class="tz-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v6H4V6h6"/></svg></a>
+    <div class="tz-row"><button class="tz-btn tz-btn-primary button-md" type="button"><svg class="tz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M5 20h14"/></svg>CSV 고르기</button><span class="caption tz-muted">또는 여기로 끌어다 놓기</span></div>
+  </div>
+  <div class="tz-stack" style="gap:var(--spacing-sm)">
+    <h4 class="title-sm" style="margin:0">올린 파일</h4>
+    <ul class="tz-results body-sm">
+      <li><span class="tz-badge tz-badge-ok badge"><svg class="tz-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>반영됨</span><span class="tz-grow"><span lang="ja">ポートフォリオ</span>.csv</span><span class="caption tz-muted">일본주식 2종목</span></li>
+      <li><span class="tz-badge tz-badge-ok badge"><svg class="tz-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>반영됨</span><span class="tz-grow"><span lang="ja">約定履歴</span>_2025.csv</span><span class="caption tz-muted">거래 18건, 건너뜀 3건</span></li>
+      <li><span class="tz-badge tz-badge-danger badge"><svg class="tz-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>읽지 못함</span><span class="tz-grow">statement.csv</span><span class="caption tz-muted">SBI CSV가 아닙니다</span></li>
+    </ul>
+    <p class="caption tz-muted" style="margin:0">나머지 파일은 반영했습니다. 마지막 업로드 방금 전.</p>
+  </div>
+</div>
+</body>
+</html>
