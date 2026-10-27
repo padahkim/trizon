@@ -37,7 +37,7 @@ lib/                        Next 없이 도는 순수 모듈. 브라우저와 Vi
   portfolio/saved.ts        SavedV1 ↔ 문자열, 모양 전체 검사
   portfolio/evaluate.ts     Holding[] + 시세 → Portfolio
   format.ts                 통화별 자릿수, 부호(반올림한 뒤에 부호를 정한다), "N일 전"(now 주입)
-  utils.ts                  cn(): 클래스 합치기 (shadcn init이 만든다, clsx + tailwind-merge)
+  utils.ts                  cn(): 클래스 합치기 (shadcn init이 만든다, cn 패키지에 globals.css의 글자 크기·그림자 이름을 알려 준다)
 e2e/acceptance.spec.ts      PRD 「1단계 완료 기준」 1~5
 ```
 
