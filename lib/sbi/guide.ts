@@ -19,11 +19,15 @@ export const SBI_GUIDES = [
       "미국주식의 매수·매도 내역이 들어 있습니다. 이 CSV를 가져오는 기능은 준비 중입니다.",
     steps: [
       { menu: "外国株式", detail: "SBI 웹사이트에 로그인하고 외국주식 화면을 엽니다." },
-      { menu: "口座管理 › 取引履歴 › 約定履歴", detail: "외국주식 화면 안에서 이동합니다." },
-      { menu: "商品指定：株式 › 期間指定 › 照会", detail: "상품과 기간을 선택한 뒤 조회합니다." },
+      {
+        menu: "外国株式 Myメニュー › 取引照会 › 約定履歴",
+        detail: "왼쪽 메뉴 아래쪽에 있습니다. 계좌관리와 별도 메뉴이며, 위쪽의 − 버튼으로 접으면 찾기 쉽습니다.",
+      },
+      { menu: "商品指定：株式 › 米国株式(現物) › 照会", detail: "미국주식 현물을 고르고 조회 기간을 지정한 뒤 조회합니다." },
       { menu: "CSVダウンロード", detail: "조회 결과에서 CSV를 받습니다." },
     ],
-    helpUrl: "https://search.sbisec.co.jp/v2/popwin/help/foreign/account_06.html",
+    // The integrated website's illustrated guide shows the actual sidebar and filters.
+    helpUrl: "https://www.sbisec.co.jp/ETGate/WPLETmgR001Control?OutSide=on&burl=search_foreign&cat1=foreign&cat2=info&dir=info&file=foreign_guide_10.html&getFlg=on#02",
   },
 ] as const;
 

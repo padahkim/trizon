@@ -45,13 +45,14 @@ test("두 CSV의 지원 범위와 SBI 다운로드 순서를 안내한다", asyn
   const tradesSteps = trades.getByRole("list", { name: "約定履歴 다운로드 순서" }).getByRole("listitem");
   await expect(tradesSteps).toHaveCount(4);
   await expect(tradesSteps.nth(0)).toContainText("外国株式");
-  await expect(tradesSteps.nth(1)).toContainText("口座管理 › 取引履歴 › 約定履歴");
-  await expect(tradesSteps.nth(2)).toContainText("商品指定：株式 › 期間指定 › 照会");
+  await expect(tradesSteps.nth(1)).toContainText("外国株式 Myメニュー › 取引照会 › 約定履歴");
+  await expect(tradesSteps.nth(1)).toContainText("계좌관리와 별도 메뉴");
+  await expect(tradesSteps.nth(2)).toContainText("商品指定：株式 › 米国株式(現物) › 照会");
   await expect(tradesSteps.nth(3)).toContainText("CSVダウンロード");
-  await expect(trades.getByText("口座管理 › 取引履歴 › 約定履歴", { exact: true })).toHaveAttribute("lang", "ja");
+  await expect(trades.getByText("外国株式 Myメニュー › 取引照会 › 約定履歴", { exact: true })).toHaveAttribute("lang", "ja");
   const tradesLocation = trades.getByRole("link", { name: "SBI 공식 다운로드 도움말 (새 창)", exact: true });
   await expect(tradesLocation).toBeVisible();
-  await expect(tradesLocation).toHaveAttribute("href", "https://search.sbisec.co.jp/v2/popwin/help/foreign/account_06.html");
+  await expect(tradesLocation).toHaveAttribute("href", "https://www.sbisec.co.jp/ETGate/WPLETmgR001Control?OutSide=on&burl=search_foreign&cat1=foreign&cat2=info&dir=info&file=foreign_guide_10.html&getFlg=on#02");
   await page.screenshot({ path: test.info().outputPath("download-guide.png"), fullPage: true });
 });
 
