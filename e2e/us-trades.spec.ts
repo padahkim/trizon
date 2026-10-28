@@ -3,7 +3,17 @@ import { portfolioShiftJis, usTradesCsv, usTradesUtf8 } from "../lib/sbi/fixture
 
 const tradeFile = (csv = usTradesCsv) => ({ name: "trades.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
 
-test("두 CSV를 한 번에 올리면 네 종목을 SBI증권의 시장별 표와 엔·달러 요약으로 보이고 복원한다", async ({ page }) => {
+test.beforeEach(async ({ context }) => {
+  // Keep the ledger and persistence scenarios independent of quote availability.
+  await context.route("**/api/quotes?*", (route) => route.fulfill({ json: { quotes: {} } }));
+});
+
+test("두 CSV와 가짜 시세로 네 종목의 평가·시장별 합계·엔·달러 요약을 보이고 복원한다", async ({ page, context }) => {
+  await context.unroute("**/api/quotes?*");
+  const quoteRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/quotes") quoteRequests.push(request.url());
+  });
   await page.goto("/");
   await page.getByLabel("SBI CSV 파일").setInputFiles([
     { name: "holdings.txt", mimeType: "text/plain", buffer: Buffer.from(portfolioShiftJis) },
@@ -18,24 +28,37 @@ test("두 CSV를 한 번에 올리면 네 종목을 SBI증권의 시장별 표�
   await expect(jp.getByRole("row").filter({ hasText: "JP-B" }).getByRole("cell").nth(2)).toHaveText("¥900");
   await expect(jp.getByRole("row").filter({ hasText: "JP-B" }).getByRole("cell").nth(1)).toHaveText("10");
   await expect(us.getByRole("row").filter({ hasText: "US-A" }).getByRole("cell")).toHaveText([
-    "US-ATSTA特定", "4", "$50.00", "—시세 없음", "$200.00", "00.00%", "00.00%",
+    "US-ATSTA特定", "4", "$50.00", "$45.50", "$182.00", "-$18.00-9.00%", "-$2.00-1.09%",
   ]);
   await expect(us.getByRole("row").filter({ hasText: "US-B" }).getByRole("cell")).toHaveText([
-    "US-BTSTB特定", "2", "$20.00", "—시세 없음", "$40.00", "00.00%", "00.00%",
+    "US-BTSTB特定", "2", "$20.00", "$25.00", "$50.00", "+$10.00+25.00%", "+$1.00+2.04%",
   ]);
   await expect(sbi.getByText("約定履歴으로 추정한 값", { exact: true })).toBeVisible();
-  await expect(us.getByRole("row").filter({ hasText: "미국주식 합계" })).toContainText("$240.00");
+  await expect(us.getByRole("row").filter({ hasText: "미국주식 합계" }).getByRole("cell")).toHaveText([
+    "미국주식 합계", "$232.00", "-$8.00-3.33%", "-$1.00-0.43%",
+  ]);
+  await expect(jp.getByRole("row").filter({ hasText: "일본주식 합계" }).getByRole("cell")).toHaveText([
+    "일본주식 합계", "¥20,000", "+¥1,000+5.26%", "+¥300+1.52%",
+  ]);
   const summary = page.getByRole("region", { name: "자산 요약" });
   await expect(summary).toContainText("엔 자산");
   await expect(summary).toContainText("달러 자산");
   await expect(summary).toContainText("¥20,000");
-  await expect(summary).toContainText("$240.00");
-  await expect(japan.getByLabel("일본 증권사 소계")).toContainText("$240.00");
+  await expect(summary).toContainText("$232.00");
+  await expect(summary).toContainText("-$8.00");
+  await expect(summary).toContainText("-$1.00");
+  await expect(summary).toContainText("미국 시세");
+  await expect(japan.getByLabel("일본 증권사 소계")).toContainText("$232.00");
   await expect(sbi.getByRole("status")).toContainText("미국주식 거래를 누적했습니다.");
+  expect(quoteRequests).toHaveLength(1);
+  expect(new URL(quoteRequests[0]).searchParams.get("keys")).toBe("JP:1111,JP:999A,US:TSTA,US:TSTB");
+  await summary.getByRole("button", { name: "시세 새로고침" }).click();
+  await expect(summary.getByRole("button", { name: "시세 새로고침" })).toBeEnabled();
+  expect(quoteRequests).toHaveLength(2);
   await page.reload();
   await expect(us.getByText("US-A", { exact: true })).toBeVisible();
   await expect(jp.getByText("JP-B", { exact: true })).toBeVisible();
-  await expect(summary).toContainText("$240.00");
+  await expect(summary).toContainText("$232.00");
   await expect(sbi.getByText("約定履歴으로 추정한 값", { exact: true })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("us-trades.png"), fullPage: true });
 });

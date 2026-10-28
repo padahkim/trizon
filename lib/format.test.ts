@@ -1,5 +1,19 @@
 import { expect, it } from "vitest";
-import { formatMoney, formatPercent, formatUploadedAt } from "./format";
+import { formatMarketTime, formatMoney, formatPercent, formatUploadedAt } from "./format";
+
+it("shows each market's quote clock in its exchange timezone", () => {
+  expect(formatMarketTime("JP", "2026-10-28T06:00:00Z")).toBe("일본 시세 15:00");
+  expect(formatMarketTime("US", "2026-10-28T20:00:00Z")).toBe("미국 시세 16:00");
+  expect(formatMarketTime("US", "2026-12-28T21:00:00Z")).toBe("미국 시세 16:00");
+});
+
+it.each([
+  ["JPY", -0.49, "0"], ["JPY", 0.49, "0"], ["JPY", -0.5, "-¥1"],
+  ["USD", 182, "+$182.00"], ["USD", 0.004, "0"], ["USD", -0.005, "-$0.01"],
+  ["KRW", -0.49, "0"],
+] as const)("rounds %s %s before choosing its sign", (currency, value, expected) => {
+  expect(formatMoney(value, currency, true)).toBe(expected);
+});
 
 it.each([
   { currency: "JPY", value: 12000, expected: "¥12,000" },

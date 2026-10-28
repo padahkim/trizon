@@ -67,9 +67,9 @@ test("가짜 ポートフォリオ를 올리면 일본주식의 수량·가격·
   const sbi = japan.getByRole("region", { name: "SBI증권", exact: true });
   const table = sbi.getByRole("table", { name: "일본주식 보유 종목" });
   const jpA = table.getByRole("row").filter({ hasText: "JP-A" });
-  await expect(jpA.getByRole("cell")).toHaveText(["JP-A1111特定", "10", "¥1,000", "¥1,200CSV 現在値", "¥12,000", "+¥2,000+20.00%", "00.00%"]);
+  await expect(jpA.getByRole("cell")).toHaveText(["JP-A1111特定", "10", "¥1,000", "¥1,200", "¥12,000", "+¥2,000+20.00%", "+¥500+4.35%"]);
   const jpB = table.getByRole("row").filter({ hasText: "JP-B" });
-  await expect(jpB.getByRole("cell")).toHaveText(["JP-B999A特定", "10", "¥900", "¥800CSV 現在値", "¥8,000", "-¥1,000-11.11%", "00.00%"]);
+  await expect(jpB.getByRole("cell")).toHaveText(["JP-B999A特定", "10", "¥900", "¥800", "¥8,000", "-¥1,000-11.11%", "-¥200-2.44%"]);
   await expect(jpA.getByText("JP-A", { exact: true })).toHaveAttribute("lang", "ja");
   await expect(jpA.getByText("特定", { exact: true })).toHaveAttribute("lang", "ja");
   await expect(table.getByRole("row").filter({ hasText: "일본주식 합계" })).toContainText("¥20,000");

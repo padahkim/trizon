@@ -3,7 +3,7 @@ import {
   Table, TableBody, TableCaption, TableCell, TableFooter,
   TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { formatMoney, formatPercent } from "@/lib/format";
+import { formatMarketTime, formatMoney, formatPercent } from "@/lib/format";
 import type { Portfolio } from "@/lib/portfolio/evaluate";
 import { marketCurrency, type Currency } from "@/lib/portfolio/types";
 import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
@@ -40,6 +40,7 @@ export default function PortfolioView({ portfolio, hasUsTrades, usNotices }: {
           {market.market === "US" && hasUsTrades && (
             <Badge variant="warning"><span lang="ja">約定履歴</span>으로 추정한 값</Badge>
           )}
+          {market.marketTime && <span className="text-caption text-ink-3">{formatMarketTime(market.market, market.marketTime)}</span>}
           {market.rows.some((row) => row.priceSource === "csv") && (
             <Badge variant="warning">CSV <span lang="ja" className="ml-1">現在値</span></Badge>
           )}
@@ -79,9 +80,11 @@ export default function PortfolioView({ portfolio, hasUsTrades, usNotices }: {
                 <TableCell>
                   <div className="grid justify-items-end">
                     <span>{row.priceSource === "cost" ? "—" : formatMoney(row.price, currency)}</span>
-                    <Badge variant="warning" className="py-0">
-                      {row.priceSource === "csv" ? <>CSV <span lang="ja" className="ml-1">現在値</span></> : "시세 없음"}
-                    </Badge>
+                    {row.priceSource !== "quote" && (
+                      <Badge variant="warning" className="py-0">
+                        {row.priceSource === "csv" ? <>CSV <span lang="ja" className="ml-1">現在値</span></> : "시세 없음"}
+                      </Badge>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell>{formatMoney(row.value, currency)}</TableCell>
