@@ -159,7 +159,8 @@ for (const [label, unreadable] of [
     await page.reload();
     await expect(page.getByRole("button", { name: "CSV 고르기", exact: true })).toBeVisible();
     await expect(page.getByRole("main").getByRole("alert")).toContainText("CSV를 다시 올려 주세요");
-    expect(await page.evaluate(() => localStorage.getItem("trizon"))).toBe(unreadable);
+    expect(await page.evaluate(() => localStorage.getItem("trizon"))).toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem("trizon:backup"))).toBe(unreadable);
     await page.getByLabel("SBI CSV 파일").setInputFiles({
       name: "recovery.csv", mimeType: "text/csv", buffer: Buffer.from(portfolioUtf8),
     });

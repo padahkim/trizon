@@ -17,6 +17,7 @@
 app/
   page.tsx                  첫 화면. Dashboard를 그린다
   Dashboard.tsx             1단계 셸 (client): localStorage 읽기·쓰기, 파일 받기, /api/quotes 호출, evaluate
+  ClearDataDialog.tsx       데이터 지우기 확인: 취소에 포커스, 2년 경고, 지우기 실패 안내
   PortfolioView.tsx         표시 전용: Portfolio → 증권사 국가 › 증권사 › 시장 › 종목 표
   error.tsx                 예상하지 못한 오류: "문제가 생겼습니다 · 새로고침"
   globals.css               Tailwind 진입점 + 디자인 토큰(CSS 변수)
@@ -35,6 +36,7 @@ lib/                        Next 없이 도는 순수 모듈. 브라우저와 Vi
   quotes/fake.ts            고정 현재가·전일 종가 (TRIZON_QUOTES=fake)
   portfolio/types.ts        Broker · Market · Currency · Holding, 증권사 국가·거래통화 표
   portfolio/saved.ts        SavedV1 ↔ 문자열, 모양 전체 검사
+  portfolio/browser-store.ts localStorage 읽기·쓰기·백업·지우기, 탭 사이 변경 알림
   portfolio/evaluate.ts     Holding[] + 시세 → Portfolio
   format.ts                 통화별 자릿수, 부호(반올림한 뒤에 부호를 정한다), "N일 전"(now 주입)
   utils.ts                  cn(): 클래스 합치기 (shadcn init이 만든다, cn 패키지에 globals.css의 글자 크기·그림자 이름을 알려 준다)
@@ -181,7 +183,8 @@ function evaluate(holdings: Holding[], quotes: Partial<Record<QuoteKey, Quote>>)
 - `Dashboard`는 `useSyncExternalStore`로 localStorage를 읽는다. 서버 렌더 값은 "불러오는 중"이라, 데이터가 있는데도 빈 화면(U1)이 잠깐 보이는 일이 없다. subscribe는 `storage` 이벤트를 들어서 다른 탭의 변경도 받는다.
 - 쓰기 직전에 localStorage를 다시 읽고 그 위에 합친다. 탭 두 개에서 올려도 앞 탭의 거래가 지워지지 않는다.
 - `setItem`이 실패하면(사생활 보호 모드, 용량 초과) 화면은 그대로 두고 "저장되지 않았습니다"를 띄운다(U46).
-- 못 읽은 데이터(U16)는 지우지 않고 `trizon:backup` 키로 옮긴 뒤 새로 시작한다. 2년 넘은 거래는 SBI에서 다시 받을 수 없어서다. 저장 형식의 version을 올릴 때는 이전 version을 읽는 변환을 함께 넣는다.
+- 못 읽은 데이터(U16)는 발견하면 `trizon:backup` 키로 옮긴 뒤 새로 시작한다. 백업이 성공한 뒤에만 원래 키를 비운다. 이전 백업이 있으면 별도 `trizon:backup:<id>` 키로 보관한다. 백업에 실패하면 원본을 그대로 남기고, 새로 올린 데이터로 덮어쓰지 않는다. 2년 넘은 거래는 SBI에서 다시 받을 수 없어서다. 저장 형식의 version을 올릴 때는 이전 version을 읽는 변환을 함께 넣는다.
+- 「데이터 지우기」를 확인하면 보유·거래와 복구용 백업을 지운다. 다른 앱의 localStorage 키는 건드리지 않는다. 실패하면 화면의 보유를 유지하고 확인 창에 오류를 보인다.
 - 새 시세 요청을 보내면 이전 요청은 `AbortController`로 끊는다. 늦게 온 옛 응답이 새 응답을 덮지 않는다.
 - dev 주소는 `localhost:3000`으로 고정한다. localStorage는 origin마다 따로라서, `127.0.0.1`이나 다른 포트로 열면 데이터가 사라진 것처럼 보인다. Playwright `baseURL`도 같은 주소를 쓴다.
 - localStorage 한도(대략 5MB)는 거래 수천 건이 들어가도 충분하다.
@@ -282,7 +285,7 @@ erDiagram
 | 완료 기준 2. 4종목, 수량·취득단가, 시장 구분, 증권사 아래 배치 | `sbi/*` 단위 + e2e |
 | 완료 기준 3. 평가액·평가손익·전일 대비, +/−, 소수 보존 | `evaluate` · `format` 단위 + e2e |
 | 완료 기준 4. 시장별 합계(전일 대비 포함) | `evaluate` 단위 + e2e |
-| 완료 기준 5. 새로고침 뒤 유지, 데이터 지우기 | `saved` 단위 + e2e |
+| 완료 기준 5. 새로고침 뒤 유지, 데이터 지우기 | `saved` · `browser-store` 단위 + e2e |
 | U4 파일별 실패: 인코딩(`fatal`), 숫자 규칙, 전부 아니면 반영 안 함, 5MB | `sbi/csv` · `sbi/import` 단위 |
 | U5 교체·누적, U41 중복 제거(같은 값끼리 출현 순번), U48 現買·現売 밖 건너뜀 | `sbi/import` · `sbi/us-trades` 단위 |
 | U11 매도 > 매수는 빼고 안내, 같은 날 매수 먼저, 수량 0 뒤 취득단가 새로 시작 | `sbi/us-trades` 단위 |
@@ -290,7 +293,7 @@ erDiagram
 | CSV 분리(따옴표·`""`·CRLF), 통화가 붙은 값, `ポートフォリオ` 표 판별·合計 제외, `約定履歴` 필수 열·`商品区分` | `sbi/csv` · `sbi/portfolio` · `sbi/us-trades` 단위 |
 | U12 預り区分별 행, U13 건너뛴 표, U45 0행 | `sbi/portfolio` 단위 |
 | U8 시세 없음·통화 불일치·7일 넘은 시세 → 취득가, 전일 종가 없음 → 전일 대비 0 | `evaluate` 단위 |
-| U16 못 읽는 저장 데이터 → `trizon:backup` | `saved` 단위 |
+| U16 못 읽는 저장 데이터 → `trizon:backup` | `saved` · `browser-store` 단위 + e2e |
 | `/api/quotes` 200·400·502 | route 단위 (fake provider) |
 
 ## v1 참고
