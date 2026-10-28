@@ -211,3 +211,52 @@ test("저장 실패한 수동 기준값은 다른 탭의 CSV 갱신 뒤에도 �
   await expect(usTable(other).getByText("US-A", { exact: true })).toBeVisible();
   await expect(usTable(other).getByText("US-B", { exact: true })).toBeVisible();
 });
+
+test("전량 매도 후 수정은 0주로 시작하고 계산 불가 상태와 구분한다", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("SBI CSV 파일").setInputFiles(file(usTradesCsv));
+  await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
+  await page.getByLabel("종목·계좌 선택", { exact: true }).selectOption({ label: "US-A (TSTA · 特定)" });
+  await saveFields(page, { "保有数量": "10", "取得単価(USD)": "100" });
+  const closed = usTradesCsv + "2026/10/01,US-A,TSTA,米国株式,現売,特定,10,120USD,,1200USD\r\n";
+  await page.getByRole("button", { name: "CSV 올리기", exact: true }).click();
+  await page.getByLabel("SBI CSV 파일").setInputFiles(file(closed));
+  await expect(usTable(page).getByText("US-A", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
+  await page.getByRole("button", { name: "TSTA 特定 기준 보유정보 수정", exact: true }).click();
+  const form = page.getByRole("form", { name: "미국주식 보유정보 입력" });
+  await expect(form.getByLabel("保有数量", { exact: true })).toHaveValue("0");
+  await expect(form.getByLabel("取得単価(USD)", { exact: true })).toHaveValue("0");
+  await form.getByRole("button", { name: "보유정보 저장", exact: true }).click();
+  await page.reload();
+  await expect(usTable(page).getByText("US-A", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "CSV 올리기", exact: true }).click();
+  await page.getByLabel("SBI CSV 파일").setInputFiles(file(closed + "2026/10/02,US-A,TSTA,米国株式,現売,特定,1,120USD,,120USD\r\n"));
+  await page.getByLabel("미국주식 계산 안내").getByRole("button", { name: "보유정보 입력", exact: true }).click();
+  await expect(form.getByLabel("保有数量", { exact: true })).toHaveValue("");
+  await expect(form.getByLabel("取得単価(USD)", { exact: true })).toHaveValue("");
+});
+
+test("다른 탭의 변경 알림을 놓쳐도 최신 원장의 거래까지 반영된 것으로 저장한다", async ({ page, context }) => {
+  await page.addInitScript(() => window.addEventListener("storage", (event) => event.stopImmediatePropagation(), true));
+  await page.goto("/");
+  await page.getByLabel("SBI CSV 파일").setInputFiles(file(usTradesCsv));
+  await expect(page.getByRole("region", { name: "자산 요약" }).getByRole("button", { name: "시세 새로고침", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
+  await page.getByLabel("종목·계좌 선택", { exact: true }).selectOption({ label: "US-A (TSTA · 特定)" });
+  const form = page.getByRole("form", { name: "미국주식 보유정보 입력" });
+  await form.getByLabel("保有数量", { exact: true }).fill("10");
+  await form.getByLabel("取得単価(USD)", { exact: true }).fill("100");
+  const other = await context.newPage();
+  await other.goto("/");
+  await other.getByRole("button", { name: "CSV 올리기", exact: true }).click();
+  await other.getByLabel("SBI CSV 파일").setInputFiles(file(usTradesCsv + "2026/10/01,US-A,TSTA,米国株式,現買,特定,5,130USD,,650USD\r\n"));
+  await expect(usTable(other).getByRole("row").filter({ hasText: "US-A" }).getByRole("cell").nth(1)).toHaveText("9");
+  await expect(usTable(page).getByRole("row").filter({ hasText: "US-A" }).getByRole("cell").nth(1)).toHaveText("4");
+  await form.evaluate((element) => (element as HTMLFormElement).requestSubmit());
+  for (const tab of [page, other]) {
+    const row = usTable(tab).getByRole("row").filter({ hasText: "US-A" });
+    await expect(row.getByRole("cell").nth(1)).toHaveText("10");
+    await expect(row.getByRole("cell").nth(2)).toHaveText("$100.00");
+  }
+});

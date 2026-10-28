@@ -82,7 +82,7 @@ export default function Dashboard() {
   const uploadedAt = [saved?.sbiPortfolio?.uploadedAt, saved?.sbiUsTrades?.uploadedAt]
     .filter((date): date is string => date !== undefined).sort().at(-1);
 
-  function updateSaved(transform: (current: SavedV1) => SavedV1, baselineChange?: BaselineChange): SavedV1 {
+  function updateSaved(transform: (current: SavedV1) => SavedV1, changedPosition?: UsPosition): SavedV1 {
     // Read immediately before writing so another tab's unrelated sources are retained.
     const latest = getSavedSnapshot();
     const current = loadSaved(latest === STORAGE_UNAVAILABLE ? null : latest);
@@ -98,23 +98,26 @@ export default function Dashboard() {
       setPendingBaselines([]);
     } catch {
       setUnsaved(next);
-      if (baselineChange) setPendingBaselines((changes) => [
-        ...changes.filter((change) => usPositionKey(change.position) !== usPositionKey(baselineChange.position)), baselineChange,
-      ]);
+      if (changedPosition) {
+        const key = usPositionKey(changedPosition);
+        const change = { position: changedPosition, value: next.sbiUsBaselines?.find((baseline) => usPositionKey(baseline) === key) ?? null };
+        setPendingBaselines((changes) => [...changes.filter((item) => usPositionKey(item.position) !== key), change]);
+      }
     }
     return next;
   }
 
   function saveBaseline(input: UsBaselineInput) {
-    const baseline: UsHoldingBaseline = { ...input, includedTradeKeys: (saved?.sbiUsTrades?.trades ?? [])
-      .filter((trade) => usPositionKey(trade) === usPositionKey(input)).map((trade) => trade.key) };
-    const change = { position: baseline, value: baseline };
-    updateSaved((current) => withBaselineChanges(current, [change]), change);
+    updateSaved((current) => {
+      const baseline: UsHoldingBaseline = { ...input, includedTradeKeys: (current.sbiUsTrades?.trades ?? [])
+        .filter((trade) => usPositionKey(trade) === usPositionKey(input)).map((trade) => trade.key) };
+      return withBaselineChanges(current, [{ position: input, value: baseline }]);
+    }, input);
   }
 
   function deleteBaseline(position: UsPosition) {
     const change = { position, value: null };
-    updateSaved((current) => withBaselineChanges(current, [change]), change);
+    updateSaved((current) => withBaselineChanges(current, [change]), position);
   }
 
   async function upload(files: File[]) {
@@ -274,7 +277,7 @@ export default function Dashboard() {
                 <PortfolioView portfolio={portfolio} us={{ hasTrades: Boolean(saved?.sbiUsTrades), baselines: saved?.sbiUsBaselines ?? [], issues: usHoldings.issues, onEdit: (position) => setBaselineTarget({ position }) }}>
                   {baselineTarget && <UsBaselineEditor
                     key={baselineTarget.position ? usPositionKey(baselineTarget.position) : "new"}
-                    positions={positions} baselines={saved?.sbiUsBaselines ?? []} holdings={usHoldings.holdings} initialPosition={baselineTarget.position}
+                    positions={positions} baselines={saved?.sbiUsBaselines ?? []} holdings={usHoldings.holdings} issues={usHoldings.issues} initialPosition={baselineTarget.position}
                     onSave={saveBaseline} onDelete={deleteBaseline} onClose={() => setBaselineTarget(null)}
                   />}
                 </PortfolioView>

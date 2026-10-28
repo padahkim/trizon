@@ -7,7 +7,7 @@ import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatMoney } from "@/lib/format";
-import { usBaselineInputSchema, usPositionKey, type UsBaselineInput, type UsHoldingBaseline, type UsPosition } from "@/lib/sbi/us-trades";
+import { usBaselineInputSchema, usPositionKey, type UsBaselineInput, type UsHoldingBaseline, type UsHoldingIssue, type UsPosition } from "@/lib/sbi/us-trades";
 import type { Holding } from "@/lib/portfolio/types";
 
 type Draft = { ticker: string; name: string; account: string; quantity: string; avgCost: string };
@@ -16,12 +16,15 @@ function draftFor(position?: UsPosition, values?: Pick<Holding, "quantity" | "av
   return { ticker: position?.ticker ?? "", name: position?.name ?? "", account: position?.account ?? "", quantity: values ? String(values.quantity) : "", avgCost: values ? String(values.avgCost) : "" };
 }
 
-export default function UsBaselineEditor({ positions, baselines, holdings, initialPosition, onSave, onDelete, onClose }: {
-  positions: UsPosition[]; baselines: UsHoldingBaseline[]; holdings: Holding[]; initialPosition?: UsPosition;
+export default function UsBaselineEditor({ positions, baselines, holdings, issues, initialPosition, onSave, onDelete, onClose }: {
+  positions: UsPosition[]; baselines: UsHoldingBaseline[]; holdings: Holding[]; issues: UsHoldingIssue[]; initialPosition?: UsPosition;
   onSave: (baseline: UsBaselineInput) => void; onDelete: (position: UsPosition) => void; onClose: () => void;
 }) {
-  const findValues = (position?: UsPosition) => position && (holdings.find((holding) => holding.code === position.ticker && holding.account === position.account)
-    ?? baselines.find((baseline) => usPositionKey(baseline) === usPositionKey(position)));
+  const findValues = (position?: UsPosition) => {
+    if (!position || issues.some((issue) => usPositionKey(issue) === usPositionKey(position))) return undefined;
+    return holdings.find((holding) => holding.code === position.ticker && holding.account === position.account)
+      ?? { quantity: 0, avgCost: 0 };
+  };
   const [draft, setDraft] = useState(() => draftFor(initialPosition, findValues(initialPosition)));
   const [errors, setErrors] = useState<Partial<Record<keyof Draft, string>>>({});
   const [editing, setEditing] = useState<UsPosition | undefined>(initialPosition);
