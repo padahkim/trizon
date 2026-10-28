@@ -21,29 +21,38 @@ test("처음 접속하면 일본 증권사와 접힌 한국 증권사가 있는 
   expect(koreaBounds!.y).toBeGreaterThanOrEqual(japanBounds!.y + japanBounds!.height);
 });
 
-test("두 CSV의 내용과 SBI 다운로드 위치를 일본어 원문으로 안내한다", async ({ page }) => {
+test("두 CSV의 지원 범위와 SBI 다운로드 순서를 안내한다", async ({ page }) => {
   await page.goto("/");
 
   const sbi = page.getByRole("region", { name: "SBI증권", exact: true });
-  const files = sbi.getByRole("list", { name: "받을 CSV" }).getByRole("listitem");
+  const files = sbi.getByRole("list", { name: "받을 CSV" }).locator(":scope > li");
   await expect(files).toHaveCount(2);
   await expect(page.locator("html")).toHaveAttribute("lang", "ko");
 
   const portfolio = files.filter({ has: page.getByRole("heading", { name: "ポートフォリオ", exact: true }) });
   await expect(portfolio.getByRole("heading", { name: "ポートフォリオ", exact: true })).toHaveAttribute("lang", "ja");
   await expect(portfolio.getByText("일본주식의 보유수량과 취득단가가 들어 있습니다.", { exact: true })).toBeVisible();
-  const portfolioLocation = portfolio.getByRole("link", { name: "ポートフォリオ › CSVダウンロード", exact: true });
+  await expect(portfolio.getByText("지금 올릴 수 있음", { exact: true })).toBeVisible();
+  const portfolioLocation = portfolio.getByRole("link", { name: "SBI 공식 다운로드 도움말 (새 창)", exact: true });
   await expect(portfolioLocation).toBeVisible();
-  await expect(portfolioLocation).toHaveAttribute("lang", "ja");
   await expect(portfolioLocation).toHaveAttribute("href", "https://search.sbisec.co.jp/v2/popwin/help/portfolio_02_01.html");
+  await expect(portfolio.getByRole("list", { name: "ポートフォリオ 다운로드 순서" }).getByRole("listitem")).toHaveCount(2);
 
   const trades = files.filter({ has: page.getByRole("heading", { name: "約定履歴", exact: true }) });
   await expect(trades.getByRole("heading", { name: "約定履歴", exact: true })).toHaveAttribute("lang", "ja");
-  await expect(trades.getByText("미국주식의 매수·매도 내역이 들어 있습니다. 거래 내역으로 보유수량과 취득단가를 추정합니다.", { exact: true })).toBeVisible();
-  const tradesLocation = trades.getByRole("link", { name: "外国株式 › 取引照会 › 約定履歴 › 米国株式(現物) › CSVダウンロード", exact: true });
+  await expect(trades.getByText("가져오기 준비 중", { exact: true })).toBeVisible();
+  await expect(trades.getByText("미국주식의 매수·매도 내역이 들어 있습니다. 이 CSV를 가져오는 기능은 준비 중입니다.", { exact: true })).toBeVisible();
+  const tradesSteps = trades.getByRole("list", { name: "約定履歴 다운로드 순서" }).getByRole("listitem");
+  await expect(tradesSteps).toHaveCount(4);
+  await expect(tradesSteps.nth(0)).toContainText("外国株式");
+  await expect(tradesSteps.nth(1)).toContainText("口座管理 › 取引履歴 › 約定履歴");
+  await expect(tradesSteps.nth(2)).toContainText("商品指定：株式 › 期間指定 › 照会");
+  await expect(tradesSteps.nth(3)).toContainText("CSVダウンロード");
+  await expect(trades.getByText("口座管理 › 取引履歴 › 約定履歴", { exact: true })).toHaveAttribute("lang", "ja");
+  const tradesLocation = trades.getByRole("link", { name: "SBI 공식 다운로드 도움말 (새 창)", exact: true });
   await expect(tradesLocation).toBeVisible();
-  await expect(tradesLocation).toHaveAttribute("lang", "ja");
-  await expect(tradesLocation).toHaveAttribute("href", "https://search.sbisec.co.jp/v2/popwin/help/manage_19_01.html");
+  await expect(tradesLocation).toHaveAttribute("href", "https://search.sbisec.co.jp/v2/popwin/help/foreign/account_06.html");
+  await page.screenshot({ path: test.info().outputPath("download-guide.png"), fullPage: true });
 });
 
 test("가짜 ポートフォリオ를 올리면 일본주식의 수량·가격·합계가 맞고 새로고침 뒤에도 빈 상태 없이 남는다", async ({ page }) => {
@@ -71,6 +80,16 @@ test("가짜 ポートフォリオ를 올리면 일본주식의 수량·가격·
   await expect(japan.getByLabel("일본 증권사 소계")).toHaveText("¥20,000");
   await expect(sbi.getByRole("status")).toContainText("반영됨");
   await expect(sbi.getByRole("status")).toContainText("arbitrary-name.txt");
+  const reopen = sbi.getByRole("button", { name: "CSV 올리기", exact: true });
+  await expect(reopen).toHaveAttribute("aria-expanded", "false");
+  await expect(sbi.getByRole("heading", { name: "CSV 올리기 안내" })).toHaveCount(0);
+  await expect(sbi.getByText("CSV 올리기 버튼으로 파일 선택과 다운로드 안내를 다시 열 수 있습니다.", { exact: true })).toBeVisible();
+  await expect(sbi.getByText("미국주식 CSV 가져오기는 준비 중입니다.", { exact: true })).toBeVisible();
+  await reopen.click();
+  await expect(reopen).toHaveAttribute("aria-expanded", "true");
+  await expect(sbi.getByRole("heading", { name: "約定履歴", exact: true })).toBeVisible();
+  await expect(table.getByText("JP-A", { exact: true })).toBeVisible();
+  await reopen.click();
   await page.addInitScript(() => {
     Object.assign(window, { emptyStateFlashed: false });
     new MutationObserver(() => {

@@ -16,6 +16,7 @@ import {
 } from "@/lib/portfolio/browser-store";
 import { loadSaved, serializeSaved, type SavedV1 } from "@/lib/portfolio/saved";
 import { importSbiFiles, type FileResult } from "@/lib/sbi/import";
+import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
 import PortfolioView, { Delta } from "./PortfolioView";
 import Uploader from "./Uploader";
 
@@ -170,6 +171,9 @@ export default function Dashboard() {
                 )}
               </CardHeader>
               <CardContent className="grid gap-6">
+                {holdings.length > 0 && !uploaderOpen && (
+                  <p className="text-body-sm text-ink-2">{SBI_UPLOAD_GUIDANCE.reopen}</p>
+                )}
                 {(!holdings.length || uploaderOpen) && <Uploader onFiles={upload} busy={busy} />}
                 {results.length > 0 && (
                   <div role="status">
@@ -188,7 +192,7 @@ export default function Dashboard() {
                   <>
                     <PortfolioView portfolio={portfolio} />
                     <p className="border-t border-line pt-6 text-body-sm text-ink-2">
-                      <span lang="ja">約定履歴</span> CSV를 올리면 미국주식이 보입니다.
+                      {SBI_UPLOAD_GUIDANCE.usTradesPending}
                     </p>
                   </>
                 )}
