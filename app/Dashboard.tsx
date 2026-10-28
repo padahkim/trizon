@@ -18,9 +18,10 @@ import {
 import { loadSaved, serializeSaved, type SavedV1 } from "@/lib/portfolio/saved";
 import { importSbiFiles, type FileResult } from "@/lib/sbi/import";
 import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
-import { holdingsFromTrades } from "@/lib/sbi/us-trades";
+import { holdingsFromTrades, usPositionKey, type UsHoldingBaseline, type UsPosition } from "@/lib/sbi/us-trades";
 import PortfolioView, { Delta } from "./PortfolioView";
 import Uploader from "./Uploader";
+import UsBaselineEditor from "./UsBaselineEditor";
 import { useQuotes } from "./useQuotes";
 
 export default function Dashboard() {
@@ -40,11 +41,15 @@ export default function Dashboard() {
   const [results, setResults] = useState<FileResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [baselineTarget, setBaselineTarget] = useState<{ position?: UsPosition } | null>(null);
   const saved = unsaved ?? (loaded?.status === "ok" ? loaded.saved : undefined);
   const usHoldings = useMemo(
-    () => holdingsFromTrades(saved?.sbiUsTrades?.trades ?? []),
-    [saved?.sbiUsTrades?.trades],
+    () => holdingsFromTrades(saved?.sbiUsTrades?.trades ?? [], saved?.sbiUsBaselines),
+    [saved?.sbiUsTrades?.trades, saved?.sbiUsBaselines],
   );
+  const positions = useMemo(() => [...new Map([
+    ...saved?.sbiUsTrades?.trades ?? [], ...saved?.sbiUsBaselines ?? [],
+  ].map((position) => [usPositionKey(position), position])).values()], [saved?.sbiUsTrades?.trades, saved?.sbiUsBaselines]);
   const holdings = useMemo(
     () => [...saved?.sbiPortfolio?.holdings ?? [], ...usHoldings.holdings],
     [saved?.sbiPortfolio?.holdings, usHoldings.holdings],
@@ -59,6 +64,34 @@ export default function Dashboard() {
   const uploadedAt = [saved?.sbiPortfolio?.uploadedAt, saved?.sbiUsTrades?.uploadedAt]
     .filter((date): date is string => date !== undefined).sort().at(-1);
 
+  function updateSaved(transform: (current: SavedV1) => SavedV1): SavedV1 {
+    // Read immediately before writing so another tab's unrelated sources are retained.
+    const latest = getSavedSnapshot();
+    const current = loadSaved(latest === STORAGE_UNAVAILABLE ? null : latest);
+    const base = unsaved && latest === raw ? unsaved : current.status === "ok" ? current.saved : { version: 1 as const };
+    const next = transform(base);
+    if (next === base) return next;
+    try {
+      if (latest === STORAGE_UNAVAILABLE) throw new Error("storage unavailable");
+      if (current.status === "unreadable" && latest !== null) backupSavedSnapshot(latest);
+      writeSavedSnapshot(serializeSaved(next));
+      setUnsaved(undefined);
+    } catch {
+      setUnsaved(next);
+    }
+    return next;
+  }
+
+  function saveBaseline(baseline: UsHoldingBaseline) {
+    updateSaved((current) => ({ ...current, sbiUsBaselines: [
+      ...current.sbiUsBaselines?.filter((item) => usPositionKey(item) !== usPositionKey(baseline)) ?? [], baseline,
+    ] }));
+  }
+
+  function deleteBaseline(position: UsPosition) {
+    updateSaved((current) => ({ ...current, sbiUsBaselines: current.sbiUsBaselines?.filter((item) => usPositionKey(item) !== usPositionKey(position)) ?? [] }));
+  }
+
   async function upload(files: File[]) {
     if (!files.length || busy) return;
     setBusy(true);
@@ -68,29 +101,16 @@ export default function Dashboard() {
         name: file.name,
         bytes: new Uint8Array(await file.arrayBuffer()),
       })));
-      // Read again immediately before writing so another tab's source is retained.
-      const latest = getSavedSnapshot();
-      const current = loadSaved(latest === STORAGE_UNAVAILABLE ? null : latest);
       const date = new Date();
-      const imported = importSbiFiles(
-        incoming,
-        unsaved && latest === raw ? unsaved : current.status === "ok" ? current.saved : { version: 1 },
-        date,
-      );
-      if (imported.files.some((file) => !file.error)) {
-        try {
-          // Never overwrite an unreadable original unless its backup succeeded.
-          if (latest === STORAGE_UNAVAILABLE) throw new Error("storage unavailable");
-          if (current.status === "unreadable" && latest !== null) backupSavedSnapshot(latest);
-          writeSavedSnapshot(serializeSaved(imported.saved));
-          setUnsaved(undefined);
-        } catch {
-          setUnsaved(imported.saved);
-        }
-      }
+      let filesResult: FileResult[] = [];
+      const next = updateSaved((current) => {
+        const imported = importSbiFiles(incoming, current, date);
+        filesResult = imported.files;
+        return imported.saved;
+      });
       setNow(date);
-      setResults(imported.files);
-      if (imported.saved.sbiPortfolio?.holdings.length || imported.saved.sbiUsTrades?.trades.length) setUploaderOpen(false);
+      setResults(filesResult);
+      if (next.sbiPortfolio?.holdings.length || next.sbiUsTrades?.trades.length) setUploaderOpen(false);
     } catch {
       setError("파일을 읽지 못했습니다. CSV를 다시 골라 주세요.");
     } finally {
@@ -120,7 +140,7 @@ export default function Dashboard() {
           )}
           {unsaved && (
             <p role="alert" className="rounded-lg bg-danger-soft p-4 text-body-sm text-danger">
-              저장되지 않았습니다. 새로고침하면 다시 올려야 합니다.
+              저장되지 않았습니다. 새로고침하면 저장하지 못한 변경사항이 사라집니다.
             </p>
           )}
           {error && (
@@ -226,9 +246,13 @@ export default function Dashboard() {
                     </ul>
                   </div>
                 )}
-                {(saved?.sbiPortfolio || saved?.sbiUsTrades) && (
-                  <PortfolioView portfolio={portfolio} hasUsTrades={Boolean(saved.sbiUsTrades)} usNotices={usHoldings.notices} />
-                )}
+                <PortfolioView portfolio={portfolio} us={{ hasTrades: Boolean(saved?.sbiUsTrades), baselines: saved?.sbiUsBaselines ?? [], issues: usHoldings.issues, onEdit: (position) => setBaselineTarget({ position }) }}>
+                  {baselineTarget && <UsBaselineEditor
+                    key={baselineTarget.position ? usPositionKey(baselineTarget.position) : "new"}
+                    positions={positions} baselines={saved?.sbiUsBaselines ?? []} initialPosition={baselineTarget.position}
+                    onSave={saveBaseline} onDelete={deleteBaseline} onClose={() => setBaselineTarget(null)}
+                  />}
+                </PortfolioView>
               </CardContent>
             </Card>
           </section>

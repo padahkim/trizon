@@ -18,6 +18,7 @@ app/
   page.tsx                  첫 화면. Dashboard를 그린다
   Dashboard.tsx             1단계 셸 (client): localStorage 읽기·쓰기, 파일 받기, /api/quotes 호출, evaluate
   PortfolioView.tsx         표시 전용: Portfolio → 증권사 국가 › 증권사 › 시장 › 종목 표
+  UsBaselineEditor.tsx      미국주식 기준 보유정보 입력·목록 관리·삭제 확인
   error.tsx                 예상하지 못한 오류: "문제가 생겼습니다 · 새로고침"
   globals.css               Tailwind 진입점 + 디자인 토큰(CSS 변수)
   api/quotes/route.ts       GET /api/quotes?keys=JP:7203,US:AAPL → QuoteProvider
@@ -42,7 +43,7 @@ e2e/acceptance.spec.ts      PRD 「1단계 완료 기준」 1~5
 ```
 
 ## 데이터 모델
-출처마다 저장 규칙이 다르다. `ポートフォリオ`는 스냅샷이라 통째로 교체하고, `約定履歴`은 거래 원장이라 쌓는다. 미국주식 보유와 안내는 쌓인 거래에서 매번 다시 계산한다. 그래서 "계산할 수 없는 종목" 안내(PRD U11)도 새로고침 뒤에 다시 나온다.
+출처마다 저장 규칙이 다르다. `ポートフォリオ`는 스냅샷이라 통째로 교체하고, `約定履歴`은 거래 원장이라 쌓는다. 미국주식 기준 보유정보는 종목·계좌구분별 하나로 저장하고, 해당 기준일 다음 날짜부터 거래만 반영한다. 기준값이 없는 종목은 원장 전체에서 계산한다. 미국주식 보유와 안내는 저장된 기준값과 원장에서 매번 다시 계산하므로 새로고침 뒤에도 유지된다. 용어는 [GLOSSARY.md](../GLOSSARY.md), 날짜 경계 결정은 [ADR](adr/0001-us-holdings-baseline-cutoff.md)에 있다.
 
 타입은 zod 스키마에서 뽑는다(열린 질문 「저장 형식 검증」). 아래는 그 모양이다.
 
@@ -77,10 +78,17 @@ type UsTrade = {
 };
 
 // portfolio/saved.ts — localStorage 키 "trizon"
+type UsHoldingBaseline = {
+  ticker: string; name: string; account: string;
+  asOf: string;           // 기준일, YYYY-MM-DD. 해당 国内約定日의 모든 거래가 포함됨
+  quantity: number;       // 0 이상. 0주는 보유표에서 숨기되 관리 목록에 남음
+  avgCost: number;        // USD. 0주이면 0으로 정규화
+};
 type SavedV1 = {
   version: 1;
   sbiPortfolio?: { uploadedAt: string; holdings: Holding[]; notices: string[] }; // 통째 교체
   sbiUsTrades?: { uploadedAt: string; trades: UsTrade[] };                       // 누적
+  sbiUsBaselines?: UsHoldingBaseline[];                                      // 종목·계좌별 현재 기준값
 };
 ```
 
@@ -100,9 +108,13 @@ function importSbiFiles(
 
 // sbi/us-trades.ts
 function mergeTrades(stored: UsTrade[], incoming: UsTrade[]): UsTrade[];   // key로 중복 제거 (U41)
-function holdingsFromTrades(trades: UsTrade[]): { holdings: Holding[]; notices: string[] };
+type UsHoldingIssue = { ticker: string; name: string; account: string; message: string };
+function holdingsFromTrades(trades: UsTrade[], baselines?: UsHoldingBaseline[]): {
+  holdings: Holding[]; notices: string[]; issues: UsHoldingIssue[];
+};
 // - 날짜순으로 계산하고, 같은 날은 매수를 먼저 계산한다. 취득단가는 이동평균이고(취득원가에 넣는 값은 PRD 「핵심 기능」 2), 수량이 0이 되면 새로 시작한다.
-// - 수량이 0인 종목은 뺀다. 매도가 매수보다 많은 종목도 빼고, notices에 "계산할 수 없음: 2년 이전 매수분 필요" (U11).
+// - 기준값이 있으면 수량과 수량 × 단가에서 시작하고 tradeDate > asOf만 반영한다. 원장은 지우지 않는다.
+// - 수량이 0인 종목은 뺀다. 매도가 계산상 보유보다 많으면 계산 불가 안내와 입력 대상 식별정보(issues)를 반환한다 (U11).
 
 // portfolio/saved.ts
 type LoadResult = { status: "empty" } | { status: "ok"; saved: SavedV1 } | { status: "unreadable" };
@@ -144,7 +156,9 @@ function evaluate(holdings: Holding[], quotes: Partial<Record<QuoteKey, Quote>>)
 ```
 브라우저: 파일 → importSbiFiles → SavedV1 → localStorage
             ├ ポートフォリオ → 일본주식 Holding[] (통째 교체)
-            └ 約定履歴      → mergeTrades → holdingsFromTrades → 미국주식 Holding[]
+            └ 約定履歴      → mergeTrades → 원장 보존
+브라우저: 기준 보유정보 입력·수정·삭제 → SavedV1.sbiUsBaselines → localStorage
+브라우저: 원장 + 기준 보유정보 → holdingsFromTrades → 미국주식 Holding[] + 계산 불가 안내
 브라우저: localStorage → loadSaved → Holding[] → GET /api/quotes → 서버: QuoteProvider (yahoo | fake)
 브라우저: evaluate(Holding[], 시세) → Portfolio → PortfolioView
 ```
@@ -152,7 +166,7 @@ function evaluate(holdings: Holding[], quotes: Partial<Record<QuoteKey, Quote>>)
 ## 금액·통화
 - 거래통화는 시장이 정한다. 일본 = JPY, 미국 = USD. 1단계는 두 통화를 섞지 않고 시장별로 합계를 낸다. 환율은 쓰지 않는다.
 - 금액은 `number`로 계산하고, 화면에 보일 때만 통화별 자릿수로 반올림한다. 파싱에 `parseInt`를 쓰지 않는다.
-- 미국주식 보유수량·취득단가는 쌓아 둔 `約定履歴`의 現買·現売로 추정한다. SBI에 미국주식 보유 CSV가 없어서다.
+- 미국주식 보유수량·취득단가는 쌓아 둔 `約定履歴`의 現買·現売로 추정한다. 기준 보유정보가 있으면 그 값에서 기준일 이후 거래만 반영한다. 입력 단가의 소수 자릿수는 계산에서 유지하고 화면에서만 반올림한다.
 - 증권사 국가는 증권사가 정한다. SBI는 일본, KB·NH·토스는 한국(3단계)이다.
 
 ## CSV 읽기
@@ -180,6 +194,7 @@ function evaluate(holdings: Holding[], quotes: Partial<Record<QuoteKey, Quote>>)
 - 저장한 데이터(`SavedV1`)는 localStorage에 둔다. 시세는 저장하지 않는다. 1단계는 서버에 아무것도 저장하지 않는다.
 - `Dashboard`는 `useSyncExternalStore`로 localStorage를 읽는다. 서버 렌더 값은 "불러오는 중"이라, 데이터가 있는데도 빈 화면(U1)이 잠깐 보이는 일이 없다. subscribe는 `storage` 이벤트를 들어서 다른 탭의 변경도 받는다.
 - 쓰기 직전에 localStorage를 다시 읽고 그 위에 합친다. 탭 두 개에서 올려도 앞 탭의 거래가 지워지지 않는다.
+- 수동 기준값도 같은 저장 경로를 쓴다. 다른 종목의 기준값·일본 보유·미국 원장은 보존하고, CSV 재업로드도 기준값을 지우지 않는다. 기준값 없는 기존 v1 데이터도 읽는다. 중복된 종목·계좌구분의 기준값은 저장 형식 오류로 다룬다.
 - `setItem`이 실패하면(사생활 보호 모드, 용량 초과) 화면은 그대로 두고 "저장되지 않았습니다"를 띄운다(U46).
 - 못 읽은 데이터(U16)는 지우지 않고 `trizon:backup` 키로 옮긴 뒤 새로 시작한다. 2년 넘은 거래는 SBI에서 다시 받을 수 없어서다. 저장 형식의 version을 올릴 때는 이전 version을 읽는 변환을 함께 넣는다.
 - 새 시세 요청을 보내면 이전 요청은 `AbortController`로 끊는다. 늦게 온 옛 응답이 새 응답을 덮지 않는다.

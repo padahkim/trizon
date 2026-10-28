@@ -203,7 +203,7 @@ for (const replacing of [false, true]) {
     await expect(page.getByRole("region", { name: "자산 요약" })).toContainText(replacing ? "¥12,000" : "¥20,000");
     await expect(page.getByRole("table").getByText("JP-A", { exact: true })).toBeVisible();
     await expect(page.getByRole("table").getByText("JP-B", { exact: true })).toHaveCount(replacing ? 0 : 1);
-    await expect(page.getByRole("main").getByRole("alert")).toHaveText("저장되지 않았습니다. 새로고침하면 다시 올려야 합니다.");
+    await expect(page.getByRole("main").getByRole("alert")).toHaveText("저장되지 않았습니다. 새로고침하면 저장하지 못한 변경사항이 사라집니다.");
     await expect(page.getByRole("main").getByRole("status")).toContainText("unsaved.csv");
     expect(await page.evaluate(() => localStorage.getItem("trizon"))).toBe(persisted);
     await page.reload();
