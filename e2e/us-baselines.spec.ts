@@ -292,4 +292,11 @@ test("데이터 지우기는 수동 보유와 미저장 변경도 양쪽 탭에�
   await page.getByRole("alertdialog").getByRole("button", { name: "데이터 지우기", exact: true }).click();
   await expect(page.getByRole("table")).toHaveCount(0);
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+  await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
+  await saveFields(page, { "종목 코드": "TSTA", "종목명": "US-A", "預り区分": "特定", "保有数量": "1", "取得単価(USD)": "10" });
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("저장되지 않았습니다");
+  await other.getByRole("button", { name: "데이터 지우기", exact: true }).click();
+  await other.getByRole("alertdialog").getByRole("button", { name: "데이터 지우기", exact: true }).click();
+  await expect(page.getByRole("table")).toHaveCount(0);
+  await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
 });

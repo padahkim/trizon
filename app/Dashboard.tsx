@@ -51,10 +51,10 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [baselineTarget, setBaselineTarget] = useState<{ position?: UsPosition } | null>(null);
-  const subscribe = useCallback((onChange: () => void) => subscribeSaved(() => {
+  const subscribe = useCallback((onChange: () => void) => subscribeSaved((reason) => {
     // A stored snapshot replaces a temporary CSV import; manual changes are overlaid separately.
     setUnsaved(undefined);
-    if (getSavedSnapshot() === null) {
+    if (reason === "clear") {
       setPendingBaselines([]);
       setBaselineTarget(null);
       setResults([]);
