@@ -23,6 +23,17 @@ import PortfolioView, { Delta } from "./PortfolioView";
 import Uploader from "./Uploader";
 import { useQuotes } from "./useQuotes";
 
+function renderWithJa(text: string) {
+  const parts = text.split(/(ポートフォリオ|約定履歴|特定|NISA)/g);
+  return parts.map((part, i) =>
+    ["ポートフォリオ", "約定履歴", "特定", "NISA"].includes(part) ? (
+      <span key={i} lang="ja">{part}</span>
+    ) : (
+      part
+    )
+  );
+}
+
 export default function Dashboard() {
   const [unsaved, setUnsaved] = useState<SavedV1>();
   const subscribe = useCallback((onChange: () => void) => subscribeSaved(() => {
@@ -58,6 +69,7 @@ export default function Dashboard() {
   });
   const uploadedAt = [saved?.sbiPortfolio?.uploadedAt, saved?.sbiUsTrades?.uploadedAt]
     .filter((date): date is string => date !== undefined).sort().at(-1);
+  const hasData = holdings.length > 0 || saved?.sbiPortfolio !== undefined;
 
   async function upload(files: File[]) {
     if (!files.length || busy) return;
@@ -90,7 +102,7 @@ export default function Dashboard() {
       }
       setNow(date);
       setResults(imported.files);
-      if (imported.saved.sbiPortfolio?.holdings.length || imported.saved.sbiUsTrades?.trades.length) setUploaderOpen(false);
+      if (imported.saved.sbiPortfolio !== undefined || imported.saved.sbiUsTrades?.trades.length) setUploaderOpen(false);
     } catch {
       setError("파일을 읽지 못했습니다. CSV를 다시 골라 주세요.");
     } finally {
@@ -195,7 +207,7 @@ export default function Dashboard() {
                     ) : "SBI증권에서 받은 CSV로 보유 주식을 확인합니다."}
                   </CardDescription>
                 </div>
-                {holdings.length > 0 && (
+                {hasData && (
                   <Button
                     type="button"
                     variant="outline"
@@ -208,10 +220,10 @@ export default function Dashboard() {
                 )}
               </CardHeader>
               <CardContent className="grid gap-6">
-                {holdings.length > 0 && !uploaderOpen && (
+                {hasData && !uploaderOpen && (
                   <p className="text-body-sm text-ink-2">{SBI_UPLOAD_GUIDANCE.reopen}</p>
                 )}
-                {(!holdings.length || uploaderOpen) && <Uploader onFiles={upload} busy={busy} />}
+                {(!hasData || uploaderOpen) && <Uploader onFiles={upload} busy={busy} />}
                 {results.length > 0 && (
                   <div role="status">
                     <ul aria-label="업로드 결과" className="grid gap-2">
@@ -219,15 +231,21 @@ export default function Dashboard() {
                         <li key={`${file.fileName}-${index}`} className="flex flex-wrap items-center gap-2 text-body-sm">
                           <Badge variant={file.error ? "error" : "success"}>{file.error ? "읽지 못함" : "반영됨"}</Badge>
                           <span>{file.fileName}</span>
-                          <span className="text-ink-2">{file.error ?? (file.kind === "usTrades" ? "미국주식 거래를 누적했습니다." : "일본주식 보유를 교체했습니다.")}</span>
-                          {file.notices.map((notice) => <span key={notice} className="text-ink-2">{notice}</span>)}
+                          <span className="text-ink-2">{renderWithJa(file.error ?? (file.kind === "usTrades" ? "미국주식 거래를 누적했습니다." : "일본주식 보유를 교체했습니다."))}</span>
+                          {file.notices.map((notice) => <span key={notice} className="text-ink-2">{renderWithJa(notice)}</span>)}
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
                 {(saved?.sbiPortfolio || saved?.sbiUsTrades) && (
-                  <PortfolioView portfolio={portfolio} hasUsTrades={Boolean(saved.sbiUsTrades)} usNotices={usHoldings.notices} />
+                  <PortfolioView
+                    portfolio={portfolio}
+                    hasPortfolio={Boolean(saved?.sbiPortfolio)}
+                    hasUsTrades={Boolean(saved.sbiUsTrades)}
+                    usNotices={usHoldings.notices}
+                    jpNotices={saved?.sbiPortfolio?.notices ?? []}
+                  />
                 )}
               </CardContent>
             </Card>

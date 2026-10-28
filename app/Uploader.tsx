@@ -12,8 +12,13 @@ export default function Uploader({ onFiles, busy }: {
   return (
     <div
       id="sbi-uploader"
+      onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
       onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
-      onDragLeave={() => setDragging(false)}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+          setDragging(false);
+        }
+      }}
       onDrop={(event) => {
         event.preventDefault();
         setDragging(false);

@@ -132,12 +132,12 @@ test("다시 올리면 일본주식 전체와 업로드 시각을 바꾸고 다�
 });
 
 test("파일 여러 개를 함께 받고 같은 종목의 特定·NISA를 별도 행으로 보인다", async ({ page }) => {
-  const { portfolioUtf8 } = await import("../lib/sbi/fixtures");
+  const { usTradesUtf8 } = await import("../lib/sbi/fixtures");
   await page.goto("/");
   const accounts = "ポートフォリオ一覧\n株式(現物/特定預り)\n銘柄(コード),数量,取得単価,現在値\n1111 JP-A,10,1000,1200\n株式(現物/NISA預り)\n銘柄(コード),数量,取得単価,現在値\n1111 JP-A,10,1000,1200";
   await page.getByLabel("SBI CSV 파일").setInputFiles([
-    { name: "one.txt", mimeType: "text/plain", buffer: Buffer.from(portfolioUtf8) },
-    { name: "two.txt", mimeType: "text/plain", buffer: Buffer.from(accounts) },
+    { name: "one.txt", mimeType: "text/plain", buffer: Buffer.from(accounts) },
+    { name: "two.txt", mimeType: "text/plain", buffer: Buffer.from(usTradesUtf8) },
   ]);
   const table = page.getByRole("table", { name: "일본주식 보유 종목" });
   await expect(table.getByRole("row").filter({ hasText: "JP-A" })).toHaveCount(2);
