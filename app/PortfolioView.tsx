@@ -46,7 +46,11 @@ export default function PortfolioView({ portfolio, hasUsTrades, usNotices }: {
         </div>
         {market.market === "US" && usNotices.length > 0 && (
           <ul aria-label="미국주식 계산 안내" className="grid gap-2 rounded-lg bg-warning-soft p-4 text-body-sm text-warning-text">
-            {usNotices.map((notice) => <li key={notice}>{notice}</li>)}
+            {usNotices.map((notice) => {
+              // Notices keep their public string[] shape; mark the identity prefix separately.
+              const labelEnd = notice.lastIndexOf("): ") + 1;
+              return <li key={notice}><span lang="ja">{notice.slice(0, labelEnd)}</span>{notice.slice(labelEnd)}</li>;
+            })}
           </ul>
         )}
         {total ? <Table>

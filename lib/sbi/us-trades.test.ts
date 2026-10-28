@@ -64,10 +64,12 @@ it("excludes an oversold account with a named notice even if later buys make its
 it.each([
   ["25.00USD", 12.5],
   ["4000JPY", 10.25],
+  ["４，０００ 円", 10.25],
   ["--", 10.25],
 ])("uses USD settlement including fees, otherwise quantity times the decimal price: %s", (settlement, avgCost) => {
-  const { trades } = parseUsTrades(csv(`2026/10/01,US-A,TSTA,米国株式,現買,特定,2,10.25USD,,${settlement}`));
+  const { trades } = parseUsTrades(csv(`2026/10/01,US-A,TSTA,米国株式,現買,特定,2,10.25USD,,"${settlement}"`));
   expect(holdingsFromTrades(trades).holdings[0]).toMatchObject({ quantity: 2, avgCost });
+  if (settlement.endsWith("円")) expect(trades[0].settlement).toEqual({ amount: 4000, currency: "JPY" });
 });
 
 it("does not mistake floating-point residues for overselling or a remaining holding", () => {

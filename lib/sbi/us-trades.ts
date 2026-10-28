@@ -48,7 +48,7 @@ export function parseUsTrades(bytes: Uint8Array): { trades: UsTrade[]; notices: 
     if (!quantity || quantity.amount <= 0 || quantity.currency || !price || price.amount < 0 || (price.currency && price.currency !== "USD")) {
       throw new Error(`${line}행: 約定数量·約定単価(USD)를 읽지 못했습니다`);
     }
-    const settled = parseAmount(cell("受渡金額/決済損益"), line);
+    const settled = parseAmount(cell("受渡金額/決済損益").replace(/円$/, "JPY"), line);
     if (settled && settled.currency !== "USD" && settled.currency !== "JPY") {
       throw new Error(`${line}행: 受渡金額의 통화(USD·JPY)를 읽지 못했습니다`);
     }

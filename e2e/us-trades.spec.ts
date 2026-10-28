@@ -67,6 +67,7 @@ test("계산 불가 종목만 있어도 미국주식 안내가 새로고침 뒤 
   await page.getByLabel("SBI CSV 파일").setInputFiles(tradeFile(oversold));
   const us = page.getByRole("region", { name: "미국주식", exact: true });
   await expect(us.getByLabel("미국주식 계산 안내")).toHaveText("US-A (TSTA · 特定): 계산할 수 없음: 2년 이전 매수분 필요");
+  await expect(us.getByText("US-A (TSTA · 特定)", { exact: true })).toHaveAttribute("lang", "ja");
   await expect(us.getByRole("table")).toHaveCount(0);
   await page.reload();
   await expect(us.getByLabel("미국주식 계산 안내")).toContainText("계산할 수 없음: 2년 이전 매수분 필요");
