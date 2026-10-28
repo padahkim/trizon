@@ -8,6 +8,8 @@ Vercel 계정 인증과 GitHub 저장소 연결이 필요하다. 설정할 값�
 
 연결된 프로젝트는 [Vercel의 trizon](https://vercel.com/padahkim-gmailcoms-projects/trizon)이다. 배포 상세와 로그는 이 프로젝트 또는 PR의 Vercel 링크에서 확인한다.
 
+Codex에서 Vercel 계정을 연결한 뒤에도 팀 조회가 권한 부족(403)이면, 해당 팀에 대한 접근 승인 링크를 열어 승인한다. 같은 연결로 다시 조회할 수 있으므로 플러그인을 재등록할 필요는 없다. 미리보기 화면을 여는 브라우저에서는 허용된 Vercel 계정으로 로그인한다.
+
 | 항목 | 값 |
 | --- | --- |
 | Git 저장소 | `padahkim/trizon` |
