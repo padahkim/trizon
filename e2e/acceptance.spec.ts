@@ -45,3 +45,85 @@ test("두 CSV의 내용과 SBI 다운로드 위치를 일본어 원문으로 안
   await expect(tradesLocation).toHaveAttribute("lang", "ja");
   await expect(tradesLocation).toHaveAttribute("href", "https://search.sbisec.co.jp/v2/popwin/help/manage_19_01.html");
 });
+
+test("가짜 ポートフォリオ를 올리면 일본주식의 수량·가격·합계가 맞고 새로고침 뒤에도 빈 상태 없이 남는다", async ({ page }) => {
+  const { portfolioShiftJis } = await import("../lib/sbi/fixtures");
+  await page.clock.install({ time: new Date("2026-10-28T09:00:00Z") });
+  await page.goto("/");
+  const input = page.getByLabel("SBI CSV 파일");
+  await expect(input).toHaveAttribute("multiple", "");
+  await input.setInputFiles({ name: "arbitrary-name.txt", mimeType: "text/plain", buffer: Buffer.from(portfolioShiftJis) });
+  const japan = page.getByRole("region", { name: "일본 증권사", exact: true });
+  const sbi = japan.getByRole("region", { name: "SBI증권", exact: true });
+  const table = sbi.getByRole("table", { name: "일본주식 보유 종목" });
+  const jpA = table.getByRole("row").filter({ hasText: "JP-A" });
+  await expect(jpA.getByRole("cell")).toHaveText(["JP-A1111特定", "10", "¥1,000", "¥1,200CSV 現在値", "¥12,000", "+¥2,000+20.00%", "00.00%"]);
+  const jpB = table.getByRole("row").filter({ hasText: "JP-B" });
+  await expect(jpB.getByRole("cell")).toHaveText(["JP-B999A特定", "10", "¥900", "¥800CSV 現在値", "¥8,000", "-¥1,000-11.11%", "00.00%"]);
+  await expect(jpA.getByText("JP-A", { exact: true })).toHaveAttribute("lang", "ja");
+  await expect(jpA.getByText("特定", { exact: true })).toHaveAttribute("lang", "ja");
+  await expect(table.getByRole("row").filter({ hasText: "일본주식 합계" })).toContainText("¥20,000");
+  const summary = page.getByRole("region", { name: "자산 요약" });
+  await expect(summary).toContainText("¥20,000");
+  await expect(summary).toContainText("+¥1,000");
+  await expect(summary.getByText("현금 제외", { exact: true })).toBeVisible();
+  await expect(summary).toContainText("마지막 업로드 0일 전");
+  await expect(japan.getByLabel("일본 증권사 소계")).toHaveText("¥20,000");
+  await expect(sbi.getByRole("status")).toContainText("반영됨");
+  await expect(sbi.getByRole("status")).toContainText("arbitrary-name.txt");
+  await page.addInitScript(() => {
+    Object.assign(window, { emptyStateFlashed: false });
+    new MutationObserver(() => {
+      if (document.body?.textContent?.includes("CSV 올리기 안내")) Object.assign(window, { emptyStateFlashed: true });
+    }).observe(document, { childList: true, subtree: true });
+  });
+  await page.reload();
+  await expect(table.getByText("JP-A", { exact: true })).toBeVisible();
+  await expect(table.getByText("JP-B", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => Reflect.get(window, "emptyStateFlashed"))).toBe(false);
+  await expect(sbi.getByRole("button", { name: "CSV 올리기", exact: true })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("portfolio.png"), fullPage: true });
+});
+
+test("다시 올리면 일본주식 전체와 업로드 시각을 바꾸고 다른 탭에도 반영한다", async ({ page, context }) => {
+  const { portfolioUtf8 } = await import("../lib/sbi/fixtures");
+  // Both tabs share one clock; freeze Date while allowing browser timers to run.
+  await context.clock.setFixedTime(new Date("2026-10-25T09:00:00Z"));
+  await page.goto("/");
+  await page.getByLabel("SBI CSV 파일").setInputFiles({ name: "first.csv", mimeType: "text/csv", buffer: Buffer.from(portfolioUtf8) });
+  await expect(page.getByRole("table").getByText("JP-B", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "자산 요약" }).locator("time")).toHaveAttribute("datetime", "2026-10-25T09:00:00.000Z");
+  await context.clock.setFixedTime(new Date("2026-10-28T09:00:00Z"));
+  const other = await context.newPage();
+  await other.goto("/");
+  await expect(other.getByRole("region", { name: "자산 요약" })).toContainText("마지막 업로드 3일 전");
+  await page.getByRole("button", { name: "CSV 올리기", exact: true }).click();
+  const replacement = "ポートフォリオ一覧\n株式(現物/NISA預り)\n銘柄(コード),数量,取得単価,現在値\n1111 JP-A,10,1000,1200";
+  await page.getByLabel("SBI CSV 파일").setInputFiles({ name: "replacement.csv", mimeType: "text/csv", buffer: Buffer.from(replacement) });
+  for (const tab of [page, other]) {
+    const table = tab.getByRole("table", { name: "일본주식 보유 종목" });
+    await expect(table.getByText("JP-B", { exact: true })).toHaveCount(0);
+    await expect(table.getByText("JP-A", { exact: true })).toBeVisible();
+    await expect(table.getByText("NISA", { exact: true })).toBeVisible();
+    await expect(tab.getByRole("region", { name: "자산 요약" })).toContainText("¥12,000");
+    await expect(tab.getByRole("region", { name: "자산 요약" })).toContainText("마지막 업로드 0일 전");
+    await expect(tab.getByRole("region", { name: "자산 요약" }).locator("time")).toHaveAttribute("datetime", "2026-10-28T09:00:00.000Z");
+  }
+});
+
+test("파일 여러 개를 함께 받고 같은 종목의 特定·NISA를 별도 행으로 보인다", async ({ page }) => {
+  const { portfolioUtf8 } = await import("../lib/sbi/fixtures");
+  await page.goto("/");
+  const accounts = "ポートフォリオ一覧\n株式(現物/特定預り)\n銘柄(コード),数量,取得単価,現在値\n1111 JP-A,10,1000,1200\n株式(現物/NISA預り)\n銘柄(コード),数量,取得単価,現在値\n1111 JP-A,10,1000,1200";
+  await page.getByLabel("SBI CSV 파일").setInputFiles([
+    { name: "one.txt", mimeType: "text/plain", buffer: Buffer.from(portfolioUtf8) },
+    { name: "two.txt", mimeType: "text/plain", buffer: Buffer.from(accounts) },
+  ]);
+  const table = page.getByRole("table", { name: "일본주식 보유 종목" });
+  await expect(table.getByRole("row").filter({ hasText: "JP-A" })).toHaveCount(2);
+  await expect(table.getByText("特定", { exact: true })).toBeVisible();
+  await expect(table.getByText("NISA", { exact: true })).toBeVisible();
+  await expect(page.getByRole("status").getByRole("listitem")).toHaveCount(2);
+  await expect(page.getByRole("status")).toContainText("one.txt");
+  await expect(page.getByRole("status")).toContainText("two.txt");
+});
