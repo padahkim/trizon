@@ -15,13 +15,13 @@ export function TableFooter({ className, ...props }: ComponentProps<"tfoot">) {
   return <tfoot data-slot="table-footer" className={cn("border-t border-line bg-surface font-semibold", className)} {...props} />;
 }
 export function TableRow({ className, ...props }: ComponentProps<"tr">) {
-  return <tr data-slot="table-row" className={cn("border-b border-line", className)} {...props} />;
+  return <tr data-slot="table-row" className={cn("h-11 border-b border-line", className)} {...props} />;
 }
 export function TableHead({ className, ...props }: ComponentProps<"th">) {
   return <th data-slot="table-head" className={cn("px-3 py-3 text-right align-middle whitespace-nowrap first:text-left", className)} {...props} />;
 }
 export function TableCell({ className, ...props }: ComponentProps<"td">) {
-  return <td data-slot="table-cell" className={cn("px-3 py-3 text-right align-middle first:text-left", className)} {...props} />;
+  return <td data-slot="table-cell" className={cn("px-3 py-0.5 text-right align-middle first:text-left", className)} {...props} />;
 }
 export function TableCaption({ className, ...props }: ComponentProps<"caption">) {
   return <caption data-slot="table-caption" className={cn("text-caption text-ink-2", className)} {...props} />;
