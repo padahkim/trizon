@@ -17,6 +17,7 @@ import {
 import { loadSaved, serializeSaved, type SavedV1 } from "@/lib/portfolio/saved";
 import { importSbiFiles, type FileResult } from "@/lib/sbi/import";
 import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
+import { holdingsFromTrades } from "@/lib/sbi/us-trades";
 import PortfolioView, { Delta } from "./PortfolioView";
 import Uploader from "./Uploader";
 
@@ -38,10 +39,15 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const saved = unsaved ?? (loaded?.status === "ok" ? loaded.saved : undefined);
-  const holdings = saved?.sbiPortfolio?.holdings ?? [];
+  const usHoldings = holdingsFromTrades(saved?.sbiUsTrades?.trades ?? []);
+  const holdings = [...saved?.sbiPortfolio?.holdings ?? [], ...usHoldings.holdings];
   const portfolio = evaluate(holdings);
-  const total = portfolio.totals.JPY;
-  const uploadedAt = saved?.sbiPortfolio?.uploadedAt;
+  const totals = (["JPY", "USD"] as const).flatMap((currency) => {
+    const total = portfolio.totals[currency];
+    return total ? [{ currency, total }] : [];
+  });
+  const uploadedAt = [saved?.sbiPortfolio?.uploadedAt, saved?.sbiUsTrades?.uploadedAt]
+    .filter((date): date is string => date !== undefined).sort().at(-1);
 
   async function upload(files: File[]) {
     if (!files.length || busy) return;
@@ -74,7 +80,7 @@ export default function Dashboard() {
       }
       setNow(date);
       setResults(imported.files);
-      if (imported.saved.sbiPortfolio?.holdings.length) setUploaderOpen(false);
+      if (imported.saved.sbiPortfolio?.holdings.length || imported.saved.sbiUsTrades?.trades.length) setUploaderOpen(false);
     } catch {
       setError("파일을 읽지 못했습니다. CSV를 다시 골라 주세요.");
     } finally {
@@ -110,26 +116,30 @@ export default function Dashboard() {
           {error && (
             <p role="alert" className="rounded-lg bg-danger-soft p-4 text-body-sm text-danger">{error}</p>
           )}
-          {total && (
+          {totals.length > 0 && (
             <Card role="region" aria-label="자산 요약" className="bg-surface-summary">
               <CardHeader>
                 <CardTitle>주식 자산</CardTitle>
                 <CardDescription><Badge>현금 제외</Badge></CardDescription>
               </CardHeader>
               <CardContent className="grid gap-6">
-                <div className="grid gap-4">
-                  <p className="text-label text-ink-2">엔 자산</p>
-                  <p className="text-figure-xl tabular-nums">{formatMoney(total.value, "JPY")}</p>
-                  <dl className="grid grid-cols-2 gap-6 desktop:max-w-120">
-                    <div className="grid gap-1">
-                      <dt className="text-label text-ink-2">평가손익</dt>
-                      <dd><Delta value={total.pnl} base={total.value - total.pnl} currency="JPY" large /></dd>
+                <div className="grid gap-6 desktop:grid-cols-2">
+                  {totals.map(({ currency, total }) => (
+                    <div key={currency} className="grid gap-4">
+                      <p className="text-label text-ink-2">{currency === "JPY" ? "엔" : "달러"} 자산</p>
+                      <p className="text-figure-xl tabular-nums">{formatMoney(total.value, currency)}</p>
+                      <dl className="grid grid-cols-2 gap-6 desktop:max-w-120">
+                        <div className="grid gap-1">
+                          <dt className="text-label text-ink-2">평가손익</dt>
+                          <dd><Delta value={total.pnl} base={total.value - total.pnl} currency={currency} large /></dd>
+                        </div>
+                        <div className="grid gap-1">
+                          <dt className="text-label text-ink-2">전일 대비</dt>
+                          <dd><Delta value={total.dayChange} base={total.value - total.dayChange} currency={currency} large /></dd>
+                        </div>
+                      </dl>
                     </div>
-                    <div className="grid gap-1">
-                      <dt className="text-label text-ink-2">전일 대비</dt>
-                      <dd><Delta value={total.dayChange} base={total.value - total.dayChange} currency="JPY" large /></dd>
-                    </div>
-                  </dl>
+                  ))}
                 </div>
                 {uploadedAt && (
                   <p className="text-caption text-ink-3">
@@ -142,10 +152,10 @@ export default function Dashboard() {
           <section aria-labelledby="japan-brokers" className="grid gap-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <h2 id="japan-brokers" className="text-title-lg">일본 증권사</h2>
-              {total && (
-                <p aria-label="일본 증권사 소계" className="text-figure-md tabular-nums">
-                  {formatMoney(total.value, "JPY")}
-                </p>
+              {totals.length > 0 && (
+                <div aria-label="일본 증권사 소계" className="flex flex-wrap gap-6 text-figure-md tabular-nums">
+                  {totals.map(({ currency, total }) => <span key={currency}>{formatMoney(total.value, currency)}</span>)}
+                </div>
               )}
             </div>
             <Card role="region" aria-labelledby="sbi-broker">
@@ -182,19 +192,15 @@ export default function Dashboard() {
                         <li key={`${file.fileName}-${index}`} className="flex flex-wrap items-center gap-2 text-body-sm">
                           <Badge variant={file.error ? "error" : "success"}>{file.error ? "읽지 못함" : "반영됨"}</Badge>
                           <span>{file.fileName}</span>
-                          <span className="text-ink-2">{file.error ?? "일본주식 보유를 교체했습니다."}</span>
+                          <span className="text-ink-2">{file.error ?? (file.kind === "usTrades" ? "미국주식 거래를 누적했습니다." : "일본주식 보유를 교체했습니다.")}</span>
+                          {file.notices.map((notice) => <span key={notice} className="text-ink-2">{notice}</span>)}
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
-                {holdings.length > 0 && (
-                  <>
-                    <PortfolioView portfolio={portfolio} />
-                    <p className="border-t border-line pt-6 text-body-sm text-ink-2">
-                      {SBI_UPLOAD_GUIDANCE.usTradesPending}
-                    </p>
-                  </>
+                {(saved?.sbiPortfolio || saved?.sbiUsTrades) && (
+                  <PortfolioView portfolio={portfolio} hasUsTrades={Boolean(saved.sbiUsTrades)} usNotices={usHoldings.notices} />
                 )}
               </CardContent>
             </Card>

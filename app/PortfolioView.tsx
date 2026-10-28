@@ -6,6 +6,7 @@ import {
 import { formatMoney, formatPercent } from "@/lib/format";
 import type { Portfolio } from "@/lib/portfolio/evaluate";
 import { marketCurrency, type Currency } from "@/lib/portfolio/types";
+import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
 
 export function Delta({ value, base, currency, large = false }: {
   value: number; base: number; currency: Currency; large?: boolean;
@@ -20,20 +21,35 @@ export function Delta({ value, base, currency, large = false }: {
   );
 }
 
-export default function PortfolioView({ portfolio }: { portfolio: Portfolio }) {
-  return portfolio.countries.flatMap((country) => country.brokers.flatMap((broker) => broker.markets.map((market) => {
+export default function PortfolioView({ portfolio, hasUsTrades, usNotices }: {
+  portfolio: Portfolio; hasUsTrades: boolean; usNotices: string[];
+}) {
+  const markets = portfolio.countries.flatMap((country) => country.brokers.flatMap((broker) => broker.markets.map((market) => ({ key: `${country.country}-${broker.broker}-${market.market}`, market }))));
+  // Keep the US block visible for upload guidance and uncomputable positions too.
+  if (!markets.some(({ market }) => market.market === "US")) {
+    markets.push({ key: "JP-SBI-US", market: { market: "US", totals: {}, rows: [] } });
+  }
+  return markets.map(({ key, market }) => {
     const currency = marketCurrency[market.market];
     const title = { JP: "일본주식", US: "미국주식", KR: "한국주식" }[market.market];
-    const total = market.totals[currency]!;
+    const total = market.totals[currency];
     return (
-      <section key={`${country.country}-${broker.broker}-${market.market}`} aria-labelledby={`market-${market.market}`} className="grid gap-4">
+      <section key={key} aria-labelledby={`market-${market.market}`} className="grid gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <h4 id={`market-${market.market}`} className="text-title-sm">{title}</h4>
+          {market.market === "US" && hasUsTrades && (
+            <Badge variant="warning"><span lang="ja">約定履歴</span>으로 추정한 값</Badge>
+          )}
           {market.rows.some((row) => row.priceSource === "csv") && (
             <Badge variant="warning">CSV <span lang="ja" className="ml-1">現在値</span></Badge>
           )}
         </div>
-        <Table>
+        {market.market === "US" && usNotices.length > 0 && (
+          <ul aria-label="미국주식 계산 안내" className="grid gap-2 rounded-lg bg-warning-soft p-4 text-body-sm text-warning-text">
+            {usNotices.map((notice) => <li key={notice}>{notice}</li>)}
+          </ul>
+        )}
+        {total ? <Table>
           <TableCaption className="sr-only">{title} 보유 종목</TableCaption>
           <TableHeader>
             <TableRow>
@@ -78,8 +94,12 @@ export default function PortfolioView({ portfolio }: { portfolio: Portfolio }) {
               <TableCell><Delta value={total.dayChange} base={total.value - total.dayChange} currency={currency} /></TableCell>
             </TableRow>
           </TableFooter>
-        </Table>
+        </Table> : (
+          <p className="text-body-sm text-ink-2">
+            {hasUsTrades ? "보유 중인 미국주식이 없습니다." : <><span lang="ja">約定履歴</span>{SBI_UPLOAD_GUIDANCE.usTradesEmpty}</>}
+          </p>
+        )}
       </section>
     );
-  })));
+  });
 }

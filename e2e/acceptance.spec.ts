@@ -40,8 +40,8 @@ test("두 CSV의 지원 범위와 SBI 다운로드 순서를 안내한다", asyn
 
   const trades = files.filter({ has: page.getByRole("heading", { name: "約定履歴", exact: true }) });
   await expect(trades.getByRole("heading", { name: "約定履歴", exact: true })).toHaveAttribute("lang", "ja");
-  await expect(trades.getByText("가져오기 준비 중", { exact: true })).toBeVisible();
-  await expect(trades.getByText("미국주식의 매수·매도 내역이 들어 있습니다. 이 CSV를 가져오는 기능은 준비 중입니다.", { exact: true })).toBeVisible();
+  await expect(trades.getByText("지금 올릴 수 있음", { exact: true })).toBeVisible();
+  await expect(trades.getByText("미국주식의 매수·매도 내역이 들어 있습니다. 최근 2년까지, 파일당 1,000건이므로 기간을 나눠 받을 수 있습니다.", { exact: true })).toBeVisible();
   const tradesSteps = trades.getByRole("list", { name: "約定履歴 다운로드 순서" }).getByRole("listitem");
   await expect(tradesSteps).toHaveCount(4);
   await expect(tradesSteps.nth(0)).toContainText("外国株式");
@@ -85,7 +85,7 @@ test("가짜 ポートフォリオ를 올리면 일본주식의 수량·가격·
   await expect(reopen).toHaveAttribute("aria-expanded", "false");
   await expect(sbi.getByRole("heading", { name: "CSV 올리기 안내" })).toHaveCount(0);
   await expect(sbi.getByText("CSV 올리기 버튼으로 파일 선택과 다운로드 안내를 다시 열 수 있습니다.", { exact: true })).toBeVisible();
-  await expect(sbi.getByText("미국주식 CSV 가져오기는 준비 중입니다.", { exact: true })).toBeVisible();
+  await expect(sbi.getByRole("region", { name: "미국주식", exact: true })).toContainText("約定履歴 CSV를 올리면 보입니다.");
   await reopen.click();
   await expect(reopen).toHaveAttribute("aria-expanded", "true");
   await expect(sbi.getByRole("heading", { name: "約定履歴", exact: true })).toBeVisible();

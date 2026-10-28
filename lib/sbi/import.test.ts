@@ -1,7 +1,60 @@
 import { expect, it } from "vitest";
 import { importSbiFiles } from "./import";
-import { portfolioShiftJis, portfolioUtf8 } from "./fixtures";
+import { portfolioShiftJis, portfolioUtf8, usTradesCsv, usTradesUtf8 } from "./fixtures";
+import { holdingsFromTrades } from "./us-trades";
 import type { SavedV1 } from "../portfolio/saved";
+
+it("imports both CSV kinds together and accumulates overlapping trades without replacing either source", () => {
+  const first = importSbiFiles([
+    { name: "one.txt", bytes: portfolioShiftJis },
+    { name: "two.txt", bytes: usTradesUtf8 },
+  ], { version: 1 }, new Date("2026-10-27T00:00:00Z"));
+  expect(first.files).toEqual([
+    { fileName: "one.txt", kind: "portfolio", notices: [] },
+    { fileName: "two.txt", kind: "usTrades", notices: [] },
+  ]);
+  expect(first.saved.sbiPortfolio?.holdings).toHaveLength(2);
+  expect(holdingsFromTrades(first.saved.sbiUsTrades!.trades).holdings).toMatchObject([
+    { code: "TSTA", quantity: 4, avgCost: 50 },
+    { code: "TSTB", quantity: 2, avgCost: 20 },
+  ]);
+  const second = importSbiFiles([
+    { name: "two.txt", bytes: usTradesUtf8 },
+    { name: "overlap.csv", bytes: new TextEncoder().encode(usTradesCsv + "2026/10/02,US-A,TSTA,米国株式,現買,特定,4,100USD,2026/10/06,400USD\r\n") },
+  ], first.saved, new Date("2026-10-28T00:00:00Z"));
+  expect(second.saved.sbiUsTrades?.trades).toHaveLength(3);
+  expect(second.saved.sbiUsTrades?.uploadedAt).toBe("2026-10-28T00:00:00.000Z");
+  expect(holdingsFromTrades(second.saved.sbiUsTrades!.trades).holdings[0]).toMatchObject({ quantity: 8, avgCost: 75 });
+  expect(second.saved.sbiPortfolio).toEqual(first.saved.sbiPortfolio);
+  expect(first.saved.sbiUsTrades?.trades).toHaveLength(2);
+});
+
+it("leaves prior trades untouched for invalid files while still importing valid companion files", () => {
+  const original = importSbiFiles([{ name: "original.csv", bytes: usTradesUtf8 }], { version: 1 }, new Date("2026-10-27T00:00:00Z")).saved;
+  for (const broken of [
+    usTradesCsv.replace("預り区分", "missing"),
+    usTradesCsv + "2026/10/02,US-A,TSTA,米国株式,現買,特定,broken,100USD,2026/10/06,400USD",
+  ]) {
+    const result = importSbiFiles([
+      { name: "broken.csv", bytes: new TextEncoder().encode(broken) },
+      { name: "valid.csv", bytes: portfolioUtf8 },
+    ], original, new Date("2026-10-28T00:00:00Z"));
+    expect(result.files[0]).toMatchObject({ kind: "usTrades", error: expect.any(String) });
+    expect(result.files[1].error).toBeUndefined();
+    expect(result.saved.sbiUsTrades).toEqual(original.sbiUsTrades);
+    expect(result.saved.sbiPortfolio?.holdings).toHaveLength(2);
+  }
+});
+
+it("reports skipped trades and accepts empty trade exports without erasing the ledger", () => {
+  const skipped = importSbiFiles([{ name: "mixed.csv", bytes: new TextEncoder().encode(usTradesCsv.replace("US-B,TSTB,米国株式,現買", "US-B,TSTB,米国株式,信用新買")) }], { version: 1 }, new Date("2026-10-27T00:00:00Z"));
+  expect(skipped.files[0].notices).toEqual(["건너뛴 거래 1건"]);
+  expect(skipped.saved.sbiUsTrades?.trades).toHaveLength(1);
+  const empty = importSbiFiles([{ name: "empty.csv", bytes: new TextEncoder().encode(usTradesCsv.split("\r\n").slice(0, 2).join("\r\n")) }], skipped.saved, new Date("2026-10-28T00:00:00Z"));
+  expect(empty.files[0].error).toBeUndefined();
+  expect(empty.saved.sbiUsTrades?.trades).toEqual(skipped.saved.sbiUsTrades?.trades);
+  expect(empty.saved.sbiUsTrades?.uploadedAt).toBe("2026-10-28T00:00:00.000Z");
+});
 
 it("identifies contents despite arbitrary filenames, imports multiple files, and replaces only the portfolio snapshot and timestamp", () => {
   const original: SavedV1 = { version: 1, sbiUsTrades: { uploadedAt: "2026-10-20T00:00:00.000Z", trades: [] } };
