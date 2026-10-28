@@ -1,4 +1,4 @@
-import type { Currency } from "./portfolio/types";
+import type { Currency, Market } from "./portfolio/types";
 
 function rounded(value: number, digits: number): number {
   const magnitude = Math.round((Math.abs(value) + Number.EPSILON) * 10 ** digits) / 10 ** digits;
@@ -22,4 +22,14 @@ export function formatPercent(value: number): string {
 export function formatUploadedAt(uploadedAt: string, now: Date): string {
   const days = Math.max(0, Math.floor((now.getTime() - new Date(uploadedAt).getTime()) / 86_400_000));
   return days <= 7 ? `${days}일 전` : uploadedAt.slice(0, 10).replaceAll("-", ".");
+}
+
+export function formatMarketTime(market: Market, marketTime: string): string {
+  const { name, timeZone } = {
+    JP: { name: "일본", timeZone: "Asia/Tokyo" },
+    US: { name: "미국", timeZone: "America/New_York" },
+    KR: { name: "한국", timeZone: "Asia/Seoul" },
+  }[market];
+  const time = new Date(marketTime).toLocaleTimeString("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  return `${name} 시세 ${time}`;
 }
