@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { TriangleAlert } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,13 +10,16 @@ import { formatMarketTime, formatMoney, formatUploadedAt } from "@/lib/format";
 import { evaluate } from "@/lib/portfolio/evaluate";
 import {
   backupSavedSnapshot,
+  clearSavedSnapshot,
   getSavedSnapshot,
   getServerSnapshot,
+  recoverSavedSnapshot,
+  STORAGE_RECOVERED,
   STORAGE_UNAVAILABLE,
   subscribeSaved,
   writeSavedSnapshot,
 } from "@/lib/portfolio/browser-store";
-import { loadSaved, serializeSaved, type SavedV1 } from "@/lib/portfolio/saved";
+import { loadSaved, serializeSaved, type LoadResult, type SavedV1 } from "@/lib/portfolio/saved";
 import { importSbiFiles, type FileResult } from "@/lib/sbi/import";
 import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
 import { holdingsFromTrades, usPositionKey, type UsBaselineInput, type UsHoldingBaseline, type UsPosition } from "@/lib/sbi/us-trades";
@@ -23,6 +27,7 @@ import PortfolioView, { Delta } from "./PortfolioView";
 import Uploader from "./Uploader";
 import UsBaselineEditor from "./UsBaselineEditor";
 import { useQuotes } from "./useQuotes";
+import ClearDataDialog from "./ClearDataDialog";
 
 type BaselineChange = { position: UsPosition; value: UsHoldingBaseline | null };
 
@@ -40,27 +45,41 @@ function withBaselineChanges(saved: SavedV1, changes: BaselineChange[]): SavedV1
 export default function Dashboard() {
   const [unsaved, setUnsaved] = useState<SavedV1>();
   const [pendingBaselines, setPendingBaselines] = useState<BaselineChange[]>([]);
-  const subscribe = useCallback((onChange: () => void) => subscribeSaved(() => {
-    // A stored snapshot replaces a temporary CSV import; manual changes are overlaid separately.
-    setUnsaved(undefined);
-    onChange();
-  }), []);
-  const raw = useSyncExternalStore(subscribe, getSavedSnapshot, getServerSnapshot);
-  const loaded = useMemo(
-    () => raw === undefined || raw === STORAGE_UNAVAILABLE ? null : loadSaved(raw),
-    [raw],
-  );
   const [now, setNow] = useState(() => new Date());
   const [uploaderOpen, setUploaderOpen] = useState(false);
   const [results, setResults] = useState<FileResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [baselineTarget, setBaselineTarget] = useState<{ position?: UsPosition } | null>(null);
+  const subscribe = useCallback((onChange: () => void) => subscribeSaved(() => {
+    // A stored snapshot replaces a temporary CSV import; manual changes are overlaid separately.
+    setUnsaved(undefined);
+    if (getSavedSnapshot() === null) {
+      setPendingBaselines([]);
+      setBaselineTarget(null);
+      setResults([]);
+      setError(null);
+    }
+    onChange();
+  }), []);
+  const raw = useSyncExternalStore(subscribe, getSavedSnapshot, getServerSnapshot);
+  const loaded = useMemo<LoadResult | null>(
+    () => raw === undefined || raw === STORAGE_UNAVAILABLE ? null
+      : raw === STORAGE_RECOVERED ? { status: "unreadable" } : loadSaved(raw),
+    [raw],
+  );
+  useEffect(() => {
+    if (typeof raw !== "string" || loaded?.status !== "unreadable") return;
+    try { recoverSavedSnapshot(); } catch { /* Keep the original if backing up or removing it fails. */ }
+  }, [raw, loaded]);
   const sourceSaved = unsaved ?? (loaded?.status === "ok" ? loaded.saved : undefined);
   const saved = useMemo(() => {
     if (!sourceSaved && !pendingBaselines.length) return undefined;
     return withBaselineChanges(sourceSaved ?? { version: 1 }, pendingBaselines);
   }, [sourceSaved, pendingBaselines]);
+  const storageError = unsaved || pendingBaselines.length > 0 ? "저장되지 않았습니다. 새로고침하면 저장하지 못한 변경사항이 사라집니다."
+    : loaded?.status === "unreadable" ? "저장된 데이터를 읽지 못했습니다. 기존 데이터는 보관하고 CSV를 다시 올려 주세요."
+      : raw === STORAGE_UNAVAILABLE ? "저장된 데이터를 읽지 못했습니다. 브라우저의 저장 설정을 확인해 주세요." : null;
   const usHoldings = useMemo(
     () => holdingsFromTrades(saved?.sbiUsTrades?.trades ?? [], saved?.sbiUsBaselines),
     [saved?.sbiUsTrades?.trades, saved?.sbiUsBaselines],
@@ -85,14 +104,14 @@ export default function Dashboard() {
   function updateSaved(transform: (current: SavedV1) => SavedV1, changedPosition?: UsPosition): SavedV1 {
     // Read immediately before writing so another tab's unrelated sources are retained.
     const latest = getSavedSnapshot();
-    const current = loadSaved(latest === STORAGE_UNAVAILABLE ? null : latest);
+    const current = loadSaved(typeof latest === "string" ? latest : null);
     const source = unsaved && latest === raw ? unsaved : current.status === "ok" ? current.saved : { version: 1 as const };
     const base = withBaselineChanges(source, pendingBaselines);
     const next = transform(base);
     if (next === base) return next;
     try {
       if (latest === STORAGE_UNAVAILABLE) throw new Error("storage unavailable");
-      if (current.status === "unreadable" && latest !== null) backupSavedSnapshot(latest);
+      if (current.status === "unreadable" && typeof latest === "string") backupSavedSnapshot(latest);
       writeSavedSnapshot(serializeSaved(next));
       setUnsaved(undefined);
       setPendingBaselines([]);
@@ -146,33 +165,40 @@ export default function Dashboard() {
     }
   }
 
+  function clearData() {
+    clearSavedSnapshot();
+    setUnsaved(undefined);
+    setPendingBaselines([]);
+    setBaselineTarget(null);
+    setResults([]);
+    setError(null);
+    setUploaderOpen(false);
+  }
+
   return (
     <main className="mx-auto flex max-w-(--container-max) flex-col gap-8 px-6 py-12">
-      <header className="grid gap-2">
-        <p className="text-title-md">trizon</p>
-        <h1 className="text-title-lg">대시보드</h1>
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="grid gap-2">
+          <p className="text-title-md">trizon</p>
+          <h1 className="text-title-lg">대시보드</h1>
+        </div>
+        {raw !== undefined && <ClearDataDialog disabled={busy} onConfirm={clearData} />}
       </header>
       {raw === undefined ? (
         <p role="status" className="text-body-md text-ink-2">불러오는 중</p>
       ) : (
         <>
-          {raw === STORAGE_UNAVAILABLE && !unsaved && (
-            <p role="alert" className="rounded-lg bg-danger-soft p-4 text-body-sm text-danger">
-              저장된 데이터를 읽지 못했습니다. 브라우저의 저장 설정을 확인해 주세요.
-            </p>
-          )}
-          {loaded?.status === "unreadable" && !unsaved && (
-            <p role="alert" className="rounded-lg bg-danger-soft p-4 text-body-sm text-danger">
-              저장된 데이터를 읽지 못했습니다. 기존 데이터는 보관하고 CSV를 다시 올려 주세요.
-            </p>
-          )}
-          {(unsaved || pendingBaselines.length > 0) && (
-            <p role="alert" className="rounded-lg bg-danger-soft p-4 text-body-sm text-danger">
-              저장되지 않았습니다. 새로고침하면 저장하지 못한 변경사항이 사라집니다.
-            </p>
+          {storageError && (
+            <Alert variant="destructive">
+              <TriangleAlert strokeWidth={1.75} aria-hidden="true" />
+              <AlertDescription>{storageError}</AlertDescription>
+            </Alert>
           )}
           {error && (
-            <p role="alert" className="rounded-lg bg-danger-soft p-4 text-body-sm text-danger">{error}</p>
+            <Alert variant="destructive">
+              <TriangleAlert strokeWidth={1.75} aria-hidden="true" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
           {quotes.failed && holdings.length > 0 && (
             <div role="alert" className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-warning-soft px-4 py-3 text-body-sm">

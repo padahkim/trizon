@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AlertDialog } from "@/components/ui/alert-dialog";
+import { ConfirmationDialog } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatMoney } from "@/lib/format";
@@ -105,7 +105,7 @@ export default function UsBaselineEditor({ positions, baselines, holdings, issue
           </li>)}
         </ul>
       </section>}
-      <AlertDialog open={Boolean(deleting)} title="기준 보유정보를 삭제할까요?" description={<>선택한 기준값만 삭제하고 기존 CSV 거래로 다시 계산합니다. 과거 매수가 부족하면 계산할 수 없다는 경고가 다시 나타날 수 있습니다.</>} confirmLabel="기준 보유정보 삭제" onCancel={() => setDeleting(undefined)} onConfirm={() => {
+      <ConfirmationDialog open={Boolean(deleting)} title="기준 보유정보를 삭제할까요?" description={<>선택한 기준값만 삭제하고 기존 CSV 거래로 다시 계산합니다. 과거 매수가 부족하면 계산할 수 없다는 경고가 다시 나타날 수 있습니다.</>} confirmLabel="기준 보유정보 삭제" onCancel={() => setDeleting(undefined)} onConfirm={() => {
         if (deleting) onDelete(deleting);
         if (deleting && editing && usPositionKey(deleting) === usPositionKey(editing)) edit();
         setDeleting(undefined);

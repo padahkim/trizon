@@ -260,3 +260,36 @@ test("다른 탭의 변경 알림을 놓쳐도 최신 원장의 거래까지 반
     await expect(row.getByRole("cell").nth(2)).toHaveText("$100.00");
   }
 });
+
+test("데이터 지우기는 수동 보유와 미저장 변경도 양쪽 탭에서 비운다", async ({ page, context }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
+  await saveFields(page, { "종목 코드": "TSTA", "종목명": "US-A", "預り区分": "特定", "保有数量": "1", "取得単価(USD)": "10" });
+  const other = await context.newPage();
+  await other.goto("/");
+  await expect(usTable(other)).toBeVisible();
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "trizon") throw new DOMException("full", "QuotaExceededError");
+      original.call(this, key, value);
+    };
+  });
+  await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
+  await page.getByRole("button", { name: "TSTA 特定 기준 보유정보 수정", exact: true }).click();
+  await saveFields(page, { "保有数量": "2" });
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("저장되지 않았습니다");
+  await other.getByRole("button", { name: "데이터 지우기", exact: true }).click();
+  await other.getByRole("alertdialog").getByRole("button", { name: "데이터 지우기", exact: true }).click();
+  for (const tab of [page, other]) {
+    await expect(tab.getByRole("table")).toHaveCount(0);
+    await expect(tab.getByRole("main").getByRole("alert")).toHaveCount(0);
+  }
+  await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
+  await saveFields(page, { "종목 코드": "TSTB", "종목명": "US-B", "預り区分": "NISA", "保有数量": "2", "取得単価(USD)": "20" });
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("저장되지 않았습니다");
+  await page.getByRole("button", { name: "데이터 지우기", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "데이터 지우기", exact: true }).click();
+  await expect(page.getByRole("table")).toHaveCount(0);
+  await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+});
