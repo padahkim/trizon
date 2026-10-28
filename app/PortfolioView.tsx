@@ -27,7 +27,12 @@ export default function PortfolioView({ portfolio }: { portfolio: Portfolio }) {
     const total = market.totals[currency]!;
     return (
       <section key={`${country.country}-${broker.broker}-${market.market}`} aria-labelledby={`market-${market.market}`} className="grid gap-4">
-        <h4 id={`market-${market.market}`} className="text-title-sm">{title}</h4>
+        <div className="flex flex-wrap items-center gap-2">
+          <h4 id={`market-${market.market}`} className="text-title-sm">{title}</h4>
+          {market.rows.some((row) => row.priceSource === "csv") && (
+            <Badge variant="warning">CSV <span lang="ja" className="ml-1">現在値</span></Badge>
+          )}
+        </div>
         <Table>
           <TableCaption className="sr-only">{title} 보유 종목</TableCaption>
           <TableHeader>
@@ -41,20 +46,20 @@ export default function PortfolioView({ portfolio }: { portfolio: Portfolio }) {
             {market.rows.map((row) => (
               <TableRow key={`${row.holding.broker}-${row.holding.account}-${row.holding.market}-${row.holding.code}`}>
                 <TableCell>
-                  <div className="grid justify-items-start gap-1">
+                  <div className="grid justify-items-start">
                     <span lang="ja" className="text-name-ja">{row.holding.name}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-caption text-ink-3">{row.holding.code}</span>
-                      <Badge variant="outline" lang="ja">{row.holding.account}</Badge>
+                      <Badge variant="outline" lang="ja" className="py-0">{row.holding.account}</Badge>
                     </div>
                   </div>
                 </TableCell>
                 <TableCell>{row.holding.quantity.toLocaleString("en-US")}</TableCell>
                 <TableCell>{formatMoney(row.holding.avgCost, currency)}</TableCell>
                 <TableCell>
-                  <div className="grid justify-items-end gap-1">
+                  <div className="grid justify-items-end">
                     <span>{row.priceSource === "cost" ? "—" : formatMoney(row.price, currency)}</span>
-                    <Badge variant="warning">
+                    <Badge variant="warning" className="py-0">
                       {row.priceSource === "csv" ? <>CSV <span lang="ja" className="ml-1">現在値</span></> : "시세 없음"}
                     </Badge>
                   </div>
