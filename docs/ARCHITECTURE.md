@@ -9,7 +9,7 @@
   - 디자인 시스템은 루트 [DESIGN.md](../DESIGN.md)에 있고, 이 레포가 원본이다. 구현할 때 토큰 값을 `app/globals.css`의 CSS 변수로 옮기고, 그 뒤 값의 원본은 `globals.css`다.
 - 시세: `yahoo-finance2` 4.x. 서버(`/api/quotes`)에서만 부르고 `next.config.ts`의 `serverExternalPackages`에 넣는다.
 - 테스트: 순수 로직은 Vitest, 화면 완료 기준은 Playwright 1.64.
-- 1단계는 로컬 실행 전용이다. 로그인·DB가 없다.
+- 1단계는 로컬 실행과 Vercel PR 미리보기 배포를 지원한다. 로그인·DB가 없다. 배포 연결과 리뷰 절차는 [DEPLOYMENT.md](DEPLOYMENT.md)를 따른다.
 - 2단계부터: Supabase(Postgres · Auth · RLS · Vault).
 
 ## 디렉토리 구조 (예정)
@@ -195,6 +195,7 @@ function evaluate(holdings: Holding[], quotes: Partial<Record<QuoteKey, Quote>>)
 
 ## 보안
 - 1단계
+  - Vercel 배포는 Vercel Authentication의 All Deployments로 접근을 제한한다. 앱 로그인과 별개이며, 메인 배포와 첫 배포도 보호한다.
   - CSV에서 온 문자열(종목명 등)은 React 텍스트로만 그린다.
   - CSV 원문과 보유 내역은 콘솔·서버 로그에 남기지 않는다. 리포가 공개라 로그와 스크린샷이 그대로 퍼질 수 있다.
 - 2단계 (Supabase)
@@ -210,7 +211,7 @@ function evaluate(holdings: Holding[], quotes: Partial<Record<QuoteKey, Quote>>)
 구현하지 않고 방향만 적는다. 보안 규칙은 「보안」에 있다.
 
 ### 2단계: Supabase
-- 클라우드 무료 프로젝트를 쓰고, 앱은 로컬에서 돈다. 무료 프로젝트는 7일 동안 활동이 적으면 일시 정지된다(PRD 열린 질문 「Supabase 일시 정지」).
+- 클라우드 무료 프로젝트를 쓰고, 앱은 로컬 실행을 기본으로 한다. PR 미리보기의 인증·데이터 환경 설정은 해당 구현에서 별도로 다룬다. 무료 프로젝트는 7일 동안 활동이 적으면 일시 정지된다(PRD 열린 질문 「Supabase 일시 정지」).
 - 마이그레이션은 Supabase CLI(`supabase/migrations/*.sql`)로 관리한다. DB 타입은 `supabase gen types`로 만든다.
 - 로그인은 Supabase Auth의 Google provider로 한다. 세션 갱신은 Next 16의 `proxy.ts`(예전 `middleware.ts`)에서 한다.
 - 1단계 `SavedV1`은 첫 로그인 때 한 번 읽어 옮긴다(PRD F2). 서버도 같은 zod 스키마로 검사한다.
