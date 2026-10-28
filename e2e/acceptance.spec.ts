@@ -82,19 +82,21 @@ test("가짜 ポートフォリオ를 올리면 일본주식의 수량·가격·
   await expect(table.getByText("JP-B", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => Reflect.get(window, "emptyStateFlashed"))).toBe(false);
   await expect(sbi.getByRole("button", { name: "CSV 올리기", exact: true })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("portfolio.png"), fullPage: true });
 });
 
 test("다시 올리면 일본주식 전체와 업로드 시각을 바꾸고 다른 탭에도 반영한다", async ({ page, context }) => {
   const { portfolioUtf8 } = await import("../lib/sbi/fixtures");
-  await page.clock.install({ time: new Date("2026-10-25T09:00:00Z") });
+  // Both tabs share one clock; freeze Date while allowing browser timers to run.
+  await context.clock.setFixedTime(new Date("2026-10-25T09:00:00Z"));
   await page.goto("/");
   await page.getByLabel("SBI CSV 파일").setInputFiles({ name: "first.csv", mimeType: "text/csv", buffer: Buffer.from(portfolioUtf8) });
   await expect(page.getByRole("table").getByText("JP-B", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "자산 요약" }).locator("time")).toHaveAttribute("datetime", "2026-10-25T09:00:00.000Z");
+  await context.clock.setFixedTime(new Date("2026-10-28T09:00:00Z"));
   const other = await context.newPage();
-  await other.clock.install({ time: new Date("2026-10-28T09:00:00Z") });
   await other.goto("/");
   await expect(other.getByRole("region", { name: "자산 요약" })).toContainText("마지막 업로드 3일 전");
-  await page.clock.setFixedTime(new Date("2026-10-28T09:00:00Z"));
   await page.getByRole("button", { name: "CSV 올리기", exact: true }).click();
   const replacement = "ポートフォリオ一覧\n株式(現物/NISA預り)\n銘柄(コード),数量,取得単価,現在値\n1111 JP-A,10,1000,1200";
   await page.getByLabel("SBI CSV 파일").setInputFiles({ name: "replacement.csv", mimeType: "text/csv", buffer: Buffer.from(replacement) });
