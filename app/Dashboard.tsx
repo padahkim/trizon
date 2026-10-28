@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+import { TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatMoney, formatUploadedAt } from "@/lib/format";
+import { formatMarketTime, formatMoney, formatUploadedAt } from "@/lib/format";
 import { evaluate } from "@/lib/portfolio/evaluate";
+import type { Holding } from "@/lib/portfolio/types";
 import {
   backupSavedSnapshot,
   getSavedSnapshot,
@@ -19,6 +21,9 @@ import { importSbiFiles, type FileResult } from "@/lib/sbi/import";
 import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
 import PortfolioView, { Delta } from "./PortfolioView";
 import Uploader from "./Uploader";
+import { useQuotes } from "./useQuotes";
+
+const EMPTY_HOLDINGS: Holding[] = [];
 
 export default function Dashboard() {
   const [unsaved, setUnsaved] = useState<SavedV1>();
@@ -38,8 +43,10 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const saved = unsaved ?? (loaded?.status === "ok" ? loaded.saved : undefined);
-  const holdings = saved?.sbiPortfolio?.holdings ?? [];
-  const portfolio = evaluate(holdings);
+  const holdings = saved?.sbiPortfolio?.holdings ?? EMPTY_HOLDINGS;
+  const quotes = useQuotes(holdings);
+  const portfolio = evaluate(quotes.failed ? holdings.map((holding) => ({ ...holding, csvQuote: undefined })) : holdings, quotes.quotes);
+  const markets = portfolio.countries.flatMap((country) => country.brokers.flatMap((broker) => broker.markets));
   const total = portfolio.totals.JPY;
   const uploadedAt = saved?.sbiPortfolio?.uploadedAt;
 
@@ -110,6 +117,17 @@ export default function Dashboard() {
           {error && (
             <p role="alert" className="rounded-lg bg-danger-soft p-4 text-body-sm text-danger">{error}</p>
           )}
+          {quotes.failed && holdings.length > 0 && (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-warning-soft px-4 py-3 text-body-sm">
+              <div className="flex items-center gap-2">
+                <TriangleAlert className="size-5 shrink-0 text-warning" strokeWidth={1.75} aria-hidden="true" />
+                <p>시세를 받지 못했습니다. 모든 종목을 취득가로 표시합니다.</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" disabled={quotes.loading} onClick={quotes.refresh}>
+                {quotes.loading ? "받는 중" : "시세 새로고침"}
+              </Button>
+            </div>
+          )}
           {total && (
             <Card role="region" aria-label="자산 요약" className="bg-surface-summary">
               <CardHeader>
@@ -131,11 +149,17 @@ export default function Dashboard() {
                     </div>
                   </dl>
                 </div>
-                {uploadedAt && (
-                  <p className="text-caption text-ink-3">
-                    마지막 업로드 <time dateTime={uploadedAt}>{formatUploadedAt(uploadedAt, now)}</time>
-                  </p>
-                )}
+                <div className="flex flex-wrap items-center gap-4 text-caption text-ink-3">
+                  {markets.map((market) => market.marketTime && (
+                    <span key={market.market}>{formatMarketTime(market.market, market.marketTime)}</span>
+                  ))}
+                  {uploadedAt && (
+                    <p>마지막 업로드 <time dateTime={uploadedAt}>{formatUploadedAt(uploadedAt, now)}</time></p>
+                  )}
+                  <Button type="button" variant="outline" className="ml-auto" disabled={quotes.loading} onClick={quotes.refresh}>
+                    {quotes.loading ? "받는 중" : "시세 새로고침"}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
