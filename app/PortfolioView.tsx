@@ -74,7 +74,7 @@ export default function PortfolioView({ portfolio, us, children }: {
                 <TableCell>
                   <div className="grid justify-items-start">
                     <span lang="ja" className="text-name-ja">{row.holding.name}</span>
-                      {market.market === "US" && us.baselines.filter((baseline) => baseline.ticker === row.holding.code && baseline.account === row.holding.account).map((baseline) => <span key={usPositionKey(baseline)} className="text-caption text-ink-3">직접 입력 기준 <time dateTime={baseline.asOf}>{baseline.asOf}</time></span>)}
+                    {market.market === "US" && us.baselines.some((baseline) => baseline.ticker === row.holding.code && baseline.account === row.holding.account) && <span className="text-caption text-ink-3">직접 입력</span>}
                     <div className="flex items-center gap-2">
                       <span className="text-caption text-ink-3">{row.holding.code}</span>
                       <Badge variant="outline" lang="ja" className="py-0">{row.holding.account}</Badge>

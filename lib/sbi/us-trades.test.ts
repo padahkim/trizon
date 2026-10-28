@@ -5,6 +5,18 @@ const header = "国内約定日,銘柄,銘柄コード,商品区分,取引,預�
 const buy = "2026/10/01,US-A,TSTA,米国株式,現買,特定,4,50.00USD,2026/10/05,200.00USD";
 const csv = (...rows: string[]) => new TextEncoder().encode(["約定履歴", header, ...rows].join("\r\n"));
 
+it("remembers already reflected CSV trades and applies a new buy and sale on the same day", () => {
+  const initial = parseUsTrades(csv(buy)).trades;
+  const baseline = { ticker: "TSTA", name: "US-A", account: "特定", quantity: 10, avgCost: 100, includedTradeKeys: initial.map((trade) => trade.key) };
+  const incoming = parseUsTrades(csv(buy,
+    "2026/10/01,US-A,TSTA,米国株式,現買,特定,5,130USD,,650USD",
+    "2026/10/01,US-A,TSTA,米国株式,現売,特定,3,140USD,,420USD",
+  )).trades;
+  const merged = mergeTrades(initial, incoming);
+  expect(holdingsFromTrades(merged, [baseline]).holdings[0]).toMatchObject({ quantity: 12, avgCost: 110 });
+  expect(holdingsFromTrades(mergeTrades(merged, incoming), [baseline]).holdings[0]).toMatchObject({ quantity: 12, avgCost: 110 });
+});
+
 it("starts at 기준 보유정보 and applies only trades after 기준일 without double counting", () => {
   const { trades } = parseUsTrades(csv(
     "2026/10/01,US-A,TSTA,米国株式,現売,特定,20,90USD,,1800USD",

@@ -24,18 +24,24 @@ test("경고에서 현재 SBI 기준 보유정보를 입력하면 과거 거래�
   const form = page.getByRole("form", { name: "미국주식 보유정보 입력" });
   await expect(form.getByLabel("종목 코드", { exact: true })).toHaveValue("TSTA");
   await expect(form.getByLabel("預り区分", { exact: true })).toHaveValue("特定");
-  await form.getByLabel("기준일 (国内約定日)", { exact: true }).fill("2026-10-28");
+  await expect(form.locator('input[type="date"]')).toHaveCount(0);
+  await form.getByText("CSV 업로드 순서 안내", { exact: true }).click();
+  await expect(form).toContainText("현재까지의 거래가 포함된 최신");
   await form.getByLabel("保有数量", { exact: true }).fill("10");
   await form.getByLabel("取得単価(USD)", { exact: true }).fill("100");
   await form.getByRole("button", { name: "보유정보 저장", exact: true }).click();
   const row = usTable(page).getByRole("row").filter({ hasText: "US-A" });
   await expect(row.getByRole("cell").nth(1)).toHaveText("10");
   await expect(row.getByRole("cell").nth(2)).toHaveText("$100.00");
-  await expect(row).toContainText("직접 입력 기준 2026-10-28");
+  await expect(row).toContainText("직접 입력");
   await expect(warning).toHaveCount(0);
   await page.reload();
   await expect(row.getByRole("cell").nth(1)).toHaveText("10");
   await expect(row.getByRole("cell").nth(2)).toHaveText("$100.00");
+  await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
+  await page.getByRole("button", { name: "TSTA 特定 기준 보유정보 삭제", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "기준 보유정보 삭제", exact: true }).click();
+  await expect(warning).toContainText("2년 이전 매수분 필요");
 });
 
 test("CSV 없는 종목을 0주로 등록하고 관리 화면에서 수정·삭제하며 취소할 수 있다", async ({ page }) => {
@@ -45,7 +51,6 @@ test("CSV 없는 종목을 0주로 등록하고 관리 화면에서 수정·삭�
   await form.getByLabel("종목 코드", { exact: true }).fill("TSTC");
   await form.getByLabel("종목명", { exact: true }).fill("US-C");
   await form.getByLabel("預り区分", { exact: true }).fill("NISA");
-  await form.getByLabel("기준일 (国内約定日)", { exact: true }).fill("2026-10-28");
   await form.getByLabel("保有数量", { exact: true }).fill("0");
   await form.getByRole("button", { name: "보유정보 저장", exact: true }).click();
   await expect(usTable(page)).toHaveCount(0);
@@ -82,7 +87,6 @@ test("잘못된 입력은 필드 옆 한국어 안내를 보이고 저장하지 
   await expect(form.getByLabel("保有数量", { exact: true })).toHaveAttribute("aria-invalid", "true");
   await expect(form.getByText("0 이상의 보유수량을 입력해 주세요.", { exact: true })).toBeVisible();
   await expect(form.getByText("0 이상의 달러 취득단가를 입력해 주세요.", { exact: true })).toBeVisible();
-  await expect(form.getByText("유효한 기준일을 입력해 주세요.", { exact: true })).toBeVisible();
   await expect(usTable(page)).toHaveCount(0);
 });
 
@@ -97,11 +101,11 @@ test("경고 없는 종목 보정과 이후 매매·재업로드가 시세·평�
   await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
   await page.getByLabel("종목·계좌 선택", { exact: true }).selectOption({ label: "US-A (TSTA · 特定)" });
   expect(requests).toBe(1);
-  await saveFields(page, { "기준일 (国内約定日)": "2026-10-28", "保有数量": "10", "取得単価(USD)": "100" });
+  await saveFields(page, { "保有数量": "10", "取得単価(USD)": "100" });
   const summary = page.getByRole("region", { name: "자산 요약" });
   await expect(summary).toContainText("$505.00");
   await expect(summary).toContainText("-$535.00");
-  const nextCsv = usTradesCsv + "2026/09/01,US-A,TSTA,米国株式,現売,特定,9,90USD,,810USD\r\n2026/10/28,US-A,TSTA,米国株式,現買,特定,10,100USD,,1000USD\r\n2026/10/29,US-A,TSTA,米国株式,現買,特定,5,130USD,,650USD\r\n2026/10/30,US-A,TSTA,米国株式,現売,特定,3,140USD,,420USD\r\n";
+  const nextCsv = usTradesCsv + "2026/10/01,US-A,TSTA,米国株式,現買,特定,5,130USD,,650USD\r\n2026/10/01,US-A,TSTA,米国株式,現売,特定,3,140USD,,420USD\r\n";
   await page.getByRole("button", { name: "CSV 올리기", exact: true }).click();
   await page.getByLabel("SBI CSV 파일").setInputFiles(file(nextCsv));
   const row = usTable(page).getByRole("row").filter({ hasText: "US-A" });
@@ -119,8 +123,17 @@ test("경고 없는 종목 보정과 이후 매매·재업로드가 시세·평�
   await expect.poll(() => requests).toBe(beforeRefresh + 1);
   await page.screenshot({ path: test.info().outputPath("baseline-holdings.png"), fullPage: true });
   await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
+  await page.getByRole("button", { name: "TSTA 特定 기준 보유정보 수정", exact: true }).click();
+  const form = page.getByRole("form", { name: "미국주식 보유정보 입력" });
+  await expect(form.getByLabel("保有数量", { exact: true })).toHaveValue("12");
+  await expect(form.getByLabel("取得単価(USD)", { exact: true })).toHaveValue("110");
+  await form.getByRole("button", { name: "보유정보 저장", exact: true }).click();
+  await expect(row.getByRole("cell").nth(1)).toHaveText("12");
+  await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
+  await form.getByText("CSV 업로드 순서 안내", { exact: true }).click();
   await page.getByRole("region", { name: "미국주식", exact: true }).screenshot({ path: test.info().outputPath("baseline-editor.png") });
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(form.getByText("예전 기간의 CSV를 나중에 추가했다면 SBI 현재 보유정보를 다시 입력해 주세요.", { exact: true })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("baseline-mobile.png"), fullPage: true });
   await page.getByRole("button", { name: "TSTA 特定 기준 보유정보 삭제", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
@@ -129,10 +142,10 @@ test("경고 없는 종목 보정과 이후 매매·재업로드가 시세·평�
   await expect(row).toBeVisible();
   await page.getByRole("button", { name: "TSTA 特定 기준 보유정보 삭제", exact: true }).click();
   await dialog.getByRole("button", { name: "기준 보유정보 삭제", exact: true }).click();
-  await expect(row).toHaveCount(0);
-  await expect(page.getByLabel("미국주식 계산 안내")).toContainText("2년 이전 매수분 필요");
+  await expect(row.getByRole("cell").nth(1)).toHaveText("6");
+  await expect(row.getByRole("cell").nth(2)).toHaveText("$94.44");
   await page.reload();
-  await expect(page.getByLabel("미국주식 계산 안내")).toContainText("2년 이전 매수분 필요");
+  await expect(row.getByRole("cell").nth(1)).toHaveText("6");
 });
 
 test("보유정보 저장 실패를 알리고 현재 세션의 연속 입력은 유지한다", async ({ page }) => {
@@ -145,11 +158,11 @@ test("보유정보 저장 실패를 알리고 현재 세션의 연속 입력은 
   });
   await page.goto("/");
   await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
-  await saveFields(page, { "종목 코드": "TSTA", "종목명": "US-A", "預り区分": "特定", "기준일 (国内約定日)": "2026-10-28", "保有数量": "1", "取得単価(USD)": "10" });
+  await saveFields(page, { "종목 코드": "TSTA", "종목명": "US-A", "預り区分": "特定", "保有数量": "1", "取得単価(USD)": "10" });
   await expect(page.getByRole("main").getByRole("alert")).toContainText("저장되지 않았습니다");
   await expect(usTable(page).getByText("US-A", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
-  await saveFields(page, { "종목 코드": "TSTB", "종목명": "US-B", "預り区分": "NISA", "기준일 (国内約定日)": "2026-10-28", "保有数量": "2", "取得単価(USD)": "20" });
+  await saveFields(page, { "종목 코드": "TSTB", "종목명": "US-B", "預り区分": "NISA", "保有数量": "2", "取得単価(USD)": "20" });
   await expect(usTable(page).getByText("US-A", { exact: true })).toBeVisible();
   await expect(usTable(page).getByText("US-B", { exact: true })).toBeVisible();
   await page.reload();
@@ -162,8 +175,8 @@ test("다른 탭에서 입력한 관련 없는 기준 보유정보를 덮어쓰�
   await other.goto("/");
   await other.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
   await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
-  await saveFields(page, { "종목 코드": "TSTA", "종목명": "US-A", "預り区分": "特定", "기준일 (国内約定日)": "2026-10-28", "保有数量": "1", "取得単価(USD)": "10" });
-  await saveFields(other, { "종목 코드": "TSTB", "종목명": "US-B", "預り区分": "NISA", "기준일 (国内約定日)": "2026-10-28", "保有数量": "2", "取得単価(USD)": "20" });
+  await saveFields(page, { "종목 코드": "TSTA", "종목명": "US-A", "預り区分": "特定", "保有数量": "1", "取得単価(USD)": "10" });
+  await saveFields(other, { "종목 코드": "TSTB", "종목명": "US-B", "預り区分": "NISA", "保有数量": "2", "取得単価(USD)": "20" });
   for (const tab of [page, other]) {
     await expect(usTable(tab).getByText("US-A", { exact: true })).toBeVisible();
     await expect(usTable(tab).getByText("US-B", { exact: true })).toBeVisible();
@@ -184,7 +197,7 @@ test("저장 실패한 수동 기준값은 다른 탭의 CSV 갱신 뒤에도 �
   });
   await page.goto("/");
   await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
-  await saveFields(page, { "종목 코드": "TSTA", "종목명": "US-A", "預り区分": "特定", "기준일 (国内約定日)": "2026-10-28", "保有数量": "1", "取得単価(USD)": "10" });
+  await saveFields(page, { "종목 코드": "TSTA", "종목명": "US-A", "預り区分": "特定", "保有数量": "1", "取得単価(USD)": "10" });
   const other = await context.newPage();
   await other.goto("/");
   await other.getByLabel("SBI CSV 파일").setInputFiles({ name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(portfolioUtf8) });
@@ -193,7 +206,7 @@ test("저장 실패한 수동 기준값은 다른 탭의 CSV 갱신 뒤에도 �
   await expect(page.getByRole("main").getByRole("alert")).toContainText("저장되지 않았습니다");
   await page.evaluate(() => Object.assign(window, { blockBaselineStorage: false }));
   await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
-  await saveFields(page, { "종목 코드": "TSTB", "종목명": "US-B", "預り区分": "NISA", "기준일 (国内約定日)": "2026-10-28", "保有数量": "2", "取得単価(USD)": "20" });
+  await saveFields(page, { "종목 코드": "TSTB", "종목명": "US-B", "預り区分": "NISA", "保有数量": "2", "取得単価(USD)": "20" });
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
   await expect(usTable(other).getByText("US-A", { exact: true })).toBeVisible();
   await expect(usTable(other).getByText("US-B", { exact: true })).toBeVisible();

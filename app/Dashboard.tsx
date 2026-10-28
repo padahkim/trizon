@@ -18,7 +18,7 @@ import {
 import { loadSaved, serializeSaved, type SavedV1 } from "@/lib/portfolio/saved";
 import { importSbiFiles, type FileResult } from "@/lib/sbi/import";
 import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
-import { holdingsFromTrades, usPositionKey, type UsHoldingBaseline, type UsPosition } from "@/lib/sbi/us-trades";
+import { holdingsFromTrades, usPositionKey, type UsBaselineInput, type UsHoldingBaseline, type UsPosition } from "@/lib/sbi/us-trades";
 import PortfolioView, { Delta } from "./PortfolioView";
 import Uploader from "./Uploader";
 import UsBaselineEditor from "./UsBaselineEditor";
@@ -105,7 +105,9 @@ export default function Dashboard() {
     return next;
   }
 
-  function saveBaseline(baseline: UsHoldingBaseline) {
+  function saveBaseline(input: UsBaselineInput) {
+    const baseline: UsHoldingBaseline = { ...input, includedTradeKeys: (saved?.sbiUsTrades?.trades ?? [])
+      .filter((trade) => usPositionKey(trade) === usPositionKey(input)).map((trade) => trade.key) };
     const change = { position: baseline, value: baseline };
     updateSaved((current) => withBaselineChanges(current, [change]), change);
   }
@@ -272,7 +274,7 @@ export default function Dashboard() {
                 <PortfolioView portfolio={portfolio} us={{ hasTrades: Boolean(saved?.sbiUsTrades), baselines: saved?.sbiUsBaselines ?? [], issues: usHoldings.issues, onEdit: (position) => setBaselineTarget({ position }) }}>
                   {baselineTarget && <UsBaselineEditor
                     key={baselineTarget.position ? usPositionKey(baselineTarget.position) : "new"}
-                    positions={positions} baselines={saved?.sbiUsBaselines ?? []} initialPosition={baselineTarget.position}
+                    positions={positions} baselines={saved?.sbiUsBaselines ?? []} holdings={usHoldings.holdings} initialPosition={baselineTarget.position}
                     onSave={saveBaseline} onDelete={deleteBaseline} onClose={() => setBaselineTarget(null)}
                   />}
                 </PortfolioView>

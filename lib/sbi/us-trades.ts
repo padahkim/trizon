@@ -10,14 +10,24 @@ export const usTradeSchema = z.object({
 });
 export type UsTrade = z.infer<typeof usTradeSchema>;
 
-export const usHoldingBaselineSchema = z.object({
+const usBaselineFields = z.object({
   ticker: z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)*$/, "미국주식 종목 코드를 확인해 주세요."),
   name: z.string().trim().min(1, "종목명을 입력해 주세요."),
   account: z.string().trim().min(1, "계좌구분을 입력해 주세요."),
-  asOf: z.iso.date("유효한 기준일을 입력해 주세요."),
   quantity: z.number("0 이상의 보유수량을 입력해 주세요.").finite().nonnegative("0 이상의 보유수량을 입력해 주세요."),
   avgCost: z.number("0 이상의 달러 취득단가를 입력해 주세요.").finite().nonnegative("0 이상의 달러 취득단가를 입력해 주세요."),
-}).transform((baseline) => baseline.quantity === 0 ? { ...baseline, avgCost: 0 } : baseline);
+});
+function normalizeBaselineCost<T extends { quantity: number; avgCost: number }>(baseline: T): T {
+  return baseline.quantity === 0 ? { ...baseline, avgCost: 0 } : baseline;
+}
+export const usBaselineInputSchema = usBaselineFields.transform(normalizeBaselineCost);
+export type UsBaselineInput = z.infer<typeof usBaselineInputSchema>;
+export const usHoldingBaselineSchema = usBaselineFields.extend({
+  includedTradeKeys: z.array(z.string().min(1)).optional(),
+  // Keep previously saved date-based corrections readable until the user saves current values again.
+  asOf: z.iso.date().optional(),
+}).refine((baseline) => (baseline.includedTradeKeys === undefined) !== (baseline.asOf === undefined), "기준 보유정보의 반영 거래를 확인할 수 없습니다.")
+  .transform(normalizeBaselineCost);
 export type UsHoldingBaseline = z.infer<typeof usHoldingBaselineSchema>;
 export type UsPosition = Pick<UsTrade, "ticker" | "name" | "account">;
 export type UsHoldingIssue = UsPosition & { message: string };
@@ -103,7 +113,8 @@ export function holdingsFromTrades(trades: UsTrade[], baselines: UsHoldingBaseli
   const issues: UsHoldingIssue[] = [];
   for (const [key, group] of groups) {
     const baseline = baselineByPosition.get(key);
-    const ordered = group.filter((trade) => !baseline || trade.tradeDate > baseline.asOf)
+    const included = baseline?.includedTradeKeys && new Set(baseline.includedTradeKeys);
+    const ordered = group.filter((trade) => !baseline || (included ? !included.has(trade.key) : trade.tradeDate > baseline.asOf!))
       .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || Number(a.side === "sell") - Number(b.side === "sell"));
     let quantity = baseline?.quantity ?? 0;
     let cost = quantity * (baseline?.avgCost ?? 0);
