@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 test("처음 접속하면 일본 증권사와 접힌 한국 증권사가 있는 빈 대시보드가 열린다", async ({
   page,
@@ -126,4 +126,126 @@ test("파일 여러 개를 함께 받고 같은 종목의 特定·NISA를 별도
   await expect(page.getByRole("status").getByRole("listitem")).toHaveCount(2);
   await expect(page.getByRole("status")).toContainText("one.txt");
   await expect(page.getByRole("status")).toContainText("two.txt");
+});
+
+for (const [label, unreadable] of [
+  ["깨진 JSON", "{broken-json"],
+  ["지원하지 않는 저장 형식", JSON.stringify({ version: 999 })],
+]) {
+  test(`${label}은 원본을 보관하고 새 CSV 업로드로 복구한다`, async ({ page }) => {
+    const { portfolioUtf8 } = await import("../lib/sbi/fixtures");
+    await page.goto("/");
+    await page.evaluate((raw) => localStorage.setItem("trizon", raw), unreadable);
+    await page.reload();
+    await expect(page.getByRole("button", { name: "CSV 고르기", exact: true })).toBeVisible();
+    await expect(page.getByRole("main").getByRole("alert")).toContainText("CSV를 다시 올려 주세요");
+    expect(await page.evaluate(() => localStorage.getItem("trizon"))).toBe(unreadable);
+    await page.getByLabel("SBI CSV 파일").setInputFiles({
+      name: "recovery.csv", mimeType: "text/csv", buffer: Buffer.from(portfolioUtf8),
+    });
+    await expect(page.getByRole("table").getByText("JP-A", { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem("trizon:backup"))).toBe(unreadable);
+    await page.reload();
+    await expect(page.getByRole("table").getByText("JP-B", { exact: true })).toBeVisible();
+    await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+  });
+}
+
+async function failSnapshotWrites(page: Page) {
+  await page.evaluate(() => {
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key: string, value: string) {
+      if (key === "trizon") throw new DOMException("Storage is full", "QuotaExceededError");
+      setItem.call(this, key, value);
+    };
+  });
+}
+
+for (const replacing of [false, true]) {
+  test(`저장 실패 시 ${replacing ? "교체한" : "처음 올린"} 보유를 화면에 남기고 새로고침 위험을 알린다`, async ({ page }) => {
+    const { portfolioUtf8 } = await import("../lib/sbi/fixtures");
+    await page.goto("/");
+    if (replacing) {
+      await page.getByLabel("SBI CSV 파일").setInputFiles({
+        name: "original.csv", mimeType: "text/csv", buffer: Buffer.from(portfolioUtf8),
+      });
+      await expect(page.getByRole("table").getByText("JP-B", { exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "CSV 올리기", exact: true }).click();
+    }
+    const persisted = await page.evaluate(() => localStorage.getItem("trizon"));
+    await failSnapshotWrites(page);
+    const incoming = replacing
+      ? new TextEncoder().encode("ポートフォリオ一覧\n株式(現物/NISA預り)\n銘柄(コード),数量,取得単価,現在値\n1111 JP-A,10,1000,1200")
+      : portfolioUtf8;
+    await page.getByLabel("SBI CSV 파일").setInputFiles({
+      name: "unsaved.csv", mimeType: "text/csv", buffer: Buffer.from(incoming),
+    });
+    await expect(page.getByRole("region", { name: "자산 요약" })).toContainText(replacing ? "¥12,000" : "¥20,000");
+    await expect(page.getByRole("table").getByText("JP-A", { exact: true })).toBeVisible();
+    await expect(page.getByRole("table").getByText("JP-B", { exact: true })).toHaveCount(replacing ? 0 : 1);
+    await expect(page.getByRole("main").getByRole("alert")).toHaveText("저장되지 않았습니다. 새로고침하면 다시 올려야 합니다.");
+    await expect(page.getByRole("main").getByRole("status")).toContainText("unsaved.csv");
+    expect(await page.evaluate(() => localStorage.getItem("trizon"))).toBe(persisted);
+    await page.reload();
+    if (replacing) {
+      await expect(page.getByRole("table").getByText("JP-B", { exact: true })).toBeVisible();
+    } else {
+      await expect(page.getByRole("button", { name: "CSV 고르기", exact: true })).toBeVisible();
+    }
+  });
+}
+
+test("저장 실패 뒤 다른 탭에서 저장한 보유를 받고 임시 보유와 경고를 해제한다", async ({ page, context }) => {
+  const { portfolioUtf8 } = await import("../lib/sbi/fixtures");
+  await page.goto("/");
+  await failSnapshotWrites(page);
+  await page.getByLabel("SBI CSV 파일").setInputFiles({
+    name: "unsaved.csv", mimeType: "text/csv", buffer: Buffer.from(portfolioUtf8),
+  });
+  await expect(page.getByRole("region", { name: "자산 요약" })).toContainText("¥20,000");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("저장되지 않았습니다");
+  const other = await context.newPage();
+  await other.goto("/");
+  await other.getByLabel("SBI CSV 파일").setInputFiles({
+    name: "saved.csv", mimeType: "text/csv",
+    buffer: Buffer.from("ポートフォリオ一覧\n株式(現物/NISA預り)\n銘柄(コード),数量,取得単価,現在値\n1111 JP-A,10,1000,1200"),
+  });
+  await expect(page.getByRole("region", { name: "자산 요약" })).toContainText("¥12,000");
+  await expect(page.getByRole("table").getByText("JP-B", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+});
+
+test("복구 원본 보관에 실패하면 기존 저장값을 덮어쓰지 않고 새 보유만 화면에 보인다", async ({ page }) => {
+  const { portfolioUtf8 } = await import("../lib/sbi/fixtures");
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.setItem("trizon", "{unreadable-original");
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key: string, value: string) {
+      if (key.startsWith("trizon:backup")) throw new DOMException("Storage is full", "QuotaExceededError");
+      setItem.call(this, key, value);
+    };
+    window.dispatchEvent(new StorageEvent("storage", { key: "trizon" }));
+  });
+  await page.getByLabel("SBI CSV 파일").setInputFiles({
+    name: "recovery.csv", mimeType: "text/csv", buffer: Buffer.from(portfolioUtf8),
+  });
+  await expect(page.getByRole("region", { name: "자산 요약" })).toContainText("¥20,000");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("저장되지 않았습니다");
+  expect(await page.evaluate(() => localStorage.getItem("trizon"))).toBe("{unreadable-original");
+});
+
+test("다시 복구할 때 이전 원본 보관값도 유지한다", async ({ page }) => {
+  const { portfolioUtf8 } = await import("../lib/sbi/fixtures");
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.setItem("trizon:backup", "{older-original");
+    localStorage.setItem("trizon", "{newer-original");
+  });
+  await page.reload();
+  await page.getByLabel("SBI CSV 파일").setInputFiles({
+    name: "recovery.csv", mimeType: "text/csv", buffer: Buffer.from(portfolioUtf8),
+  });
+  await expect(page.getByRole("table").getByText("JP-A", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => Object.values(localStorage))).toEqual(expect.arrayContaining(["{older-original", "{newer-original"]));
 });

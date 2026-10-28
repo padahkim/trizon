@@ -11,6 +11,7 @@ export function parsePortfolio(bytes: Uint8Array, now: Date): Holding[] {
   const holdings: Holding[] = [];
   let title = "";
   let header: string[] | null = null;
+  let foundCashHeader = false;
   for (const { cells, line } of parseCsv(decodeCsv(bytes))) {
     if (cells.length <= 1) {
       if (cells.length === 1) title = cells[0];
@@ -19,7 +20,14 @@ export function parsePortfolio(bytes: Uint8Array, now: Date): Holding[] {
     }
     if (title.endsWith("合計")) continue;
     if (cells[0] === "銘柄(コード)") {
-      header = findColumn(cells, "取得単価") >= 0 && findColumn(cells, "建単価") < 0 ? cells : null;
+      if (findColumn(cells, "建単価") >= 0) {
+        header = null;
+        continue;
+      }
+      const missing = ["数量", "取得単価", "現在値"].filter((name) => findColumn(cells, name) < 0);
+      if (missing.length) throw new Error(`${line}행: ${missing.join("·")} 머리글이 없습니다`);
+      header = cells;
+      foundCashHeader = true;
       continue;
     }
     if (!header) continue;
@@ -38,5 +46,6 @@ export function parsePortfolio(bytes: Uint8Array, now: Date): Holding[] {
       ...(price !== undefined ? { csvQuote: { price, asOf: now.toISOString() } } : {}),
     });
   }
+  if (!foundCashHeader) throw new Error("일본주식 現物 표의 머리글을 찾지 못했습니다");
   return holdings;
 }

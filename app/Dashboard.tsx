@@ -1,25 +1,32 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney, formatUploadedAt } from "@/lib/format";
 import { evaluate } from "@/lib/portfolio/evaluate";
 import {
+  backupSavedSnapshot,
   getSavedSnapshot,
   getServerSnapshot,
   STORAGE_UNAVAILABLE,
   subscribeSaved,
   writeSavedSnapshot,
 } from "@/lib/portfolio/browser-store";
-import { loadSaved, serializeSaved } from "@/lib/portfolio/saved";
+import { loadSaved, serializeSaved, type SavedV1 } from "@/lib/portfolio/saved";
 import { importSbiFiles, type FileResult } from "@/lib/sbi/import";
 import PortfolioView, { Delta } from "./PortfolioView";
 import Uploader from "./Uploader";
 
 export default function Dashboard() {
-  const raw = useSyncExternalStore(subscribeSaved, getSavedSnapshot, getServerSnapshot);
+  const [unsaved, setUnsaved] = useState<SavedV1>();
+  const subscribe = useCallback((onChange: () => void) => subscribeSaved(() => {
+    // A new stored snapshot supersedes this tab's temporary, unsaved import.
+    setUnsaved(undefined);
+    onChange();
+  }), []);
+  const raw = useSyncExternalStore(subscribe, getSavedSnapshot, getServerSnapshot);
   const loaded = useMemo(
     () => raw === undefined || raw === STORAGE_UNAVAILABLE ? null : loadSaved(raw),
     [raw],
@@ -29,7 +36,7 @@ export default function Dashboard() {
   const [results, setResults] = useState<FileResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const saved = loaded?.status === "ok" ? loaded.saved : undefined;
+  const saved = unsaved ?? (loaded?.status === "ok" ? loaded.saved : undefined);
   const holdings = saved?.sbiPortfolio?.holdings ?? [];
   const portfolio = evaluate(holdings);
   const total = portfolio.totals.JPY;
@@ -46,26 +53,29 @@ export default function Dashboard() {
       })));
       // Read again immediately before writing so another tab's source is retained.
       const latest = getSavedSnapshot();
-      if (latest === STORAGE_UNAVAILABLE) throw new Error("storage unavailable");
-      const current = loadSaved(latest);
-      if (current.status === "unreadable") {
-        setError("저장된 데이터를 읽지 못했습니다. 기존 데이터는 보관되어 있습니다.");
-        return;
-      }
+      const current = loadSaved(latest === STORAGE_UNAVAILABLE ? null : latest);
       const date = new Date();
       const imported = importSbiFiles(
         incoming,
-        current.status === "ok" ? current.saved : { version: 1 },
+        unsaved && latest === raw ? unsaved : current.status === "ok" ? current.saved : { version: 1 },
         date,
       );
       if (imported.files.some((file) => !file.error)) {
-        writeSavedSnapshot(serializeSaved(imported.saved));
+        try {
+          // Never overwrite an unreadable original unless its backup succeeded.
+          if (latest === STORAGE_UNAVAILABLE) throw new Error("storage unavailable");
+          if (current.status === "unreadable" && latest !== null) backupSavedSnapshot(latest);
+          writeSavedSnapshot(serializeSaved(imported.saved));
+          setUnsaved(undefined);
+        } catch {
+          setUnsaved(imported.saved);
+        }
       }
       setNow(date);
       setResults(imported.files);
       if (imported.saved.sbiPortfolio?.holdings.length) setUploaderOpen(false);
     } catch {
-      setError("저장되지 않았습니다. CSV를 다시 올려 주세요.");
+      setError("파일을 읽지 못했습니다. CSV를 다시 골라 주세요.");
     } finally {
       setBusy(false);
     }
@@ -79,12 +89,23 @@ export default function Dashboard() {
       </header>
       {raw === undefined ? (
         <p role="status" className="text-body-md text-ink-2">불러오는 중</p>
-      ) : raw === STORAGE_UNAVAILABLE || loaded?.status === "unreadable" ? (
-        <p role="alert" className="rounded-lg bg-danger-soft p-4 text-body-sm text-danger">
-          저장된 데이터를 읽지 못했습니다. 브라우저의 저장 설정을 확인해 주세요.
-        </p>
       ) : (
         <>
+          {raw === STORAGE_UNAVAILABLE && !unsaved && (
+            <p role="alert" className="rounded-lg bg-danger-soft p-4 text-body-sm text-danger">
+              저장된 데이터를 읽지 못했습니다. 브라우저의 저장 설정을 확인해 주세요.
+            </p>
+          )}
+          {loaded?.status === "unreadable" && !unsaved && (
+            <p role="alert" className="rounded-lg bg-danger-soft p-4 text-body-sm text-danger">
+              저장된 데이터를 읽지 못했습니다. 기존 데이터는 보관하고 CSV를 다시 올려 주세요.
+            </p>
+          )}
+          {unsaved && (
+            <p role="alert" className="rounded-lg bg-danger-soft p-4 text-body-sm text-danger">
+              저장되지 않았습니다. 새로고침하면 다시 올려야 합니다.
+            </p>
+          )}
           {error && (
             <p role="alert" className="rounded-lg bg-danger-soft p-4 text-body-sm text-danger">{error}</p>
           )}

@@ -17,3 +17,12 @@ export function writeSavedSnapshot(raw: string): void {
   localStorage.setItem(KEY, raw);
   window.dispatchEvent(new Event(CHANGE));
 }
+
+export function backupSavedSnapshot(raw: string): void {
+  const backupKey = `${KEY}:backup`;
+  const previous = localStorage.getItem(backupKey);
+  if (previous === raw) return;
+  // Keep earlier recoveries too; never replace an existing, different backup.
+  const destination = previous === null ? backupKey : `${backupKey}:${crypto.randomUUID()}`;
+  localStorage.setItem(destination, raw);
+}

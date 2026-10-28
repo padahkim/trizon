@@ -18,3 +18,37 @@ it("identifies contents despite arbitrary filenames, imports multiple files, and
   expect(second.saved.sbiUsTrades).toEqual(original.sbiUsTrades);
   expect(original.sbiPortfolio).toBeUndefined();
 });
+
+it.each([
+  "ポートフォリオ一覧",
+  "ポートフォリオ一覧\n株式(現物/特定預り)\n銘柄(コード),数量,現在値",
+  "ポートフォリオ一覧\n株式(現物/特定預り)\n銘柄(コード),取得単価,現在値",
+  "ポートフォリオ一覧\n株式(現物/特定預り)\n銘柄(コード),数量,取得単価",
+])("rejects damaged portfolio headers without replacing saved holdings: %s", (csv) => {
+  const original = importSbiFiles(
+    [{ name: "original.csv", bytes: portfolioUtf8 }],
+    { version: 1 },
+    new Date("2026-10-27T00:00:00Z"),
+  ).saved;
+  const result = importSbiFiles(
+    [{ name: "damaged.csv", bytes: new TextEncoder().encode(csv) }],
+    original,
+    new Date("2026-10-28T00:00:00Z"),
+  );
+  expect(result).toMatchObject({
+    saved: original,
+    files: [{ fileName: "damaged.csv", kind: "portfolio", error: expect.any(String) }],
+  });
+});
+
+it("accepts an empty portfolio when its cash holdings header is complete", () => {
+  const result = importSbiFiles(
+    [{ name: "empty.csv", bytes: new TextEncoder().encode("ポートフォリオ一覧\n株式(現物/特定預り)\n銘柄(コード),数量,取得単価,現在値") }],
+    { version: 1 },
+    new Date("2026-10-28T00:00:00Z"),
+  );
+  expect(result).toEqual({
+    saved: { version: 1, sbiPortfolio: { uploadedAt: "2026-10-28T00:00:00.000Z", holdings: [], notices: [] } },
+    files: [{ fileName: "empty.csv", kind: "portfolio", notices: [] }],
+  });
+});
