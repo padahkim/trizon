@@ -1,6 +1,6 @@
 ---
 name: pr
-description: "Use when writing a PR body."
+description: "Create or update a GitHub pull request for the current work, including commit, push, and PR body. Use when the user invokes pr, asks to open or update a pull request, or asks for a PR body."
 metadata:
   credits:
     skill: show-me
@@ -9,7 +9,22 @@ metadata:
     url: "https://github.com/humanlayer/skills/blob/main/plugins/show-me/skills/show-me/SKILL.md"
 ---
 
-Use this template for writing the PR body:
+Invoking `/pr` or `$pr` requests an actual GitHub pull request. Complete the workflow below and return its URL. For an explicit body-only request, write the body using the template below and leave Git and GitHub unchanged.
+
+## Workflow
+
+1. Read the repository instructions and inspect the current branch, working tree, commits, and diff to identify the requested changes. Use the user's base branch when specified; otherwise discover the repository's default branch. If on the base branch or a detached HEAD, create a feature branch following the repository's naming convention.
+2. Find any open PR for the current head branch. Reuse it when present. If there are no changes to submit and no existing PR, explain that there is nothing to open.
+3. Use the available validation evidence for unchanged code and run the repository's required checks for new changes. Commit changes belonging to the task, keeping unrelated local changes out, then push the head branch. A request to create a PR includes these steps.
+4. Write a title and body describing the final diff, using the template below and stating validation limits accurately. Use `gh` for GitHub operations and pass multiline bodies through a temporary file with `--body-file`.
+5. Create the PR with `gh pr create --base <base> --head <head> --title <title> --body-file <file>`, or update the existing PR's title and body with `gh pr edit`. Honor an explicit draft request; otherwise create a normal open PR.
+6. Verify with `gh pr view` that the PR exists with the intended base, head, and pushed commit. Attach its URL to the current Codex chat with `attach_artifact` when that tool is available, then return the link. Leave the PR open for review.
+
+Completion means a verified PR URL, not a proposed title or body. If authentication, permissions, or publishing fail, report the concrete blocker and retain the prepared body. Check whether the PR was created before retrying an ambiguous creation failure.
+
+## PR body
+
+Use this template:
 
 ```markdown
 ## Summary
