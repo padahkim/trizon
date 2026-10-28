@@ -6,12 +6,14 @@
 
 Vercel 계정 인증과 GitHub 저장소 연결이 필요하다. 설정할 값은 다음과 같다.
 
+연결된 프로젝트는 [Vercel의 trizon](https://vercel.com/padahkim-gmailcoms-projects/trizon)이다. 배포 상세와 로그는 이 프로젝트 또는 PR의 Vercel 링크에서 확인한다.
+
 | 항목 | 값 |
 | --- | --- |
 | Git 저장소 | `padahkim/trizon` |
 | 프레임워크 | Next.js |
 | Root Directory | 저장소 루트 |
-| Node.js | `22.x` (저장소 요구사항: 22.18 이상) |
+| Node.js | `22.x` (저장소 요구사항: 22.18 이상·23 미만) |
 | Install Command | `npm ci` |
 | Build Command | `npm run build` |
 | Output Directory | Next.js 기본값 |

@@ -3,7 +3,7 @@
 1단계 기준이다. 코드가 아직 없어서 디렉토리 구조·데이터 모델·인터페이스는 예정이다. 구현하면서 실제 구조로 고친다. 2단계 이후는 「2단계 이후」 절에 방향만 적는다.
 
 ## 스택
-- Next.js 16.4 (App Router) + React 19 + TypeScript, npm. Node ≥22.18(`engines`), `"type": "module"`.
+- Next.js 16.4 (App Router) + React 19 + TypeScript, npm. Node 22.x·22.18 이상(`engines`), `"type": "module"`.
 - UI: shadcn/ui + Tailwind CSS 4. shadcn 컴포넌트는 패키지로 받지 않고, CLI(`npx shadcn add`)로 소스를 `components/ui/`에 복사해 고쳐 쓴다.
   - 색·글꼴·간격 같은 디자인 토큰은 `app/globals.css`의 CSS 변수에 둔다. 화면 코드는 색 값을 직접 쓰지 않고 토큰 클래스(`bg-primary` 등)를 쓴다. 그래야 색을 바꿀 때 `globals.css`만 바꾸면 된다.
   - 디자인 시스템은 루트 [DESIGN.md](../DESIGN.md)에 있고, 이 레포가 원본이다. 구현할 때 토큰 값을 `app/globals.css`의 CSS 변수로 옮기고, 그 뒤 값의 원본은 `globals.css`다.
