@@ -152,23 +152,29 @@ for (const [label, unreadable] of [
   ["깨진 JSON", "{broken-json"],
   ["지원하지 않는 저장 형식", JSON.stringify({ version: 999 })],
 ]) {
-  test(`${label}은 원본을 보관하고 새 CSV 업로드로 복구한다`, async ({ page }) => {
-    const { portfolioUtf8 } = await import("../lib/sbi/fixtures");
-    await page.goto("/");
-    await page.evaluate((raw) => localStorage.setItem("trizon", raw), unreadable);
-    await page.reload();
-    await expect(page.getByRole("button", { name: "CSV 고르기", exact: true })).toBeVisible();
-    await expect(page.getByRole("main").getByRole("alert")).toContainText("CSV를 다시 올려 주세요");
-    expect(await page.evaluate(() => localStorage.getItem("trizon"))).toBeNull();
-    expect(await page.evaluate(() => localStorage.getItem("trizon:backup"))).toBe(unreadable);
-    await page.getByLabel("SBI CSV 파일").setInputFiles({
-      name: "recovery.csv", mimeType: "text/csv", buffer: Buffer.from(portfolioUtf8),
+  test.describe(label, () => {
+    // Seed before navigation: a mounted page could recover the value before a reload.
+    test.use({
+      storageState: { cookies: [], origins: [{
+        origin: "http://localhost:3000", localStorage: [{ name: "trizon", value: unreadable }],
+      }] },
     });
-    await expect(page.getByRole("table").getByText("JP-A", { exact: true })).toBeVisible();
-    expect(await page.evaluate(() => localStorage.getItem("trizon:backup"))).toBe(unreadable);
-    await page.reload();
-    await expect(page.getByRole("table").getByText("JP-B", { exact: true })).toBeVisible();
-    await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+    test("원본을 보관하고 새 CSV 업로드로 복구한다", async ({ page }) => {
+      const { portfolioUtf8 } = await import("../lib/sbi/fixtures");
+      await page.goto("/");
+      await expect(page.getByRole("button", { name: "CSV 고르기", exact: true })).toBeVisible();
+      await expect(page.getByRole("main").getByRole("alert")).toContainText("CSV를 다시 올려 주세요");
+      expect(await page.evaluate(() => localStorage.getItem("trizon"))).toBeNull();
+      expect(await page.evaluate(() => localStorage.getItem("trizon:backup"))).toBe(unreadable);
+      await page.getByLabel("SBI CSV 파일").setInputFiles({
+        name: "recovery.csv", mimeType: "text/csv", buffer: Buffer.from(portfolioUtf8),
+      });
+      await expect(page.getByRole("table").getByText("JP-A", { exact: true })).toBeVisible();
+      expect(await page.evaluate(() => localStorage.getItem("trizon:backup"))).toBe(unreadable);
+      await page.reload();
+      await expect(page.getByRole("table").getByText("JP-B", { exact: true })).toBeVisible();
+      await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+    });
   });
 }
 
