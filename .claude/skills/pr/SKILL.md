@@ -29,7 +29,19 @@ Use this template:
 ```markdown
 ## Summary
 
-<diagram, diff-sketch, or tree>
+**기능 범위:** <concrete problem and resulting behavior>
+
+**동작 전후**
+
+<diff sketch of the user-visible behavior before and after>
+
+**파일 역할**
+
+<shallow tree of the changed files and their responsibilities>
+
+**처리 흐름**
+
+<Mermaid diagram showing inputs, decisions, state changes, and outputs>
 
 ## Evidence
 
@@ -53,7 +65,7 @@ Skip all preambles and keep prose brief. Use the user's domain language from `GL
 
 ### Summary
 
-Pick the smallest view that makes the key point clear.
+Include all three blocks in every PR body: **동작 전후**, **파일 역할**, and **처리 흐름**. Use a behavior diff, a shallow file-responsibility tree, and a Mermaid flow respectively; keep each focused on its own question. For documentation or skill changes, show the authoring or invocation flow rather than inventing an application runtime.
 
 - Show logic or an algorithm as pseudocode:
 
@@ -168,7 +180,7 @@ function expandSkill(command: string): string {
 
 Place each visual next to the short text it supports. Keep only the calls, files, props, states, and boundaries needed to answer the user's current question or the options to resolve the current discussion point.
 
-You may use one of these, you may use several, it is unlikely you will use all of them. Use your judgement and don't overwhelm the user.
+Keep the three required blocks. Add another visual only when it explains something those blocks cannot show clearly.
 
 ### Evidence
 
