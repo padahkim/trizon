@@ -1,6 +1,6 @@
 ---
 name: pr
-description: "Use when writing a PR body."
+description: "Create or update a GitHub pull request for the current work, including commit, push, and PR body. Use when the user invokes pr, asks to open or update a pull request, or asks for a PR body."
 metadata:
   credits:
     skill: show-me
@@ -9,12 +9,39 @@ metadata:
     url: "https://github.com/humanlayer/skills/blob/main/plugins/show-me/skills/show-me/SKILL.md"
 ---
 
-Use this template for writing the PR body:
+Invoking `/pr` or `$pr` requests an actual GitHub pull request. Complete the workflow below and return its URL. For an explicit body-only request, write the body using the template below and leave Git and GitHub unchanged.
+
+## Workflow
+
+1. Read the repository instructions and inspect the current branch, working tree, commits, and diff to identify the requested changes. Use the user's base branch when specified; otherwise discover the repository's default branch. If on the base branch or a detached HEAD, create a feature branch following the repository's naming convention.
+2. Find any open PR for the current head branch. Reuse it when present. If there are no changes to submit and no existing PR, explain that there is nothing to open.
+3. Use the available validation evidence for unchanged code and run the repository's required checks for new changes. Commit changes belonging to the task, keeping unrelated local changes out, then push the head branch. A request to create a PR includes these steps.
+4. Write a title and body describing the final diff, using the template below and stating validation limits accurately. Use `gh` for GitHub operations and pass multiline bodies through a temporary file with `--body-file`.
+5. Create the PR with `gh pr create --base <base> --head <head> --title <title> --body-file <file>`, or update the existing PR's title and body with `gh pr edit`. If the installed CLI's edit command fails on deprecated Projects fields, use `gh api --method PATCH repos/<owner>/<repo>/pulls/<number> --input <json-file>` with the title and body instead. Honor an explicit draft request; otherwise create a normal open PR.
+6. Verify with `gh pr view` that the PR exists with the intended base, head, and pushed commit. Attach its URL to the current Codex chat with `attach_artifact` when that tool is available, then return the link. Leave the PR open for review.
+
+Completion means a verified PR URL, not a proposed title or body. If authentication, permissions, or publishing fail, report the concrete blocker and retain the prepared body. Check whether the PR was created before retrying an ambiguous creation failure.
+
+## PR body
+
+Use this template:
 
 ```markdown
 ## Summary
 
-<diagram, diff-sketch, or tree>
+**기능 범위:** <concrete problem and resulting behavior>
+
+**동작 전후**
+
+<diff sketch of the user-visible behavior before and after>
+
+**파일 역할**
+
+<shallow tree of the changed files and their responsibilities>
+
+**처리 흐름**
+
+<Mermaid diagram showing inputs, decisions, state changes, and outputs>
 
 ## Evidence
 
@@ -38,7 +65,7 @@ Skip all preambles and keep prose brief. Use the user's domain language from `GL
 
 ### Summary
 
-Pick the smallest view that makes the key point clear.
+Include all three blocks in every PR body: **동작 전후**, **파일 역할**, and **처리 흐름**. Use a behavior diff, a shallow file-responsibility tree, and a Mermaid flow respectively; keep each focused on its own question. For documentation or skill changes, show the authoring or invocation flow rather than inventing an application runtime.
 
 - Show logic or an algorithm as pseudocode:
 
@@ -153,7 +180,7 @@ function expandSkill(command: string): string {
 
 Place each visual next to the short text it supports. Keep only the calls, files, props, states, and boundaries needed to answer the user's current question or the options to resolve the current discussion point.
 
-You may use one of these, you may use several, it is unlikely you will use all of them. Use your judgement and don't overwhelm the user.
+Keep the three required blocks. Add another visual only when it explains something those blocks cannot show clearly.
 
 ### Evidence
 

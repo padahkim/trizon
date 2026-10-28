@@ -1,13 +1,7 @@
 import { z } from "zod";
 import { holdingSchema } from "./types";
+import { usTradeSchema } from "../sbi/us-trades";
 
-// The full v1 shape is shared by every importer, including the future trade importer.
-const usTradeSchema = z.object({
-  key: z.string(), tradeDate: z.iso.date(), ticker: z.string(), name: z.string(),
-  side: z.enum(["buy", "sell"]), account: z.string(),
-  quantity: z.number().finite().positive(), price: z.number().finite().nonnegative(),
-  settlement: z.object({ amount: z.number().finite(), currency: z.enum(["JPY", "USD"]) }).optional(),
-});
 export const savedV1Schema = z.object({
   version: z.literal(1),
   sbiPortfolio: z.object({ uploadedAt: z.iso.datetime(), holdings: z.array(holdingSchema), notices: z.array(z.string()) }).optional(),
