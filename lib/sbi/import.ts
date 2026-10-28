@@ -11,7 +11,7 @@ export function importSbiFiles(files: { name: string; bytes: Uint8Array }[], sav
     let kind: FileResult["kind"] = null;
     try {
       kind = detectSbiKind(file.bytes);
-      if (kind !== "portfolio") throw new Error("ポートフォリオ CSV를 골라 주세요");
+      if (kind !== "portfolio") throw new Error("현재는 일본주식 ポートフォリオ CSV만 지원합니다. 미국주식 CSV 가져오기는 준비 중입니다.");
       const holdings = parsePortfolio(file.bytes, now);
       next = savedV1Schema.parse({ ...next, sbiPortfolio: { uploadedAt: now.toISOString(), holdings, notices: [] } });
       results.push({ fileName: file.name, kind, notices: [] });
