@@ -63,7 +63,7 @@ export default function UsBaselineEditor({ positions, baselines, initialPosition
         {fields.map(({ name, label, lang, type = "text" }) => (
           <div key={name} className="grid content-start gap-2">
             <Label htmlFor={`baseline-${name}`} lang={lang}>{name === "asOf" ? <>기준일 (<span lang="ja">国内約定日</span>)</> : label}</Label>
-            <Input id={`baseline-${name}`} type={type} value={draft[name]} readOnly={Boolean(editing) && (name === "ticker" || name === "account")} min={type === "number" ? 0 : undefined} step={type === "number" ? "any" : undefined} aria-invalid={Boolean(errors[name])} aria-describedby={errors[name] ? `baseline-${name}-error` : name === "asOf" ? "baseline-help" : undefined} onChange={(event) => setDraft({ ...draft, [name]: event.target.value })} />
+            <Input id={`baseline-${name}`} type={type} lang={name === "name" || name === "account" ? "ja" : undefined} className={type === "number" ? "tabular-nums" : undefined} value={draft[name]} readOnly={Boolean(editing) && (name === "ticker" || name === "account")} min={type === "number" ? 0 : undefined} step={type === "number" ? "any" : undefined} aria-invalid={Boolean(errors[name])} aria-describedby={errors[name] ? `baseline-${name}-error` : name === "asOf" ? "baseline-help" : undefined} onChange={(event) => setDraft({ ...draft, [name]: event.target.value })} />
             {errors[name] && <p id={`baseline-${name}-error`} className="text-caption text-danger">{errors[name]}</p>}
           </div>
         ))}
@@ -79,7 +79,7 @@ export default function UsBaselineEditor({ positions, baselines, initialPosition
           {baselines.map((baseline) => <li key={usPositionKey(baseline)} className="flex flex-wrap items-center justify-between gap-3 text-body-sm">
             <div className="grid gap-1">
               <span lang="ja">{baseline.name} ({baseline.ticker} · {baseline.account})</span>
-              <span className="text-caption text-ink-2">기준일 {baseline.asOf} · {baseline.quantity.toLocaleString("en-US")}주 · {formatMoney(baseline.avgCost, "USD")}</span>
+              <span className="text-caption text-ink-2 tabular-nums">기준일 {baseline.asOf} · {baseline.quantity.toLocaleString("en-US")}주 · {formatMoney(baseline.avgCost, "USD")}</span>
             </div>
             <div className="flex gap-2">
               <Button type="button" variant="outline" size="sm" aria-label={`${baseline.ticker} ${baseline.account} 기준 보유정보 수정`} onClick={() => edit(baseline)}>수정</Button>

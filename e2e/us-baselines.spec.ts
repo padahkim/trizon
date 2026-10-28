@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { usTradesCsv } from "../lib/sbi/fixtures";
+import { portfolioUtf8, usTradesCsv } from "../lib/sbi/fixtures";
 
 const file = (csv: string) => ({ name: "trades.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
 const usTable = (page: Page) => page.getByRole("table", { name: "미국주식 보유 종목" });
@@ -171,4 +171,30 @@ test("다른 탭에서 입력한 관련 없는 기준 보유정보를 덮어쓰�
     await expect(usTable(tab).getByText("US-A", { exact: true })).toBeVisible();
     await expect(usTable(tab).getByText("US-B", { exact: true })).toBeVisible();
   }
+});
+
+test("저장 실패한 수동 기준값은 다른 탭의 CSV 갱신 뒤에도 남고 다음 저장으로 복구한다", async ({ page, context }) => {
+  await page.addInitScript(() => {
+    Object.assign(window, { blockBaselineStorage: true });
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "trizon" && Reflect.get(window, "blockBaselineStorage")) throw new DOMException("full", "QuotaExceededError");
+      original.call(this, key, value);
+    };
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
+  await saveFields(page, { "종목 코드": "TSTA", "종목명": "US-A", "預り区分": "特定", "기준일 (国内約定日)": "2026-10-28", "保有数量": "1", "取得単価(USD)": "10" });
+  const other = await context.newPage();
+  await other.goto("/");
+  await other.getByLabel("SBI CSV 파일").setInputFiles({ name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(portfolioUtf8) });
+  await expect(page.getByRole("table", { name: "일본주식 보유 종목" }).getByText("JP-A", { exact: true })).toBeVisible();
+  await expect(usTable(page).getByText("US-A", { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("저장되지 않았습니다");
+  await page.evaluate(() => Object.assign(window, { blockBaselineStorage: false }));
+  await page.getByRole("button", { name: "보유정보 입력·관리", exact: true }).click();
+  await saveFields(page, { "종목 코드": "TSTB", "종목명": "US-B", "預り区分": "NISA", "기준일 (国内約定日)": "2026-10-28", "保有数量": "2", "取得単価(USD)": "20" });
+  await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+  await expect(usTable(other).getByText("US-A", { exact: true })).toBeVisible();
+  await expect(usTable(other).getByText("US-B", { exact: true })).toBeVisible();
 });

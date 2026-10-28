@@ -24,10 +24,24 @@ import Uploader from "./Uploader";
 import UsBaselineEditor from "./UsBaselineEditor";
 import { useQuotes } from "./useQuotes";
 
+type BaselineChange = { position: UsPosition; value: UsHoldingBaseline | null };
+
+function withBaselineChanges(saved: SavedV1, changes: BaselineChange[]): SavedV1 {
+  if (!changes.length) return saved;
+  const baselines = new Map(saved.sbiUsBaselines?.map((baseline) => [usPositionKey(baseline), baseline]));
+  for (const change of changes) {
+    const key = usPositionKey(change.position);
+    if (change.value) baselines.set(key, change.value);
+    else baselines.delete(key);
+  }
+  return { ...saved, sbiUsBaselines: [...baselines.values()] };
+}
+
 export default function Dashboard() {
   const [unsaved, setUnsaved] = useState<SavedV1>();
+  const [pendingBaselines, setPendingBaselines] = useState<BaselineChange[]>([]);
   const subscribe = useCallback((onChange: () => void) => subscribeSaved(() => {
-    // A new stored snapshot supersedes this tab's temporary, unsaved import.
+    // A stored snapshot replaces a temporary CSV import; manual changes are overlaid separately.
     setUnsaved(undefined);
     onChange();
   }), []);
@@ -42,7 +56,11 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [baselineTarget, setBaselineTarget] = useState<{ position?: UsPosition } | null>(null);
-  const saved = unsaved ?? (loaded?.status === "ok" ? loaded.saved : undefined);
+  const sourceSaved = unsaved ?? (loaded?.status === "ok" ? loaded.saved : undefined);
+  const saved = useMemo(() => {
+    if (!sourceSaved && !pendingBaselines.length) return undefined;
+    return withBaselineChanges(sourceSaved ?? { version: 1 }, pendingBaselines);
+  }, [sourceSaved, pendingBaselines]);
   const usHoldings = useMemo(
     () => holdingsFromTrades(saved?.sbiUsTrades?.trades ?? [], saved?.sbiUsBaselines),
     [saved?.sbiUsTrades?.trades, saved?.sbiUsBaselines],
@@ -64,11 +82,12 @@ export default function Dashboard() {
   const uploadedAt = [saved?.sbiPortfolio?.uploadedAt, saved?.sbiUsTrades?.uploadedAt]
     .filter((date): date is string => date !== undefined).sort().at(-1);
 
-  function updateSaved(transform: (current: SavedV1) => SavedV1): SavedV1 {
+  function updateSaved(transform: (current: SavedV1) => SavedV1, baselineChange?: BaselineChange): SavedV1 {
     // Read immediately before writing so another tab's unrelated sources are retained.
     const latest = getSavedSnapshot();
     const current = loadSaved(latest === STORAGE_UNAVAILABLE ? null : latest);
-    const base = unsaved && latest === raw ? unsaved : current.status === "ok" ? current.saved : { version: 1 as const };
+    const source = unsaved && latest === raw ? unsaved : current.status === "ok" ? current.saved : { version: 1 as const };
+    const base = withBaselineChanges(source, pendingBaselines);
     const next = transform(base);
     if (next === base) return next;
     try {
@@ -76,20 +95,24 @@ export default function Dashboard() {
       if (current.status === "unreadable" && latest !== null) backupSavedSnapshot(latest);
       writeSavedSnapshot(serializeSaved(next));
       setUnsaved(undefined);
+      setPendingBaselines([]);
     } catch {
       setUnsaved(next);
+      if (baselineChange) setPendingBaselines((changes) => [
+        ...changes.filter((change) => usPositionKey(change.position) !== usPositionKey(baselineChange.position)), baselineChange,
+      ]);
     }
     return next;
   }
 
   function saveBaseline(baseline: UsHoldingBaseline) {
-    updateSaved((current) => ({ ...current, sbiUsBaselines: [
-      ...current.sbiUsBaselines?.filter((item) => usPositionKey(item) !== usPositionKey(baseline)) ?? [], baseline,
-    ] }));
+    const change = { position: baseline, value: baseline };
+    updateSaved((current) => withBaselineChanges(current, [change]), change);
   }
 
   function deleteBaseline(position: UsPosition) {
-    updateSaved((current) => ({ ...current, sbiUsBaselines: current.sbiUsBaselines?.filter((item) => usPositionKey(item) !== usPositionKey(position)) ?? [] }));
+    const change = { position, value: null };
+    updateSaved((current) => withBaselineChanges(current, [change]), change);
   }
 
   async function upload(files: File[]) {
@@ -138,7 +161,7 @@ export default function Dashboard() {
               저장된 데이터를 읽지 못했습니다. 기존 데이터는 보관하고 CSV를 다시 올려 주세요.
             </p>
           )}
-          {unsaved && (
+          {(unsaved || pendingBaselines.length > 0) && (
             <p role="alert" className="rounded-lg bg-danger-soft p-4 text-body-sm text-danger">
               저장되지 않았습니다. 새로고침하면 저장하지 못한 변경사항이 사라집니다.
             </p>
