@@ -76,3 +76,31 @@ it("warns when the export is truncated (総件数 > 選択範囲)", () => {
     "총 40건 중 1–5건만 들어 있습니다. SBI 화면에서 전체가 보이도록 한 뒤 다시 받아 올려 주세요.",
   ]);
 });
+
+it("warns when the export is on a later page (e.g. 21-40 of 40) where end index equals total", () => {
+  const bytes = new TextEncoder().encode(`ポートフォリオ一覧
+総件数：40件
+選択範囲：21-40件
+株式(現物/特定預り)
+銘柄(コード),数量,取得単価,現在値
+1111 JP-A,10,1000,1200
+`);
+  const result = parsePortfolio(bytes, new Date("2026-10-28T00:00:00Z"));
+  expect(result.holdings).toHaveLength(1);
+  expect(result.notices).toEqual([
+    "총 40건 중 21–40건만 들어 있습니다. SBI 화면에서 전체가 보이도록 한 뒤 다시 받아 올려 주세요.",
+  ]);
+});
+
+it("does not warn when the export covers the full range (1-40 of 40)", () => {
+  const bytes = new TextEncoder().encode(`ポートフォリオ一覧
+総件数：40件
+選択範囲：1-40件
+株式(現物/特定預り)
+銘柄(コード),数量,取得単価,現在値
+1111 JP-A,10,1000,1200
+`);
+  const result = parsePortfolio(bytes, new Date("2026-10-28T00:00:00Z"));
+  expect(result.holdings).toHaveLength(1);
+  expect(result.notices).toEqual([]);
+});

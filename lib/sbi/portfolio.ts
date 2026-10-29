@@ -96,7 +96,11 @@ export function parsePortfolio(bytes: Uint8Array, now: Date): { holdings: Holdin
   if (skippedTables > 0) {
     notices.push(`건너뛴 표 ${skippedTables}개`);
   }
-  if (declaredCount !== null && selectedRange !== null && declaredCount > selectedRange[1]) {
+  if (
+    declaredCount !== null &&
+    selectedRange !== null &&
+    (selectedRange[1] - selectedRange[0] + 1 < declaredCount || selectedRange[0] > 1 || selectedRange[1] < declaredCount)
+  ) {
     notices.push(`총 ${declaredCount}건 중 ${selectedRange[0]}–${selectedRange[1]}건만 들어 있습니다. SBI 화면에서 전체가 보이도록 한 뒤 다시 받아 올려 주세요.`);
   }
 
