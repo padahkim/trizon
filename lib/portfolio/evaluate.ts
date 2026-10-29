@@ -1,5 +1,6 @@
 import { brokerCountry, marketCurrency, type Broker, type Currency, type Holding, type Market } from "./types";
 import type { Quotes } from "../quotes/types";
+import { currentUsdJpyRate, type UsdJpyRate } from "../fx/types";
 
 export type PriceSource = "quote" | "csv" | "cost";
 export type Row = { holding: Holding; price: number; priceSource: PriceSource; value: number; pnl: number; dayChange: number; marketTime?: string };
@@ -8,7 +9,9 @@ export type Totals = Partial<Record<Currency, Total>>;
 type MarketGroup = { market: Market; assetType: "stock" | "fund"; totals: Totals; rows: Row[]; marketTime?: string };
 type BrokerGroup = { broker: Broker; totals: Totals; markets: MarketGroup[] };
 type CountryGroup = { country: "JP" | "KR"; totals: Totals; brokers: BrokerGroup[] };
-export type Portfolio = { totals: Totals; countries: CountryGroup[] };
+type NativePortfolio = { totals: Totals; countries: CountryGroup[] };
+export type YenSummary = { japaneseStocks: number; funds: number; japan: number; usDollars: number; usYen?: number; total?: number };
+export type Portfolio = NativePortfolio & { yenSummary: YenSummary };
 
 function add(totals: Totals, currency: Currency, row: Row) {
   const total = totals[currency] ??= { value: 0, pnl: 0, dayChange: 0, noQuote: 0 };
@@ -18,8 +21,8 @@ function add(totals: Totals, currency: Currency, row: Row) {
   total.noQuote += row.priceSource === "cost" ? 1 : 0;
 }
 
-export function evaluate(holdings: Holding[], quotes: Quotes = {}, now = new Date()): Portfolio {
-  const portfolio: Portfolio = { totals: {}, countries: [] };
+export function evaluate(holdings: Holding[], quotes: Quotes = {}, now = new Date(), exchangeRate?: UsdJpyRate): Portfolio {
+  const portfolio: NativePortfolio = { totals: {}, countries: [] };
   for (const holding of holdings) {
     const countryId = brokerCountry[holding.broker];
     let country = portfolio.countries.find((entry) => entry.country === countryId);
@@ -47,5 +50,13 @@ export function evaluate(holdings: Holding[], quotes: Quotes = {}, now = new Dat
     market.rows.push(row);
     for (const totals of [market.totals, broker.totals, country.totals, portfolio.totals]) add(totals, marketCurrency[holding.market], row);
   }
-  return portfolio;
+  const japaneseMarkets = portfolio.countries.flatMap((country) => country.brokers.flatMap((broker) => broker.markets))
+    .filter((market) => market.market === "JP");
+  const japaneseStocks = japaneseMarkets.filter((market) => market.assetType === "stock").reduce((sum, market) => sum + (market.totals.JPY?.value ?? 0), 0);
+  const funds = japaneseMarkets.filter((market) => market.assetType === "fund").reduce((sum, market) => sum + (market.totals.JPY?.value ?? 0), 0);
+  const japan = japaneseStocks + funds;
+  const usDollars = portfolio.totals.USD?.value ?? 0;
+  const rate = currentUsdJpyRate(exchangeRate, now);
+  const usYen = usDollars === 0 ? 0 : rate ? usDollars * rate.yenPerDollar : undefined;
+  return { ...portfolio, yenSummary: { japaneseStocks, funds, japan, usDollars, usYen, total: usYen === undefined ? undefined : japan + usYen } };
 }

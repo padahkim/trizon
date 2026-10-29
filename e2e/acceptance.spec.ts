@@ -46,7 +46,7 @@ test("1단계 완료 기준: 빈 대시보드 → 두 CSV·가짜 시세 평가 
     await expect(us.getByRole("row").filter({ hasText: "미국주식 합계" }).getByRole("cell")).toHaveText([
       "미국주식 합계", "$232.00", "-$8.00-3.33%", "-$1.00-0.43%",
     ]);
-    for (const text of ["엔 자산", "¥20,000", "+¥1,000", "+¥300", "달러 자산", "$232.00", "-$8.00", "-$1.00", "현금 제외"]) {
+    for (const text of ["일본 엔 총자산", "¥20,000", "+¥1,000", "+¥300", "미국주식 · 달러", "$232.00", "-$8.00", "-$1.00", "현금 제외"]) {
       await expect(summary.getByText(text, { exact: true })).toBeVisible();
     }
     await expect(summary.getByText(/^일본 시세 /)).toBeVisible();

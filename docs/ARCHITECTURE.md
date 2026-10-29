@@ -18,15 +18,18 @@ app/
   layout.tsx                문서 언어·메타데이터, globals.css 진입점
   page.tsx                  첫 화면. Dashboard를 그린다
   Dashboard.tsx             1단계 셸 (client): 저장·업로드·평가·요약과 증권사 틀
+  AssetSummary.tsx          일본 엔 소계·미국주식 통화 전환·엔화 총자산·적용 환율 안내
   SbiCard.tsx               SBI 카드 전체 파일 드롭·중첩 진입 추적·강조 안내·읽는 중 차단
   Uploader.tsx              여러 파일 선택, SBI CSV 다운로드 안내
   useQuotes.ts              /api/quotes 호출·새로고침·취소·실패 상태
+  useExchangeRate.ts        미국 보유가 있을 때 USD/JPY 조회·갱신·취소·실패 처리
   ClearDataDialog.tsx       데이터 지우기 확인: 취소에 포커스, 2년 경고, 지우기 실패 안내
   PortfolioView.tsx         시장별 종목 표·합계·계산 안내, Delta(금액·퍼센트)
   UsBaselineEditor.tsx      미국주식 기준 보유정보 입력·목록 관리·삭제 확인
   error.tsx                 예상하지 못한 오류: "문제가 생겼습니다 · 새로고침"
   globals.css               Tailwind 진입점 + 디자인 토큰(CSS 변수)
   api/quotes/route.ts       GET /api/quotes → 환경에 따라 Yahoo 또는 fake provider 선택
+  api/exchange-rate/route.ts GET /api/exchange-rate → 공개 USD/JPY 또는 가짜 환율
 components/ui/              shadcn/ui의 alert·alert-dialog·badge·button·card·input·label·table 소스
 lib/                        Next 없이 도는 모듈. 단위 테스트는 대상 옆의 *.test.ts
   sbi/csv.ts                바이트 → 텍스트(UTF-8, 실패하면 Shift_JIS) → 행·셀, 열 이름·숫자 읽기
@@ -40,6 +43,8 @@ lib/                        Next 없이 도는 모듈. 단위 테스트는 대�
   quotes/handler.ts         요청 키 검사, 중복 제거, provider 호출·10초 제한, HTTP 응답
   quotes/yahoo.ts           QuoteKey → Yahoo 심볼(JP는 "7203.T", US는 "." → "-"), 필드 요청
   quotes/fake.ts            고정 현재가·전일 종가 (TRIZON_QUOTES=fake)
+  fx/types.ts               UsdJpyRate·양수/유한수·시각 검증, 7일 지난 환율 제외
+  fx/yahoo.ts               Yahoo JPY=X의 USD/JPY 환율·시세 시각 조회
   portfolio/types.ts        Broker · Market · Currency · Holding, 증권사 국가·거래통화 표
   portfolio/saved.ts        SavedV1 ↔ 문자열, 모양 전체 검사
   portfolio/browser-store.ts localStorage 읽기·쓰기·백업·지우기, 탭 사이 변경 알림
@@ -58,6 +63,7 @@ e2e/
   storage.spec.ts           삭제 확인·저장과 삭제 실패·탭 사이 반영
   error-notices.spec.ts     파일별 실패·건너뛴 표·잘린 페이지 안내
   funds.spec.ts             투자신탁 계좌구분·단위·엔화 합산·복원·주식 시세 실패
+  yen-summary.spec.ts       일본 엔 소계·미국주식 통화 전환·엔화 총자산·환율 실패/복구
 docs/                      PRD·아키텍처·배포 절차, agents/의 작업 지침, adr/의 결정 기록
 GLOSSARY.md                기준 보유정보·반영된 거래 등 도메인 용어
 next.config.ts             서버 전용 패키지 설정
@@ -106,7 +112,10 @@ vitest.setup.ts            단위·route 테스트의 외부 네트워크 호출
 ```
 
 ## 금액·통화
-- 거래통화는 시장이 정한다. 일본 = JPY, 미국 = USD. 1단계는 두 통화를 섞지 않고 시장별로 합계를 낸다. 환율은 쓰지 않는다.
+- 거래통화는 시장이 정한다. 일본 = JPY, 미국 = USD. 원본 보유·평가 합계는 거래통화로 보존한다. 1단계에서도 표시용 USD/JPY 환산으로 엔화 총자산을 제공한다.
+- `evaluate`의 선택적 네 번째 인자는 `UsdJpyRate`(1 USD당 엔, 시세 시각)다. `yenSummary`는 일본주식 + 투자신탁의 일본 엔 소계와 달러 미국주식 평가액 × 환율, 두 금액의 합을 별도로 낸다. 반올림은 표시 시에만 하며 원본 달러 금액을 다시 환산하거나 저장하지 않는다. 미국주식이 없으면 환율 없이 일본 엔 소계가 총자산이다.
+- 환율은 `/api/exchange-rate`에서 Yahoo `JPY=X`의 JPY 가격·시각을 조회한다. 0·음수·비유한 값과 7일 지난 시각은 사용하지 않는다. 미국주식이 있는데 환율이 없으면 통합 총액을 만들지 않고 통화별 금액을 유지한다. 「시세 새로고침」은 주식 시세와 환율을 함께 갱신한다.
+- 미국주식 엔 표시 선택은 요약과 표의 모든 금액에 같은 현재 환율을 곱하며 수량·퍼센트는 바꾸지 않는다. 매입 당시 엔 취득원가나 환차손익을 계산하는 3단계 계좌통화 손익과는 별개다. 조회 결과는 저장하지 않고, 화면의 전환 선택은 현재 세션 상태다.
 - 금액은 `number`로 계산하고, 화면에 보일 때만 통화별 자릿수로 반올림한다. 파싱에 `parseInt`를 쓰지 않는다.
 - 미국주식 보유수량·취득단가는 쌓아 둔 `約定履歴`의 現買·現売로 추정한다. 기준 보유정보가 있으면 그 값에서 반영된 거래를 제외한 새 거래만 계산한다. 수정 화면은 이후 거래까지 계산한 현재 수량·평단을 채워, 다시 저장할 때 과거의 입력값으로 돌아가지 않게 한다. 입력 단가의 소수 자릿수는 계산에서 유지하고 화면에서만 반올림한다.
 - SBI 엔화 투자신탁은 `Holding.assetType = "fund"`로 구분한다. 기존 저장값처럼 이 필드가 없으면 주식이다. 펀드명은 CSV 안의 식별자로만 쓰고 Yahoo 시세 요청에 넣지 않는다. 주식과 다른 표로 묶되 엔화 합계에는 함께 넣는다.

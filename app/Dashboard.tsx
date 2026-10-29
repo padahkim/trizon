@@ -5,8 +5,8 @@ import { TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatMarketTime, formatMoney, formatUploadedAt } from "@/lib/format";
+import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatMoney, formatUploadedAt } from "@/lib/format";
 import { evaluate } from "@/lib/portfolio/evaluate";
 import {
   backupSavedSnapshot,
@@ -23,7 +23,9 @@ import { loadSaved, serializeSaved, type LoadResult, type SavedV1 } from "@/lib/
 import { importSbiFiles, type FileResult } from "@/lib/sbi/import";
 import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
 import { holdingsFromTrades, usPositionKey, type UsBaselineInput, type UsHoldingBaseline, type UsPosition } from "@/lib/sbi/us-trades";
-import PortfolioView, { Delta } from "./PortfolioView";
+import PortfolioView from "./PortfolioView";
+import AssetSummary from "./AssetSummary";
+import { useExchangeRate } from "./useExchangeRate";
 import Uploader from "./Uploader";
 import SbiCard from "./SbiCard";
 import UsBaselineEditor from "./UsBaselineEditor";
@@ -63,6 +65,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [baselineTarget, setBaselineTarget] = useState<{ position?: UsPosition } | null>(null);
+  const [preferUsInYen, setPreferUsInYen] = useState(false);
   const subscribe = useCallback((onChange: () => void) => subscribeSaved((reason) => {
     // A stored snapshot replaces a temporary CSV import; manual changes are overlaid separately.
     setUnsaved(undefined);
@@ -104,9 +107,10 @@ export default function Dashboard() {
     [saved?.sbiPortfolio?.holdings, usHoldings.holdings],
   );
   const quotes = useQuotes(holdings);
+  const exchangeRate = useExchangeRate(holdings.some((holding) => holding.market === "US"));
+  const showUsInYen = preferUsInYen && exchangeRate.rate !== undefined;
   const hasFunds = holdings.some((holding) => holding.assetType === "fund");
-  const portfolio = evaluate(quotes.failed ? holdings.map((holding) => holding.assetType === "fund" ? holding : { ...holding, csvQuote: undefined }) : holdings, quotes.quotes);
-  const markets = portfolio.countries.flatMap((country) => country.brokers.flatMap((broker) => broker.markets));
+  const portfolio = evaluate(quotes.failed ? holdings.map((holding) => holding.assetType === "fund" ? holding : { ...holding, csvQuote: undefined }) : holdings, quotes.quotes, new Date(), exchangeRate.rate);
   const totals = (["JPY", "USD"] as const).flatMap((currency) => {
     const total = portfolio.totals[currency];
     return total ? [{ currency, total }] : [];
@@ -187,6 +191,12 @@ export default function Dashboard() {
     setResults([]);
     setError(null);
     setUploaderOpen(false);
+    setPreferUsInYen(false);
+  }
+
+  function refreshPrices() {
+    void quotes.refresh();
+    void exchangeRate.refresh();
   }
 
   return (
@@ -220,50 +230,14 @@ export default function Dashboard() {
                 <TriangleAlert className="size-5 shrink-0 text-warning" strokeWidth={1.75} aria-hidden="true" />
                 <p>{hasFunds ? "주식 시세를 받지 못했습니다. 주식은 취득가로 표시하고, 투자신탁은 CSV 기준가를 유지합니다." : "시세를 받지 못했습니다. 모든 종목을 취득가로 표시합니다."}</p>
               </div>
-              <Button type="button" variant="outline" size="sm" disabled={quotes.loading} onClick={quotes.refresh}>
+              <Button type="button" variant="outline" size="sm" disabled={quotes.loading || exchangeRate.loading} onClick={refreshPrices}>
                 {quotes.loading ? "받는 중" : "시세 새로고침"}
               </Button>
             </div>
           )}
-          {totals.length > 0 && (
-            <Card role="region" aria-label="자산 요약" className="bg-surface-summary">
-              <CardHeader>
-                <CardTitle>{hasFunds ? "주식·투자신탁 자산" : "주식 자산"}</CardTitle>
-                <CardDescription><Badge>현금 제외</Badge></CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-6">
-                <div className="grid gap-6 desktop:grid-cols-2">
-                  {totals.map(({ currency, total }) => (
-                    <div key={currency} className="grid gap-4">
-                      <p className="text-label text-ink-2">{currency === "JPY" ? "엔" : "달러"} 자산</p>
-                      <p className="text-figure-xl tabular-nums">{formatMoney(total.value, currency)}</p>
-                      <dl className="grid grid-cols-2 gap-6 desktop:max-w-120">
-                        <div className="grid gap-1">
-                          <dt className="text-label text-ink-2">평가손익</dt>
-                          <dd><Delta value={total.pnl} base={total.value - total.pnl} currency={currency} large /></dd>
-                        </div>
-                        <div className="grid gap-1">
-                          <dt className="text-label text-ink-2">전일 대비</dt>
-                          <dd><Delta value={total.dayChange} base={total.value - total.dayChange} currency={currency} large /></dd>
-                        </div>
-                      </dl>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex flex-wrap items-center gap-4 text-caption text-ink-3">
-                  {markets.map((market) => market.marketTime && (
-                    <span key={market.market}>{formatMarketTime(market.market, market.marketTime)}</span>
-                  ))}
-                  {uploadedAt && (
-                    <p>마지막 업로드 <time dateTime={uploadedAt}>{formatUploadedAt(uploadedAt, now)}</time></p>
-                  )}
-                  <Button type="button" variant="outline" className="ml-auto" disabled={quotes.loading} onClick={quotes.refresh}>
-                    {quotes.loading ? "받는 중" : "시세 새로고침"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {totals.length > 0 && <AssetSummary portfolio={portfolio} rate={exchangeRate.rate} rateLoading={exchangeRate.loading} rateFailed={exchangeRate.failed}
+            onRetryRate={exchangeRate.refresh} showUsInYen={showUsInYen} onToggleUsCurrency={() => setPreferUsInYen((previous) => !previous)}
+            loading={quotes.loading || exchangeRate.loading} onRefresh={refreshPrices} uploadedAt={uploadedAt} now={now} />}
           <section aria-labelledby="japan-brokers" className="grid gap-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <h2 id="japan-brokers" className="text-title-lg">일본 증권사</h2>
@@ -314,7 +288,7 @@ export default function Dashboard() {
                     </ul>
                   </div>
                 )}
-                <PortfolioView portfolio={portfolio} now={now} hasPortfolio={Boolean(saved?.sbiPortfolio)} jpNotices={saved?.sbiPortfolio?.notices ?? []} us={{ hasTrades: Boolean(saved?.sbiUsTrades), baselines: saved?.sbiUsBaselines ?? [], issues: usHoldings.issues, onEdit: (position) => setBaselineTarget({ position }) }}>
+                <PortfolioView portfolio={portfolio} now={now} usYenRate={showUsInYen ? exchangeRate.rate?.yenPerDollar : undefined} hasPortfolio={Boolean(saved?.sbiPortfolio)} jpNotices={saved?.sbiPortfolio?.notices ?? []} us={{ hasTrades: Boolean(saved?.sbiUsTrades), baselines: saved?.sbiUsBaselines ?? [], issues: usHoldings.issues, onEdit: (position) => setBaselineTarget({ position }) }}>
                   {baselineTarget && <UsBaselineEditor
                     key={baselineTarget.position ? usPositionKey(baselineTarget.position) : "new"}
                     positions={positions} baselines={saved?.sbiUsBaselines ?? []} holdings={usHoldings.holdings} issues={usHoldings.issues} initialPosition={baselineTarget.position}

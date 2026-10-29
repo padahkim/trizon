@@ -25,8 +25,8 @@ export function Delta({ value, base, currency, large = false }: {
   );
 }
 
-export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [], us, children, now }: {
-  portfolio: Portfolio; hasPortfolio: boolean; jpNotices?: string[]; children?: ReactNode; now: Date;
+export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [], us, children, now, usYenRate }: {
+  portfolio: Portfolio; hasPortfolio: boolean; jpNotices?: string[]; children?: ReactNode; now: Date; usYenRate?: number;
   us: { hasTrades: boolean; baselines: UsHoldingBaseline[]; issues: UsHoldingIssue[]; onEdit: (position?: UsPosition) => void };
 }) {
   const markets = portfolio.countries.flatMap((country) => country.brokers.flatMap((broker) => broker.markets.map((market) => ({ key: `${country.country}-${broker.broker}-${market.market}-${market.assetType}`, market }))));
@@ -38,12 +38,14 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
     markets.push({ key: "JP-SBI-US-stock", market: { market: "US", assetType: "stock", totals: {}, rows: [] } });
   }
   return markets.map(({ key, market }) => {
-    const currency = marketCurrency[market.market];
+    const isUsYen = market.market === "US" && usYenRate !== undefined;
+    const factor = isUsYen ? usYenRate : 1;
+    const currency = isUsYen ? "JPY" : marketCurrency[market.market];
     const isFund = market.assetType === "fund";
     const title = isFund ? "투자신탁" : { JP: "일본주식", US: "미국주식", KR: "한국주식" }[market.market];
     const headingId = `market-${market.market}-${market.assetType}`;
     const fundUploadedAt = isFund ? market.rows.find((row) => row.holding.csvQuote)?.holding.csvQuote?.asOf : undefined;
-    const total = market.totals[currency];
+    const total = market.totals[marketCurrency[market.market]];
     return (
       <section key={key} aria-labelledby={headingId} className="grid gap-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -52,6 +54,7 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
             <Badge variant="warning"><span lang="ja">約定履歴</span>으로 추정한 값</Badge>
           )}
           {market.marketTime && <span className="text-caption text-ink-3">{formatMarketTime(market.market, market.marketTime)}</span>}
+          {isUsYen && <Badge variant="warning">엔 환산 · 환차손익 제외</Badge>}
           {fundUploadedAt && <span className="text-caption text-ink-3">CSV 업로드 <time dateTime={fundUploadedAt}>{formatUploadedAt(fundUploadedAt, now)}</time></span>}
           {market.rows.some((row) => row.priceSource === "csv") && (
             <Badge variant="warning">{isFund ? "CSV 기준가" : <>CSV <span lang="ja" className="ml-1">現在値</span></>}</Badge>
@@ -112,7 +115,7 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
                   </div>
                 </TableCell>
                 <TableCell>{row.holding.quantity.toLocaleString("en-US")}{isFund && "口"}</TableCell>
-                <TableCell>{formatMoney(row.holding.avgCost, currency)}</TableCell>
+                <TableCell>{formatMoney(row.holding.avgCost * factor, currency)}</TableCell>
                 <TableCell>
                   {row.priceSource === "cost" ? (
                     <div className="flex min-h-5 items-center justify-center">
@@ -120,25 +123,25 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
                     </div>
                   ) : (
                     <div className="grid justify-items-end gap-0.5">
-                      <span>{formatMoney(row.price, currency)}</span>
+                      <span>{formatMoney(row.price * factor, currency)}</span>
                       {row.priceSource === "csv" && (
                         <Badge variant="warning" className="py-0">{isFund ? "CSV 기준가" : <>CSV <span lang="ja" className="ml-1">現在値</span></>}</Badge>
                       )}
                     </div>
                   )}
                 </TableCell>
-                <TableCell>{formatMoney(row.value, currency)}</TableCell>
-                <TableCell><Delta value={row.pnl} base={row.value - row.pnl} currency={currency} /></TableCell>
-                <TableCell><Delta value={row.dayChange} base={row.value - row.dayChange} currency={currency} /></TableCell>
+                <TableCell>{formatMoney(row.value * factor, currency)}</TableCell>
+                <TableCell><Delta value={row.pnl * factor} base={(row.value - row.pnl) * factor} currency={currency} /></TableCell>
+                <TableCell><Delta value={row.dayChange * factor} base={(row.value - row.dayChange) * factor} currency={currency} /></TableCell>
               </TableRow>
             ))}
           </TableBody>
           <TableFooter>
             <TableRow>
               <TableCell colSpan={4}>{title} 합계</TableCell>
-              <TableCell>{formatMoney(total.value, currency)}</TableCell>
-              <TableCell><Delta value={total.pnl} base={total.value - total.pnl} currency={currency} /></TableCell>
-              <TableCell><Delta value={total.dayChange} base={total.value - total.dayChange} currency={currency} /></TableCell>
+              <TableCell>{formatMoney(total.value * factor, currency)}</TableCell>
+              <TableCell><Delta value={total.pnl * factor} base={(total.value - total.pnl) * factor} currency={currency} /></TableCell>
+              <TableCell><Delta value={total.dayChange * factor} base={(total.value - total.dayChange) * factor} currency={currency} /></TableCell>
             </TableRow>
           </TableFooter>
         </Table> : (
