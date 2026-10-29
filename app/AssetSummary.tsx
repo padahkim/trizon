@@ -3,7 +3,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatMarketTime, formatMoney, formatUploadedAt } from "@/lib/format";
+import { formatMarketTime, formatMoney, formatUploadedAt, formatUsdJpyRate } from "@/lib/format";
 import type { Portfolio } from "@/lib/portfolio/evaluate";
 import type { UsdJpyRate } from "@/lib/fx/types";
 import { Delta } from "./PortfolioView";
@@ -53,7 +53,7 @@ export default function AssetSummary({ portfolio, rate, rateLoading, rateFailed,
           </div>}
         </div>
         {us && rate && <div className="flex flex-wrap gap-4 text-caption text-ink-2 tabular-nums">
-          <span>1 USD = {rate.yenPerDollar.toLocaleString("en-US", { maximumFractionDigits: 4 })} JPY</span>
+          <span>{formatUsdJpyRate(rate.yenPerDollar)}</span>
           <span>Yahoo Finance</span>
           <span>환율 시각 <time dateTime={rate.asOf}>{new Date(rate.asOf).toLocaleString("ko-KR", { timeZone: "Asia/Tokyo" })}</time> (일본)</span>
         </div>}

@@ -19,6 +19,7 @@ app/
   page.tsx                  첫 화면. Dashboard를 그린다
   Dashboard.tsx             1단계 셸 (client): 저장·업로드·평가·요약과 증권사 틀
   AssetSummary.tsx          일본 엔 소계·미국주식 통화 전환·엔화 총자산·적용 환율 안내
+  SbiTotal.tsx              SBI 제목 옆 엔화 총액·마우스/키보드 상세 내역 툴팁
   SbiCard.tsx               SBI 카드 전체 파일 드롭·중첩 진입 추적·강조 안내·읽는 중 차단
   Uploader.tsx              여러 파일 선택, SBI CSV 다운로드 안내
   useQuotes.ts              /api/quotes 호출·새로고침·취소·실패 상태
@@ -30,7 +31,7 @@ app/
   globals.css               Tailwind 진입점 + 디자인 토큰(CSS 변수)
   api/quotes/route.ts       GET /api/quotes → 환경에 따라 Yahoo 또는 fake provider 선택
   api/exchange-rate/route.ts GET /api/exchange-rate → 공개 USD/JPY 또는 가짜 환율
-components/ui/              shadcn/ui의 alert·alert-dialog·badge·button·card·input·label·table 소스
+components/ui/              shadcn/ui의 alert·alert-dialog·badge·button·card·input·label·table·tooltip 소스
 lib/                        Next 없이 도는 모듈. 단위 테스트는 대상 옆의 *.test.ts
   sbi/csv.ts                바이트 → 텍스트(UTF-8, 실패하면 Shift_JIS) → 행·셀, 열 이름·숫자 읽기
   sbi/detect.ts             내용으로 CSV 종류 판별

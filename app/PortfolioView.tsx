@@ -6,7 +6,8 @@ import {
   Table, TableBody, TableCaption, TableCell, TableFooter,
   TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { formatMarketTime, formatMoney, formatPercent, formatUploadedAt } from "@/lib/format";
+import { formatMarketTime, formatMoney, formatPercent, formatUploadedAt, formatUsdJpyRate } from "@/lib/format";
+import type { UsdJpyRate } from "@/lib/fx/types";
 import type { Portfolio } from "@/lib/portfolio/evaluate";
 import { marketCurrency, type Currency } from "@/lib/portfolio/types";
 import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
@@ -25,8 +26,8 @@ export function Delta({ value, base, currency, large = false }: {
   );
 }
 
-export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [], us, children, now, usYenRate }: {
-  portfolio: Portfolio; hasPortfolio: boolean; jpNotices?: string[]; children?: ReactNode; now: Date; usYenRate?: number;
+export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [], us, children, now, exchangeRate, showUsInYen = false }: {
+  portfolio: Portfolio; hasPortfolio: boolean; jpNotices?: string[]; children?: ReactNode; now: Date; exchangeRate?: UsdJpyRate; showUsInYen?: boolean;
   us: { hasTrades: boolean; baselines: UsHoldingBaseline[]; issues: UsHoldingIssue[]; onEdit: (position?: UsPosition) => void };
 }) {
   const markets = portfolio.countries.flatMap((country) => country.brokers.flatMap((broker) => broker.markets.map((market) => ({ key: `${country.country}-${broker.broker}-${market.market}-${market.assetType}`, market }))));
@@ -38,8 +39,8 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
     markets.push({ key: "JP-SBI-US-stock", market: { market: "US", assetType: "stock", totals: {}, rows: [] } });
   }
   return markets.map(({ key, market }) => {
-    const isUsYen = market.market === "US" && usYenRate !== undefined;
-    const factor = isUsYen ? usYenRate : 1;
+    const isUsYen = market.market === "US" && showUsInYen && exchangeRate !== undefined;
+    const factor = isUsYen ? exchangeRate.yenPerDollar : 1;
     const currency = isUsYen ? "JPY" : marketCurrency[market.market];
     const isFund = market.assetType === "fund";
     const title = isFund ? "투자신탁" : { JP: "일본주식", US: "미국주식", KR: "한국주식" }[market.market];
@@ -50,6 +51,12 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
       <section key={key} aria-labelledby={headingId} className="grid gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <h4 id={headingId} className="text-title-sm">{title}</h4>
+          {(total || market.market === "JP") && <p aria-label={`${title} 합계`} className="text-figure-md tabular-nums">
+            {formatMoney(total?.value ?? 0, marketCurrency[market.market])}
+            {market.market === "US" && <span className="text-body-sm text-ink-2">
+              {" "}({exchangeRate ? `${formatMoney((total?.value ?? 0) * exchangeRate.yenPerDollar, "JPY")} · ${formatUsdJpyRate(exchangeRate.yenPerDollar)}` : "엔 환산: 환율 없음"})
+            </span>}
+          </p>}
           {market.market === "US" && us.hasTrades && (
             <Badge variant="warning"><span lang="ja">約定履歴</span>으로 추정한 값</Badge>
           )}

@@ -51,7 +51,7 @@ test("1단계 완료 기준: 빈 대시보드 → 두 CSV·가짜 시세 평가 
     }
     await expect(summary.getByText(/^일본 시세 /)).toBeVisible();
     await expect(summary.getByText(/^미국 시세 /)).toBeVisible();
-    await expect(japan.getByLabel("일본 증권사 소계")).toHaveText("¥20,000$232.00");
+    await expect(sbi.getByRole("button", { name: /SBI증권 엔화 총액/ })).toContainText("¥54,800");
   }
 
   await test.step("1. 처음 접속하면 CSV 안내와 접힌 한국 증권사가 있는 빈 대시보드가 열린다", async () => {
@@ -181,7 +181,7 @@ test("가짜 ポートフォリオ를 올리면 일본주식의 수량·가격·
   await expect(summary).toContainText("+¥1,000");
   await expect(summary.getByText("현금 제외", { exact: true })).toBeVisible();
   await expect(summary).toContainText("마지막 업로드 0일 전");
-  await expect(japan.getByLabel("일본 증권사 소계")).toHaveText("¥20,000");
+  await expect(sbi.getByRole("button", { name: /SBI증권 엔화 총액/ })).toContainText("¥20,000");
   await expect(sbi.getByRole("status")).toContainText("반영됨");
   await expect(sbi.getByRole("status")).toContainText("arbitrary-name.txt");
   const reopen = sbi.getByRole("button", { name: "CSV 올리기", exact: true });

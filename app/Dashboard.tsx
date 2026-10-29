@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatMoney, formatUploadedAt } from "@/lib/format";
+import { formatUploadedAt } from "@/lib/format";
 import { evaluate } from "@/lib/portfolio/evaluate";
 import {
   backupSavedSnapshot,
@@ -25,6 +25,7 @@ import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
 import { holdingsFromTrades, usPositionKey, type UsBaselineInput, type UsHoldingBaseline, type UsPosition } from "@/lib/sbi/us-trades";
 import PortfolioView from "./PortfolioView";
 import AssetSummary from "./AssetSummary";
+import SbiTotal from "./SbiTotal";
 import { useExchangeRate } from "./useExchangeRate";
 import Uploader from "./Uploader";
 import SbiCard from "./SbiCard";
@@ -111,10 +112,7 @@ export default function Dashboard() {
   const showUsInYen = preferUsInYen && exchangeRate.rate !== undefined;
   const hasFunds = holdings.some((holding) => holding.assetType === "fund");
   const portfolio = evaluate(quotes.failed ? holdings.map((holding) => holding.assetType === "fund" ? holding : { ...holding, csvQuote: undefined }) : holdings, quotes.quotes, new Date(), exchangeRate.rate);
-  const totals = (["JPY", "USD"] as const).flatMap((currency) => {
-    const total = portfolio.totals[currency];
-    return total ? [{ currency, total }] : [];
-  });
+  const hasTotals = Object.keys(portfolio.totals).length > 0;
   const uploadedAt = [saved?.sbiPortfolio?.uploadedAt, saved?.sbiUsTrades?.uploadedAt]
     .filter((date): date is string => date !== undefined).sort().at(-1);
   const hasData = holdings.length > 0 || saved?.sbiPortfolio !== undefined;
@@ -235,22 +233,18 @@ export default function Dashboard() {
               </Button>
             </div>
           )}
-          {totals.length > 0 && <AssetSummary portfolio={portfolio} rate={exchangeRate.rate} rateLoading={exchangeRate.loading} rateFailed={exchangeRate.failed}
+          {hasTotals && <AssetSummary portfolio={portfolio} rate={exchangeRate.rate} rateLoading={exchangeRate.loading} rateFailed={exchangeRate.failed}
             onRetryRate={exchangeRate.refresh} showUsInYen={showUsInYen} onToggleUsCurrency={() => setPreferUsInYen((previous) => !previous)}
             loading={quotes.loading || exchangeRate.loading} onRefresh={refreshPrices} uploadedAt={uploadedAt} now={now} />}
           <section aria-labelledby="japan-brokers" className="grid gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <h2 id="japan-brokers" className="text-title-lg">일본 증권사</h2>
-              {totals.length > 0 && (
-                <div aria-label="일본 증권사 소계" className="flex flex-wrap gap-6 text-figure-md tabular-nums">
-                  {totals.map(({ currency, total }) => <span key={currency}>{formatMoney(total.value, currency)}</span>)}
-                </div>
-              )}
-            </div>
+            <h2 id="japan-brokers" className="text-title-lg">일본 증권사</h2>
             <SbiCard onFiles={upload} busy={busy}>
               <CardHeader className="flex flex-wrap items-start justify-between gap-4">
                 <div className="grid gap-1">
-                  <CardTitle><h3 id="sbi-broker">SBI증권</h3></CardTitle>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <CardTitle><h3 id="sbi-broker">SBI증권</h3></CardTitle>
+                    {hasData && <SbiTotal summary={portfolio.yenSummary} rate={exchangeRate.rate} loading={exchangeRate.loading} />}
+                  </div>
                   <CardDescription>
                     {uploadedAt ? (
                       <>마지막 업로드 <time dateTime={uploadedAt}>{formatUploadedAt(uploadedAt, now)}</time></>
@@ -288,7 +282,7 @@ export default function Dashboard() {
                     </ul>
                   </div>
                 )}
-                <PortfolioView portfolio={portfolio} now={now} usYenRate={showUsInYen ? exchangeRate.rate?.yenPerDollar : undefined} hasPortfolio={Boolean(saved?.sbiPortfolio)} jpNotices={saved?.sbiPortfolio?.notices ?? []} us={{ hasTrades: Boolean(saved?.sbiUsTrades), baselines: saved?.sbiUsBaselines ?? [], issues: usHoldings.issues, onEdit: (position) => setBaselineTarget({ position }) }}>
+                <PortfolioView portfolio={portfolio} now={now} exchangeRate={exchangeRate.rate} showUsInYen={showUsInYen} hasPortfolio={Boolean(saved?.sbiPortfolio)} jpNotices={saved?.sbiPortfolio?.notices ?? []} us={{ hasTrades: Boolean(saved?.sbiUsTrades), baselines: saved?.sbiUsBaselines ?? [], issues: usHoldings.issues, onEdit: (position) => setBaselineTarget({ position }) }}>
                   {baselineTarget && <UsBaselineEditor
                     key={baselineTarget.position ? usPositionKey(baselineTarget.position) : "new"}
                     positions={positions} baselines={saved?.sbiUsBaselines ?? []} holdings={usHoldings.holdings} issues={usHoldings.issues} initialPosition={baselineTarget.position}
