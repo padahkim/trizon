@@ -1,0 +1,275 @@
+{
+  "issue": 55,
+  "kind": "synthetic-contract-examples",
+  "version": 1,
+  "notes": [
+    "All symbols, accounts, prices and responses below are synthetic. Never send them to a live provider.",
+    "These are declarative oracles for the phase-three contract, not the current application's wire schema or proof of broker support.",
+    "quoteCases serialize library Date values as ISO strings. Missing fields remain absent; explicit null is tested separately.",
+    "Expected values are worked examples from 55-common-quotes-contract.md. Production code has not generated these expected values."
+  ],
+  "identityCases": [
+    {
+      "id": "kospi-nxt-keeps-leading-zero-and-account",
+      "input": { "broker": "NH", "account": "00100002", "market": "KR", "code": "000001", "listingMarket": "KOSPI", "venue": "NXT" },
+      "expected": { "holdingIdentity": ["NH", "00100002", "KR", "000001"], "quoteKey": "KR:000001", "yahooSymbol": "000001.KS", "listingMarket": "KOSPI", "venue": "NXT" }
+    },
+    {
+      "id": "kosdaq-krx-keeps-listing-separate-from-venue",
+      "input": { "broker": "KB", "account": "0007", "market": "KR", "code": "000002", "listingMarket": "KOSDAQ", "venue": "KRX" },
+      "expected": { "holdingIdentity": ["KB", "0007", "KR", "000002"], "quoteKey": "KR:000002", "yahooSymbol": "000002.KQ" }
+    },
+    {
+      "id": "nxt-alone-does-not-determine-suffix",
+      "input": { "market": "KR", "code": "000003", "listingMarket": "unknown", "venue": "NXT" },
+      "expected": { "quoteKey": "KR:000003", "yahooSymbol": null, "reason": "listing-market-unknown" }
+    },
+    {
+      "id": "conflicting-master-mapping-is-not-guessed",
+      "input": { "market": "KR", "code": "000003", "listingMarket": "KOSPI", "masterListingMarket": "KOSDAQ" },
+      "expected": { "yahooSymbol": null, "reason": "listing-market-conflict" }
+    },
+    {
+      "id": "konex-does-not-become-kospi",
+      "input": { "market": "KR", "code": "000004", "listingMarket": "KONEX", "venue": "KRX" },
+      "expected": { "yahooSymbol": null, "reason": "unsupported-listing-market" }
+    },
+    {
+      "id": "numeric-code-cannot-be-repaired-by-padding",
+      "input": { "market": "KR", "code": 1, "listingMarket": "KOSPI" },
+      "expected": { "accepted": false, "reason": "identifier-must-be-string" }
+    },
+    {
+      "id": "jp-leading-zero-and-alphanumeric-mapping",
+      "input": { "quoteKeys": ["JP:0123", "JP:999A"] },
+      "expected": { "yahooSymbols": ["0123.T", "999A.T"] }
+    },
+    {
+      "id": "us-share-class-is-provider-specific",
+      "input": { "market": "US", "code": "ZZX.B" },
+      "expected": { "quoteKey": "US:ZZX.B", "yahooSymbol": "ZZX-B" }
+    }
+  ],
+  "quoteCases": [
+    {
+      "id": "jp-prepre-keeps-last-regular-date",
+      "input": {
+        "quoteKey": "JP:0123", "receivedAt": "2026-10-30T00:00:00Z",
+        "row": { "symbol": "0123.T", "currency": "JPY", "regularMarketPrice": 1200, "regularMarketPreviousClose": 1150, "regularMarketTime": "2026-10-29T06:30:00Z", "exchangeTimezoneName": "Asia/Tokyo", "marketState": "PREPRE" }
+      },
+      "expected": { "available": true, "price": 1200, "previousClose": 1150, "marketTime": "2026-10-29T06:30:00Z", "localDate": "2026-10-29", "localTime": "15:30:00", "timeZone": "Asia/Tokyo", "priceSession": "regular" }
+    },
+    {
+      "id": "us-post-price-does-not-replace-regular-price",
+      "input": {
+        "quoteKey": "US:ZZX",
+        "row": { "symbol": "ZZX", "currency": "USD", "regularMarketPrice": 102, "regularMarketPreviousClose": 100, "regularMarketTime": "2026-10-29T20:00:00Z", "postMarketPrice": 110, "postMarketTime": "2026-10-29T22:00:00Z", "marketState": "POST", "exchangeTimezoneName": "America/New_York" }
+      },
+      "expected": { "available": true, "price": 102, "previousClose": 100, "marketTime": "2026-10-29T20:00:00Z", "localDate": "2026-10-29", "localTime": "16:00:00", "timeZone": "America/New_York", "priceSession": "regular" }
+    },
+    {
+      "id": "us-standard-time-is-not-fixed-summer-offset",
+      "input": {
+        "quoteKey": "US:ZZX",
+        "row": { "symbol": "ZZX", "currency": "USD", "regularMarketPrice": 102, "regularMarketPreviousClose": 100, "regularMarketTime": "2026-11-02T21:00:00Z", "exchangeTimezoneName": "America/New_York" }
+      },
+      "expected": { "available": true, "localDate": "2026-11-02", "localTime": "16:00:00", "timeZone": "America/New_York" }
+    },
+    {
+      "id": "null-previous-close-is-unmeasured",
+      "input": { "quoteKey": "US:ZZX", "row": { "currency": "USD", "regularMarketPrice": 45.5, "regularMarketPreviousClose": null, "regularMarketTime": "2026-10-29T18:00:00Z" } },
+      "expected": { "available": true, "price": 45.5, "previousClose": null, "dayChangeStatus": "unmeasured" }
+    },
+    {
+      "id": "omitted-previous-close-is-also-unmeasured",
+      "input": { "quoteKey": "US:ZZX", "row": { "currency": "USD", "regularMarketPrice": 45.5, "regularMarketTime": "2026-10-29T18:00:00Z" } },
+      "expected": { "available": true, "previousClose": null, "dayChangeStatus": "unmeasured" }
+    },
+    {
+      "id": "zero-previous-close-is-not-a-comparison-price",
+      "input": { "quoteKey": "US:ZZX", "row": { "currency": "USD", "regularMarketPrice": 45.5, "regularMarketPreviousClose": 0, "regularMarketTime": "2026-10-29T18:00:00Z" } },
+      "expected": { "available": true, "previousClose": null, "dayChangeStatus": "unmeasured" }
+    },
+    {
+      "id": "missing-market-time-cannot-use-received-at",
+      "input": { "quoteKey": "JP:0123", "receivedAt": "2026-10-30T00:00:00Z", "row": { "currency": "JPY", "regularMarketPrice": 1200, "regularMarketPreviousClose": 1150 } },
+      "expected": { "available": false, "marketTime": null, "reason": "market-time-unknown" }
+    },
+    {
+      "id": "null-price-is-not-zero",
+      "input": { "quoteKey": "KR:000001", "row": { "currency": "KRW", "regularMarketPrice": null, "regularMarketPreviousClose": 10000, "regularMarketTime": "2026-10-29T06:30:00Z" } },
+      "expected": { "available": false, "reason": "price-unknown" }
+    },
+    {
+      "id": "missing-currency-is-not-account-currency",
+      "input": { "quoteKey": "US:ZZX", "accountCurrency": "JPY", "row": { "regularMarketPrice": 102, "regularMarketPreviousClose": 100, "regularMarketTime": "2026-10-29T18:00:00Z" } },
+      "expected": { "available": false, "reason": "currency-unknown" }
+    },
+    {
+      "id": "future-market-time-is-not-freshness",
+      "input": { "quoteKey": "US:ZZX", "receivedAt": "2026-10-29T18:00:00Z", "row": { "currency": "USD", "regularMarketPrice": 102, "regularMarketPreviousClose": 100, "regularMarketTime": "2026-10-30T18:00:00Z" } },
+      "expected": { "available": false, "reason": "market-time-in-future" }
+    }
+  ],
+  "valuationCases": [
+    {
+      "id": "one-common-quote-across-two-brokers-and-accounts",
+      "input": {
+        "now": "2026-10-30T00:00:00Z",
+        "holdings": [
+          { "broker": "NH", "account": "00100002", "market": "KR", "code": "000001", "quantity": 2, "avgCost": 9000, "brokerReportedValue": 40000 },
+          { "broker": "KB", "account": "0007", "market": "KR", "code": "000001", "quantity": 3, "avgCost": 8000, "brokerReportedValue": 15000 }
+        ],
+        "quotes": { "KR:000001": { "price": 10000, "previousClose": 9500, "currency": "KRW", "marketTime": "2026-10-29T06:30:00Z" } }
+      },
+      "expected": {
+        "rows": [
+          { "account": "00100002", "priceSource": "quote", "value": 20000, "pnl": 2000, "dayChange": 1000, "dayChangeStatus": "measured" },
+          { "account": "0007", "priceSource": "quote", "value": 30000, "pnl": 6000, "dayChange": 1500, "dayChangeStatus": "measured" }
+        ],
+        "totals": { "currency": "KRW", "value": 50000, "pnl": 8000, "dayChange": 2500, "unmeasuredCount": 0 }
+      }
+    },
+    {
+      "id": "quote-failure-jp-csv-first-other-market-cost",
+      "input": {
+        "now": "2026-10-30T00:00:00Z", "quoteRequestStatus": "failed", "quotes": {},
+        "holdings": [
+          { "broker": "SBI", "account": "特定", "market": "JP", "code": "0123", "quantity": 10, "avgCost": 1000, "csvQuote": { "price": 1200, "asOf": "2026-10-29T10:00:00Z" } },
+          { "broker": "SBI", "account": "NISA", "market": "JP", "code": "0123", "quantity": 2, "avgCost": 900, "csvQuote": { "price": 1100, "asOf": "2026-10-28T10:00:00Z" } },
+          { "broker": "KB", "account": "0007", "market": "KR", "code": "000001", "quantity": 2, "avgCost": 9000, "csvQuote": { "price": 50000, "asOf": "2026-10-29T10:00:00Z" } }
+        ]
+      },
+      "expected": {
+        "requestFailureNotice": true,
+        "rows": [
+          { "account": "特定", "price": 1200, "priceSource": "csv", "value": 12000, "pnl": 2000, "dayChange": 0, "dayChangeStatus": "unmeasured", "marketTime": null },
+          { "account": "NISA", "price": 1100, "priceSource": "csv", "value": 2200, "pnl": 400, "dayChange": 0, "dayChangeStatus": "unmeasured", "marketTime": null },
+          { "account": "0007", "price": 9000, "priceSource": "cost", "value": 18000, "pnl": 0, "dayChange": 0, "dayChangeStatus": "unmeasured", "marketTime": null }
+        ],
+        "totals": [
+          { "currency": "JPY", "value": 14200, "pnl": 2400, "dayChange": 0, "unmeasuredCount": 2 },
+          { "currency": "KRW", "value": 18000, "pnl": 0, "dayChange": 0, "unmeasuredCount": 1 }
+        ]
+      }
+    },
+    {
+      "id": "invalid-csv-price-or-upload-time-uses-cost",
+      "input": {
+        "now": "2026-10-30T00:00:00Z", "quotes": {},
+        "holdings": [
+          { "broker": "SBI", "account": "特定", "market": "JP", "code": "0123", "quantity": 2, "avgCost": 1000, "csvQuote": { "price": -1, "asOf": "2026-10-29T10:00:00Z" } },
+          { "broker": "SBI", "account": "NISA", "market": "JP", "code": "999A", "quantity": 3, "avgCost": 500, "csvQuote": { "price": 900, "asOf": "invalid" } }
+        ]
+      },
+      "expected": { "rows": [
+        { "priceSource": "cost", "value": 2000, "pnl": 0, "dayChange": 0, "dayChangeStatus": "unmeasured" },
+        { "priceSource": "cost", "value": 1500, "pnl": 0, "dayChange": 0, "dayChangeStatus": "unmeasured" }
+      ] }
+    },
+    {
+      "id": "valid-price-unknown-close-still-values-position",
+      "input": {
+        "now": "2026-10-30T00:00:00Z",
+        "holding": { "broker": "SBI", "account": "特定", "market": "US", "code": "ZZX", "quantity": 4, "avgCost": 50 },
+        "quote": { "price": 45.5, "previousClose": null, "currency": "USD", "marketTime": "2026-10-29T18:00:00Z" }
+      },
+      "expected": { "priceSource": "quote", "value": 182, "pnl": -18, "dayChange": 0, "dayChangeStatus": "unmeasured", "unmeasuredCount": 1 }
+    },
+    {
+      "id": "measured-zero-is-not-unmeasured",
+      "input": {
+        "now": "2026-10-30T00:00:00Z",
+        "holding": { "broker": "SBI", "account": "特定", "market": "US", "code": "ZZX", "quantity": 4, "avgCost": 50 },
+        "quote": { "price": 45.5, "previousClose": 45.5, "currency": "USD", "marketTime": "2026-10-29T18:00:00Z" }
+      },
+      "expected": { "value": 182, "pnl": -18, "dayChange": 0, "dayChangeStatus": "measured", "unmeasuredCount": 0 }
+    },
+    {
+      "id": "mixed-measured-and-unmeasured-total",
+      "input": {
+        "now": "2026-10-30T00:00:00Z",
+        "holdings": [
+          { "broker": "SBI", "account": "特定", "market": "US", "code": "ZZX", "quantity": 4, "avgCost": 50 },
+          { "broker": "SBI", "account": "特定", "market": "US", "code": "ZZY", "quantity": 2, "avgCost": 20 }
+        ],
+        "quotes": {
+          "US:ZZX": { "price": 45.5, "previousClose": 46, "currency": "USD", "marketTime": "2026-10-29T18:00:00Z" },
+          "US:ZZY": { "price": 25, "previousClose": null, "currency": "USD", "marketTime": "2026-10-29T18:00:00Z" }
+        }
+      },
+      "expected": { "currency": "USD", "value": 232, "pnl": -8, "dayChange": -2, "unmeasuredCount": 1, "dayChangeStatus": "partially-unmeasured" }
+    },
+    {
+      "id": "exactly-seven-days-remains-eligible",
+      "input": {
+        "now": "2026-10-30T00:00:00Z",
+        "holding": { "broker": "SBI", "account": "特定", "market": "US", "code": "ZZX", "quantity": 4, "avgCost": 50 },
+        "quote": { "price": 45.5, "previousClose": 46, "currency": "USD", "marketTime": "2026-10-23T00:00:00Z" }
+      },
+      "expected": { "priceSource": "quote", "value": 182, "pnl": -18, "dayChange": -2, "dayChangeStatus": "measured" }
+    },
+    {
+      "id": "older-than-seven-days-received-now-is-still-old",
+      "input": {
+        "now": "2026-10-30T00:00:00Z", "receivedAt": "2026-10-30T00:00:00Z",
+        "holding": { "broker": "SBI", "account": "特定", "market": "US", "code": "ZZX", "quantity": 4, "avgCost": 50 },
+        "quote": { "price": 45.5, "previousClose": 46, "currency": "USD", "marketTime": "2026-10-22T23:59:59Z" }
+      },
+      "expected": { "priceSource": "cost", "value": 200, "pnl": 0, "dayChange": 0, "dayChangeStatus": "unmeasured" }
+    },
+    {
+      "id": "wrong-quote-currency-cannot-be-account-conversion",
+      "input": {
+        "now": "2026-10-30T00:00:00Z",
+        "holding": { "broker": "SBI", "account": "特定", "market": "US", "code": "ZZX", "quantity": 4, "avgCost": 50 },
+        "quote": { "price": 7000, "previousClose": 6900, "currency": "JPY", "marketTime": "2026-10-29T18:00:00Z" }
+      },
+      "expected": { "currency": "USD", "priceSource": "cost", "value": 200, "pnl": 0, "dayChange": 0, "dayChangeStatus": "unmeasured" }
+    }
+  ],
+  "dailyCases": [
+    {
+      "id": "jp-holiday-skips-calendar-yesterday",
+      "input": {
+        "priceLocalDate": "2026-10-13", "timeZone": "Asia/Tokyo", "currentPrice": 1200, "currentQuantity": 2,
+        "bars": [
+          { "localDate": "2026-10-09", "complete": true, "close": 1150, "splitBasis": "matches-current" },
+          { "localDate": "2026-10-13", "complete": false, "close": 1200, "splitBasis": "matches-current" }
+        ]
+      },
+      "expected": { "candidatePreviousClose": 1150, "candidatePreviousCloseDate": "2026-10-09", "dayChange": 100, "autoFallbackEnabled": false }
+    },
+    {
+      "id": "after-close-selects-date-before-price-date",
+      "input": {
+        "priceLocalDate": "2026-10-29", "timeZone": "America/New_York", "currentPrice": 102, "currentQuantity": 4,
+        "bars": [
+          { "localDate": "2026-10-28", "complete": true, "close": 100, "splitBasis": "matches-current" },
+          { "localDate": "2026-10-29", "complete": true, "close": 102, "splitBasis": "matches-current" }
+        ]
+      },
+      "expected": { "candidatePreviousClose": 100, "candidatePreviousCloseDate": "2026-10-28", "dayChange": 8, "autoFallbackEnabled": false }
+    },
+    {
+      "id": "four-for-one-uses-current-share-unit-once",
+      "input": { "currentPrice": 102, "currentQuantity": 4, "unadjustedPriorClose": 400, "splitRatio": "4:1", "verifiedCurrentUnitPriorClose": 100 },
+      "expected": { "comparisonClose": 100, "dayChange": 8, "rejectedUnadjustedDayChange": -1192 }
+    },
+    {
+      "id": "unknown-split-basis-does-not-invent-close",
+      "input": { "currentPrice": 102, "currentQuantity": 4, "candidatePreviousClose": 400, "splitBasis": "unknown" },
+      "expected": { "previousClose": null, "dayChange": 0, "dayChangeStatus": "unmeasured" }
+    },
+    {
+      "id": "dividend-adjusted-close-is-not-price-only-comparison",
+      "input": { "currentPrice": 100, "currentQuantity": 2, "close": 100, "adjclose": 98, "splitBasis": "matches-current" },
+      "expected": { "comparisonClose": 100, "dayChange": 0, "rejectedDividendAdjustedDayChange": 4, "autoFallbackEnabled": false }
+    },
+    {
+      "id": "daily-bucket-time-is-not-market-time",
+      "input": { "timeZone": "America/New_York", "dailyBucketTime": "2026-10-29T13:30:00Z", "close": 102, "quoteMarketTime": null },
+      "expected": { "marketTime": null, "available": false, "reason": "market-time-unknown" }
+    }
+  ]
+}

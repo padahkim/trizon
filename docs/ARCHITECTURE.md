@@ -229,7 +229,7 @@ erDiagram
 - 테이블을 더한다: `broker_connections`(증권사 연결, 키는 Vault), `profiles`(표시 통화).
 - 환율 provider를 QuoteProvider 옆에 둔다(`asOf`와 폴백 포함).
   - ECB 공급 경로·관측일/수집시각·TARGET 발표 달력·한 발표 유예의 계약과 재현 예시는 [ECB 환율 spike](research/ecb-reference-rate-contract.md)에 있다(#54). 실제 provider·캐시·화면 연결은 #57·#58에서 구현한다.
-- 한국 종목의 Yahoo 접미사(`.KS`·`.KQ`)는 증권사 API가 주는 시장 구분으로 정한다(spike에서 확인).
+- 한국 종목의 Yahoo 접미사는 검증된 상장시장 마스터의 KOSPI→`.KS`, KOSDAQ→`.KQ`로 정한다. KRX/NXT 거래소 구분으로 접미사를 추측하지 않는다. 공통 시세·실제 시세시각·전일종가·미측정·CSV 대체의 3단계 계약과 현재 구현의 차이는 [#55 검증](research/55-common-quotes-contract.md)을 따른다. 공개 한국 표본 조회 성공은 앱의 한국 지원이나 NXT/통합 시세 검증 완료가 아니다.
 - 데이터 흐름이 서버 중심으로 바뀐다. 동기화 결과도 `sources`·`holdings`에 같은 규칙으로 쓴다(U27: 실패하면 마지막 성공을 유지).
 
 ## 테스트
