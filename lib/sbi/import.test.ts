@@ -58,18 +58,103 @@ it("reports skipped trades and accepts empty trade exports without erasing the l
 
 it("identifies contents despite arbitrary filenames, imports multiple files, and replaces only the portfolio snapshot and timestamp", () => {
   const original: SavedV1 = { version: 1, sbiUsTrades: { uploadedAt: "2026-10-20T00:00:00.000Z", trades: [] } };
-  const first = importSbiFiles([{ name: "renamed.txt", bytes: portfolioShiftJis }, { name: "also-renamed.csv", bytes: portfolioUtf8 }], original, new Date("2026-10-27T00:00:00Z"));
+  const first = importSbiFiles([{ name: "renamed.txt", bytes: portfolioShiftJis }, { name: "also-renamed.csv", bytes: usTradesUtf8 }], original, new Date("2026-10-27T00:00:00Z"));
   expect(first.files).toEqual([
     { fileName: "renamed.txt", kind: "portfolio", notices: [] },
-    { fileName: "also-renamed.csv", kind: "portfolio", notices: [] },
+    { fileName: "also-renamed.csv", kind: "usTrades", notices: [] },
   ]);
   expect(first.saved.sbiPortfolio?.holdings).toHaveLength(2);
   const second = importSbiFiles([{ name: "anything", bytes: new TextEncoder().encode('ポートフォリオ一覧\n株式(現物/NISA預り)\n銘柄(コード),数量,取得単価,現在値\n1111 JP-A,10,1000,1200') }], first.saved, new Date("2026-10-28T00:00:00Z"));
   expect(second.saved.sbiPortfolio?.uploadedAt).toBe("2026-10-28T00:00:00.000Z");
   expect(second.saved.sbiPortfolio?.holdings).toHaveLength(1);
   expect(second.saved.sbiPortfolio?.holdings[0].account).toBe("NISA");
-  expect(second.saved.sbiUsTrades).toEqual(original.sbiUsTrades);
-  expect(original.sbiPortfolio).toBeUndefined();
+  expect(second.saved.sbiUsTrades?.trades).toHaveLength(2);
+});
+
+it("rejects files exceeding 5MB without reading them while importing companions (U4)", () => {
+  const original: SavedV1 = {
+    version: 1,
+    sbiPortfolio: { uploadedAt: "2026-10-20T00:00:00.000Z", holdings: [], notices: [] },
+  };
+  const oversized = new Uint8Array(5 * 1024 * 1024 + 1);
+  const result = importSbiFiles([
+    { name: "large.csv", bytes: oversized },
+    { name: "valid.csv", bytes: usTradesUtf8 },
+  ], original, new Date("2026-10-28T00:00:00Z"));
+  expect(result.files[0]).toMatchObject({
+    fileName: "large.csv",
+    kind: null,
+    error: expect.stringContaining("5MB"),
+  });
+  expect(result.files[1]).toMatchObject({
+    fileName: "valid.csv",
+    kind: "usTrades",
+  });
+  expect(result.files[1].error).toBeUndefined();
+  expect(result.saved.sbiPortfolio).toEqual(original.sbiPortfolio);
+  expect(result.saved.sbiUsTrades?.trades).toHaveLength(2);
+});
+
+it("rejects multiple portfolio files at once and asks to upload only one (ARCHITECTURE 열린 질문 4)", () => {
+  const original: SavedV1 = {
+    version: 1,
+    sbiPortfolio: {
+      uploadedAt: "2026-10-20T00:00:00.000Z",
+      holdings: [{ broker: "SBI", account: "特定", market: "JP", code: "1111", name: "JP-A", quantity: 5, avgCost: 1000 }],
+      notices: [],
+    },
+  };
+  const result = importSbiFiles([
+    { name: "p1.csv", bytes: portfolioUtf8 },
+    { name: "p2.csv", bytes: portfolioShiftJis },
+    { name: "trades.csv", bytes: usTradesUtf8 },
+  ], original, new Date("2026-10-28T00:00:00Z"));
+
+  expect(result.files[0]).toMatchObject({
+    fileName: "p1.csv",
+    kind: "portfolio",
+    error: expect.stringContaining("하나만"),
+  });
+  expect(result.files[1]).toMatchObject({
+    fileName: "p2.csv",
+    kind: "portfolio",
+    error: expect.stringContaining("하나만"),
+  });
+  expect(result.files[2]).toMatchObject({
+    fileName: "trades.csv",
+    kind: "usTrades",
+  });
+  expect(result.files[2].error).toBeUndefined();
+  // Original portfolio is untouched
+  expect(result.saved.sbiPortfolio).toEqual(original.sbiPortfolio);
+  // US trades were imported
+  expect(result.saved.sbiUsTrades?.trades).toHaveLength(2);
+});
+
+it("shows the line number when a number cannot be parsed and keeps prior portfolio (U4)", () => {
+  const original: SavedV1 = {
+    version: 1,
+    sbiPortfolio: {
+      uploadedAt: "2026-10-20T00:00:00.000Z",
+      holdings: [{ broker: "SBI", account: "特定", market: "JP", code: "1111", name: "JP-A", quantity: 5, avgCost: 1000 }],
+      notices: [],
+    },
+  };
+  const brokenPortfolio = new TextEncoder().encode(`ポートフォリオ一覧
+株式(現物/特定預り)
+銘柄(コード),数量,取得単価,現在値
+1111 JP-A,invalid,1000,1200
+`);
+  const result = importSbiFiles([
+    { name: "broken-num.csv", bytes: brokenPortfolio },
+  ], original, new Date("2026-10-28T00:00:00Z"));
+
+  expect(result.files[0]).toMatchObject({
+    fileName: "broken-num.csv",
+    kind: "portfolio",
+    error: expect.stringMatching(/4행.*숫자/),
+  });
+  expect(result.saved.sbiPortfolio).toEqual(original.sbiPortfolio);
 });
 
 it.each([

@@ -1,3 +1,4 @@
+import { TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCaption, TableCell, TableFooter,
@@ -21,10 +22,13 @@ export function Delta({ value, base, currency, large = false }: {
   );
 }
 
-export default function PortfolioView({ portfolio, hasUsTrades, usNotices }: {
-  portfolio: Portfolio; hasUsTrades: boolean; usNotices: string[];
+export default function PortfolioView({ portfolio, hasPortfolio, hasUsTrades, usNotices, jpNotices = [] }: {
+  portfolio: Portfolio; hasPortfolio: boolean; hasUsTrades: boolean; usNotices: string[]; jpNotices?: string[];
 }) {
   const markets = portfolio.countries.flatMap((country) => country.brokers.flatMap((broker) => broker.markets.map((market) => ({ key: `${country.country}-${broker.broker}-${market.market}`, market }))));
+  if (hasPortfolio && !markets.some(({ market }) => market.market === "JP")) {
+    markets.unshift({ key: "JP-SBI-JP", market: { market: "JP", totals: {}, rows: [] } });
+  }
   // Keep the US block visible for upload guidance and uncomputable positions too.
   if (!markets.some(({ market }) => market.market === "US")) {
     markets.push({ key: "JP-SBI-US", market: { market: "US", totals: {}, rows: [] } });
@@ -45,6 +49,23 @@ export default function PortfolioView({ portfolio, hasUsTrades, usNotices }: {
             <Badge variant="warning">CSV <span lang="ja" className="ml-1">現在値</span></Badge>
           )}
         </div>
+        {market.market === "JP" && jpNotices.length > 0 && (
+          <ul aria-label="일본주식 계산 안내" className="grid gap-2 text-body-sm">
+            {jpNotices.map((notice) => {
+              const isWarning = notice.includes("만 들어 있습니다") || notice.includes("総件数") || notice.includes("잘린");
+              return isWarning ? (
+                <li key={notice} role="alert" className="flex items-center gap-2 rounded-lg bg-warning-soft p-4 text-warning-text">
+                  <TriangleAlert className="size-5 shrink-0 text-warning" strokeWidth={1.75} aria-hidden="true" />
+                  <p>{notice}</p>
+                </li>
+              ) : (
+                <li key={notice} className="rounded-lg bg-surface-sunken p-4 text-ink-2">
+                  {notice}
+                </li>
+              );
+            })}
+          </ul>
+        )}
         {market.market === "US" && usNotices.length > 0 && (
           <ul aria-label="미국주식 계산 안내" className="grid gap-2 rounded-lg bg-warning-soft p-4 text-body-sm text-warning-text">
             {usNotices.map((notice) => {
@@ -103,7 +124,7 @@ export default function PortfolioView({ portfolio, hasUsTrades, usNotices }: {
           </TableFooter>
         </Table> : (
           <p className="text-body-sm text-ink-2">
-            {hasUsTrades ? "보유 중인 미국주식이 없습니다." : <><span lang="ja">約定履歴</span>{SBI_UPLOAD_GUIDANCE.usTradesEmpty}</>}
+            {market.market === "JP" ? "보유 없음" : hasUsTrades ? "보유 중인 미국주식이 없습니다." : <><span lang="ja">約定履歴</span>{SBI_UPLOAD_GUIDANCE.usTradesEmpty}</>}
           </p>
         )}
       </section>

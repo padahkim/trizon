@@ -25,4 +25,7 @@ describe("SBI CSV public reader", () => {
     expect(() => parseAmount("12oops", 7)).toThrow("7행");
     expect(() => parseAmount("1.2.3", 8)).toThrow("8행");
   });
+  it("rejects bytes that are neither valid UTF-8 nor Shift_JIS with fatal decoding", () => {
+    expect(() => decodeCsv(new Uint8Array([0xff, 0xff]))).toThrow("인코딩");
+  });
 });
