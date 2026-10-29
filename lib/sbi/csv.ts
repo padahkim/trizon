@@ -3,7 +3,11 @@ export function decodeCsv(bytes: Uint8Array): string {
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/^\uFEFF/, "");
   } catch {
-    return new TextDecoder("shift_jis", { fatal: true }).decode(bytes).replace(/^\uFEFF/, "");
+    try {
+      return new TextDecoder("shift_jis", { fatal: true }).decode(bytes).replace(/^\uFEFF/, "");
+    } catch {
+      throw new Error("인코딩을 인식하지 못했습니다 (UTF-8·Shift_JIS가 아닙니다). SBI증권에서 받은 CSV 원본 파일인지 확인해 주세요.");
+    }
   }
 }
 
