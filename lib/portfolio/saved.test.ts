@@ -2,6 +2,46 @@ import { expect, it } from "vitest";
 import { loadSaved, serializeSaved, type SavedV1 } from "./saved";
 import { usTradesUtf8 } from "../sbi/fixtures";
 import { holdingsFromTrades, parseUsTrades } from "../sbi/us-trades";
+import { importSbiFiles } from "../sbi/import";
+
+it("restores the CSV trades already reflected in a date-free current holding correction", () => {
+  const { trades } = parseUsTrades(usTradesUtf8);
+  const baseline = { ticker: "TSTA", name: "US-A", account: "特定", quantity: 10, avgCost: 100, includedTradeKeys: trades.filter((trade) => trade.ticker === "TSTA").map((trade) => trade.key) };
+  const saved = { version: 1 as const, sbiUsTrades: { uploadedAt: "2026-10-28T00:00:00Z", trades }, sbiUsBaselines: [baseline] };
+  const restored = loadSaved(serializeSaved(saved));
+  expect(restored).toEqual({ status: "ok", saved });
+  if (restored.status !== "ok") throw new Error("Expected current holding correction");
+  expect(holdingsFromTrades(restored.saved.sbiUsTrades!.trades, restored.saved.sbiUsBaselines).holdings)
+    .toContainEqual(expect.objectContaining({ code: "TSTA", quantity: 10, avgCost: 100 }));
+});
+
+it("rejects ambiguous duplicate 기준 보유정보 for the same stock and account", () => {
+  const baseline = { ticker: "TSTA", name: "US-A", account: "特定", asOf: "2026-10-28", quantity: 10, avgCost: 100 };
+  expect(loadSaved(JSON.stringify({ version: 1, sbiUsBaselines: [baseline, { ...baseline, quantity: 20 }] }))).toEqual({ status: "unreadable" });
+});
+
+it("normalizes zero-share cost and refuses invalid saved 기준 보유정보", () => {
+  const baseline = { ticker: "TSTA", name: "US-A", account: "特定", asOf: "2026-10-28", quantity: 0, avgCost: 100 };
+  expect(loadSaved(serializeSaved({ version: 1, sbiUsBaselines: [baseline] }))).toEqual({ status: "ok", saved: { version: 1, sbiUsBaselines: [{ ...baseline, avgCost: 0 }] } });
+  for (const change of [{ asOf: "2026-02-30" }, { quantity: -1 }, { avgCost: -1 }, { ticker: "BAD KEY" }, { account: "" }]) {
+    expect(loadSaved(JSON.stringify({ version: 1, sbiUsBaselines: [{ ...baseline, ...change }] }))).toEqual({ status: "unreadable" });
+  }
+});
+
+it("preserves 기준 보유정보 through reloads and overlapping CSV imports without adding older buys again", () => {
+  const baseline = { ticker: "TSTA", name: "US-A", account: "特定", asOf: "2026-10-28", quantity: 8, avgCost: 70 };
+  const saved = { version: 1 as const, sbiUsBaselines: [baseline] };
+  const restored = loadSaved(serializeSaved(saved));
+  expect(restored).toEqual({ status: "ok", saved });
+  if (restored.status !== "ok") throw new Error("Expected saved 기준 보유정보");
+  const file = { name: "trades.csv", bytes: usTradesUtf8 };
+  const first = importSbiFiles([file], restored.saved, new Date("2026-10-29T00:00:00Z"));
+  const repeated = importSbiFiles([file], first.saved, new Date("2026-10-30T00:00:00Z"));
+  expect(repeated.saved.sbiUsBaselines).toEqual([baseline]);
+  expect(repeated.saved.sbiUsTrades!.trades).toEqual(first.saved.sbiUsTrades!.trades);
+  expect(holdingsFromTrades(repeated.saved.sbiUsTrades!.trades, repeated.saved.sbiUsBaselines).holdings)
+    .toContainEqual(expect.objectContaining({ code: "TSTA", quantity: 8, avgCost: 70 }));
+});
 
 it("round-trips SavedV1 and validates the full persisted shape before displaying holdings", () => {
   const saved: SavedV1 = { version: 1, sbiPortfolio: { uploadedAt: "2026-10-28T00:00:00.000Z", notices: [], holdings: [{ broker: "SBI", market: "JP", account: "特定", code: "1111", name: "JP-A", quantity: 10, avgCost: 1000, csvQuote: { price: 1200, asOf: "2026-10-28T00:00:00.000Z" } }] } };

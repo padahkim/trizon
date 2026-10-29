@@ -28,10 +28,10 @@ test("두 CSV와 가짜 시세로 네 종목의 평가·시장별 합계·엔·�
   await expect(jp.getByRole("row").filter({ hasText: "JP-B" }).getByRole("cell").nth(2)).toHaveText("¥900");
   await expect(jp.getByRole("row").filter({ hasText: "JP-B" }).getByRole("cell").nth(1)).toHaveText("10");
   await expect(us.getByRole("row").filter({ hasText: "US-A" }).getByRole("cell")).toHaveText([
-    "US-ATSTA特定", "4", "$50.00", "$45.50", "$182.00", "-$18.00-9.00%", "-$2.00-1.09%",
+    "US-A特定TSTA", "4", "$50.00", "$45.50", "$182.00", "-$18.00-9.00%", "-$2.00-1.09%",
   ]);
   await expect(us.getByRole("row").filter({ hasText: "US-B" }).getByRole("cell")).toHaveText([
-    "US-BTSTB特定", "2", "$20.00", "$25.00", "$50.00", "+$10.00+25.00%", "+$1.00+2.04%",
+    "US-B特定TSTB", "2", "$20.00", "$25.00", "$50.00", "+$10.00+25.00%", "+$1.00+2.04%",
   ]);
   await expect(sbi.getByText("約定履歴으로 추정한 값", { exact: true })).toBeVisible();
   await expect(us.getByRole("row").filter({ hasText: "미국주식 합계" }).getByRole("cell")).toHaveText([
@@ -89,7 +89,7 @@ test("계산 불가 종목만 있어도 미국주식 안내가 새로고침 뒤 
   const oversold = usTradesCsv.replace("現買", "現売").split("\r\n").slice(0, 3).join("\r\n");
   await page.getByLabel("SBI CSV 파일").setInputFiles(tradeFile(oversold));
   const us = page.getByRole("region", { name: "미국주식", exact: true });
-  await expect(us.getByLabel("미국주식 계산 안내")).toHaveText("US-A (TSTA · 特定): 계산할 수 없음: 2년 이전 매수분 필요");
+  await expect(us.getByLabel("미국주식 계산 안내")).toContainText("US-A (TSTA · 特定): 계산할 수 없음: 2년 이전 매수분 필요");
   await expect(us.getByText("US-A (TSTA · 特定)", { exact: true })).toHaveAttribute("lang", "ja");
   await expect(us.getByRole("table")).toHaveCount(0);
   await page.reload();

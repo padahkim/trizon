@@ -5,6 +5,8 @@ import { portfolioUtf8, usTradesUtf8 } from "../sbi/fixtures";
 import { loadSaved, serializeSaved } from "./saved";
 
 beforeEach(() => {
+  // Cross-tab delivery is exercised with actual browser tabs in e2e/us-baselines.spec.ts.
+  vi.stubGlobal("BroadcastChannel", undefined);
   const values = new Map<string, string>();
   vi.stubGlobal("localStorage", {
     getItem: (key: string) => values.get(key) ?? null,

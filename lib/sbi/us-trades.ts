@@ -10,6 +10,32 @@ export const usTradeSchema = z.object({
 });
 export type UsTrade = z.infer<typeof usTradeSchema>;
 
+const usBaselineFields = z.object({
+  ticker: z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)*$/, "미국주식 종목 코드를 확인해 주세요."),
+  name: z.string().trim().min(1, "종목명을 입력해 주세요."),
+  account: z.string().trim().min(1, "계좌구분을 입력해 주세요."),
+  quantity: z.number("0 이상의 보유수량을 입력해 주세요.").finite().nonnegative("0 이상의 보유수량을 입력해 주세요."),
+  avgCost: z.number("0 이상의 달러 취득단가를 입력해 주세요.").finite().nonnegative("0 이상의 달러 취득단가를 입력해 주세요."),
+});
+function normalizeBaselineCost<T extends { quantity: number; avgCost: number }>(baseline: T): T {
+  return baseline.quantity === 0 ? { ...baseline, avgCost: 0 } : baseline;
+}
+export const usBaselineInputSchema = usBaselineFields.transform(normalizeBaselineCost);
+export type UsBaselineInput = z.infer<typeof usBaselineInputSchema>;
+export const usHoldingBaselineSchema = usBaselineFields.extend({
+  includedTradeKeys: z.array(z.string().min(1)).optional(),
+  // Keep previously saved date-based corrections readable until the user saves current values again.
+  asOf: z.iso.date().optional(),
+}).refine((baseline) => (baseline.includedTradeKeys === undefined) !== (baseline.asOf === undefined), "기준 보유정보의 반영 거래를 확인할 수 없습니다.")
+  .transform(normalizeBaselineCost);
+export type UsHoldingBaseline = z.infer<typeof usHoldingBaselineSchema>;
+export type UsPosition = Pick<UsTrade, "ticker" | "name" | "account">;
+export type UsHoldingIssue = UsPosition & { message: string };
+
+export function usPositionKey(position: Pick<UsPosition, "ticker" | "account">): string {
+  return JSON.stringify([position.ticker, position.account]);
+}
+
 const requiredColumns = ["国内約定日", "銘柄", "銘柄コード", "商品区分", "取引", "預り区分", "約定数量", "約定単価"];
 
 function parseDate(value: string, line: number): string {
@@ -72,20 +98,26 @@ export function mergeTrades(stored: UsTrade[], incoming: UsTrade[]): UsTrade[] {
   return [...trades.values()];
 }
 
-export function holdingsFromTrades(trades: UsTrade[]): { holdings: Holding[]; notices: string[] } {
+export function holdingsFromTrades(trades: UsTrade[], baselines: UsHoldingBaseline[] = []): { holdings: Holding[]; notices: string[]; issues: UsHoldingIssue[] } {
   const groups = new Map<string, UsTrade[]>();
+  const baselineByPosition = new Map(baselines.map((baseline) => [usPositionKey(baseline), baseline]));
+  for (const key of baselineByPosition.keys()) groups.set(key, []);
   for (const trade of trades) {
-    const key = JSON.stringify([trade.ticker, trade.account]);
+    const key = usPositionKey(trade);
     const group = groups.get(key) ?? [];
     group.push(trade);
     groups.set(key, group);
   }
   const holdings: Holding[] = [];
   const notices: string[] = [];
-  for (const group of groups.values()) {
-    const ordered = [...group].sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || Number(a.side === "sell") - Number(b.side === "sell"));
-    let quantity = 0;
-    let cost = 0;
+  const issues: UsHoldingIssue[] = [];
+  for (const [key, group] of groups) {
+    const baseline = baselineByPosition.get(key);
+    const included = baseline?.includedTradeKeys && new Set(baseline.includedTradeKeys);
+    const ordered = group.filter((trade) => !baseline || (included ? !included.has(trade.key) : trade.tradeDate > baseline.asOf!))
+      .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || Number(a.side === "sell") - Number(b.side === "sell"));
+    let quantity = baseline?.quantity ?? 0;
+    let cost = quantity * (baseline?.avgCost ?? 0);
     let oversold = false;
     for (const trade of ordered) {
       if (trade.side === "buy") {
@@ -98,13 +130,15 @@ export function holdingsFromTrades(trades: UsTrade[]): { holdings: Holding[]; no
         if (Math.abs(quantity) < 1e-9) { quantity = 0; cost = 0; }
       }
     }
-    const last = ordered.at(-1)!;
+    const last = baseline ?? ordered.at(-1)!;
     if (oversold) {
-      notices.push(`${last.name} (${last.ticker} · ${last.account}): 계산할 수 없음: 2년 이전 매수분 필요`);
+      const message = baseline ? "계산할 수 없음: 기준 보유정보 이후 매도가 보유수량을 넘었습니다. 기준값과 CSV를 확인해 주세요." : "계산할 수 없음: 2년 이전 매수분 필요";
+      notices.push(`${last.name} (${last.ticker} · ${last.account}): ${message}`);
+      issues.push({ ticker: last.ticker, name: last.name, account: last.account, message });
       continue;
     }
     if (quantity === 0) continue;
     holdings.push({ broker: "SBI", market: "US", code: last.ticker, name: last.name, account: last.account, quantity, avgCost: cost / quantity });
   }
-  return { holdings, notices };
+  return { holdings, notices, issues };
 }

@@ -1,30 +1,25 @@
 import { expect, test } from "@playwright/test";
 import { portfolioShiftJis, portfolioUtf8 } from "../lib/sbi/fixtures";
 
-test("업로드 영역에 파일을 끌어다 놓는 중에는 테두리가 ink로 바뀐다", async ({ page }) => {
+test("업로드 영역에 파일을 끌어다 놓으면 SBI 카드의 테두리와 안내를 강조한다", async ({ page }) => {
   await page.goto("/");
   const input = page.getByLabel("SBI CSV 파일");
   await expect(input).toHaveAttribute("accept", ".csv");
   const uploader = page.locator("#sbi-uploader");
   await expect(uploader).toBeVisible();
-  await expect(uploader).toHaveClass(/border-line-strong/);
-
-  // Trigger dragenter/dragover using real DataTransfer in browser
-  await page.evaluate(() => {
-    const el = document.querySelector("#sbi-uploader")!;
-    const dt = new DataTransfer();
-    el.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: dt }));
-    el.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: dt }));
+  const sbi = page.getByRole("region", { name: "SBI증권", exact: true });
+  const dataTransfer = await page.evaluateHandle(() => {
+    const data = new DataTransfer();
+    data.items.add(new File(["example"], "example.csv", { type: "text/csv" }));
+    return data;
   });
-  await expect(uploader).toHaveClass(/border-ink/);
-
-  // Trigger dragleave
-  await page.evaluate(() => {
-    const el = document.querySelector("#sbi-uploader")!;
-    const dt = new DataTransfer();
-    el.dispatchEvent(new DragEvent("dragleave", { bubbles: true, cancelable: true, dataTransfer: dt }));
-  });
-  await expect(uploader).toHaveClass(/border-line-strong/);
+  await uploader.dispatchEvent("dragenter", { dataTransfer });
+  await uploader.dispatchEvent("dragover", { dataTransfer });
+  await expect(sbi).toHaveCSS("outline-style", "solid");
+  await expect(sbi.getByText("CSV 파일을 여기에 놓으세요.", { exact: true })).toBeVisible();
+  await uploader.dispatchEvent("dragleave", { dataTransfer });
+  await expect(sbi).toHaveCSS("outline-style", "none");
+  await expect(sbi.getByText("CSV 파일을 여기에 놓으세요.", { exact: true })).toHaveCount(0);
 });
 
 test("ポートフォリオ를 여러 개 올리면 읽지 못함 배지와 하나만 올리라는 안내를 보인다 (ARCHITECTURE 열린 질문 4)", async ({ page }) => {

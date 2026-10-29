@@ -67,9 +67,9 @@ test("가짜 ポートフォリオ를 올리면 일본주식의 수량·가격·
   const sbi = japan.getByRole("region", { name: "SBI증권", exact: true });
   const table = sbi.getByRole("table", { name: "일본주식 보유 종목" });
   const jpA = table.getByRole("row").filter({ hasText: "JP-A" });
-  await expect(jpA.getByRole("cell")).toHaveText(["JP-A1111特定", "10", "¥1,000", "¥1,200", "¥12,000", "+¥2,000+20.00%", "+¥500+4.35%"]);
+  await expect(jpA.getByRole("cell")).toHaveText(["JP-A特定1111", "10", "¥1,000", "¥1,200", "¥12,000", "+¥2,000+20.00%", "+¥500+4.35%"]);
   const jpB = table.getByRole("row").filter({ hasText: "JP-B" });
-  await expect(jpB.getByRole("cell")).toHaveText(["JP-B999A特定", "10", "¥900", "¥800", "¥8,000", "-¥1,000-11.11%", "-¥200-2.44%"]);
+  await expect(jpB.getByRole("cell")).toHaveText(["JP-B特定999A", "10", "¥900", "¥800", "¥8,000", "-¥1,000-11.11%", "-¥200-2.44%"]);
   await expect(jpA.getByText("JP-A", { exact: true })).toHaveAttribute("lang", "ja");
   await expect(jpA.getByText("特定", { exact: true })).toHaveAttribute("lang", "ja");
   await expect(table.getByRole("row").filter({ hasText: "일본주식 합계" })).toContainText("¥20,000");
@@ -84,7 +84,7 @@ test("가짜 ポートフォリオ를 올리면 일본주식의 수량·가격·
   const reopen = sbi.getByRole("button", { name: "CSV 올리기", exact: true });
   await expect(reopen).toHaveAttribute("aria-expanded", "false");
   await expect(sbi.getByRole("heading", { name: "CSV 올리기 안내" })).toHaveCount(0);
-  await expect(sbi.getByText("CSV 올리기 버튼으로 파일 선택과 다운로드 안내를 다시 열 수 있습니다.", { exact: true })).toBeVisible();
+  await expect(sbi.getByText("SBI 카드에 CSV 파일을 끌어다 놓을 수 있습니다. CSV 올리기 버튼으로 파일 선택과 다운로드 안내를 다시 열 수 있습니다.", { exact: true })).toBeVisible();
   await expect(sbi.getByRole("region", { name: "미국주식", exact: true })).toContainText("約定履歴 CSV를 올리면 보입니다.");
   await reopen.click();
   await expect(reopen).toHaveAttribute("aria-expanded", "true");
@@ -152,23 +152,29 @@ for (const [label, unreadable] of [
   ["깨진 JSON", "{broken-json"],
   ["지원하지 않는 저장 형식", JSON.stringify({ version: 999 })],
 ]) {
-  test(`${label}은 원본을 보관하고 새 CSV 업로드로 복구한다`, async ({ page }) => {
-    const { portfolioUtf8 } = await import("../lib/sbi/fixtures");
-    await page.goto("/");
-    await page.evaluate((raw) => localStorage.setItem("trizon", raw), unreadable);
-    await page.reload();
-    await expect(page.getByRole("button", { name: "CSV 고르기", exact: true })).toBeVisible();
-    await expect(page.getByRole("main").getByRole("alert")).toContainText("CSV를 다시 올려 주세요");
-    expect(await page.evaluate(() => localStorage.getItem("trizon"))).toBeNull();
-    expect(await page.evaluate(() => localStorage.getItem("trizon:backup"))).toBe(unreadable);
-    await page.getByLabel("SBI CSV 파일").setInputFiles({
-      name: "recovery.csv", mimeType: "text/csv", buffer: Buffer.from(portfolioUtf8),
+  test.describe(label, () => {
+    // Seed before navigation: a mounted page could recover the value before a reload.
+    test.use({
+      storageState: { cookies: [], origins: [{
+        origin: "http://localhost:3000", localStorage: [{ name: "trizon", value: unreadable }],
+      }] },
     });
-    await expect(page.getByRole("table").getByText("JP-A", { exact: true })).toBeVisible();
-    expect(await page.evaluate(() => localStorage.getItem("trizon:backup"))).toBe(unreadable);
-    await page.reload();
-    await expect(page.getByRole("table").getByText("JP-B", { exact: true })).toBeVisible();
-    await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+    test("원본을 보관하고 새 CSV 업로드로 복구한다", async ({ page }) => {
+      const { portfolioUtf8 } = await import("../lib/sbi/fixtures");
+      await page.goto("/");
+      await expect(page.getByRole("button", { name: "CSV 고르기", exact: true })).toBeVisible();
+      await expect(page.getByRole("main").getByRole("alert")).toContainText("CSV를 다시 올려 주세요");
+      expect(await page.evaluate(() => localStorage.getItem("trizon"))).toBeNull();
+      expect(await page.evaluate(() => localStorage.getItem("trizon:backup"))).toBe(unreadable);
+      await page.getByLabel("SBI CSV 파일").setInputFiles({
+        name: "recovery.csv", mimeType: "text/csv", buffer: Buffer.from(portfolioUtf8),
+      });
+      await expect(page.getByRole("table").getByText("JP-A", { exact: true })).toBeVisible();
+      expect(await page.evaluate(() => localStorage.getItem("trizon:backup"))).toBe(unreadable);
+      await page.reload();
+      await expect(page.getByRole("table").getByText("JP-B", { exact: true })).toBeVisible();
+      await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+    });
   });
 }
 
@@ -204,7 +210,7 @@ for (const replacing of [false, true]) {
     await expect(page.getByRole("region", { name: "자산 요약" })).toContainText(replacing ? "¥12,000" : "¥20,000");
     await expect(page.getByRole("table").getByText("JP-A", { exact: true })).toBeVisible();
     await expect(page.getByRole("table").getByText("JP-B", { exact: true })).toHaveCount(replacing ? 0 : 1);
-    await expect(page.getByRole("main").getByRole("alert")).toHaveText("저장되지 않았습니다. 새로고침하면 다시 올려야 합니다.");
+    await expect(page.getByRole("main").getByRole("alert")).toHaveText("저장되지 않았습니다. 새로고침하면 저장하지 못한 변경사항이 사라집니다.");
     await expect(page.getByRole("main").getByRole("status")).toContainText("unsaved.csv");
     expect(await page.evaluate(() => localStorage.getItem("trizon"))).toBe(persisted);
     await page.reload();

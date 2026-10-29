@@ -184,3 +184,25 @@ export {
   AlertDialogTitle,
   AlertDialogTrigger,
 }
+
+// Compose the shared dialog parts for a single confirmation action.
+function ConfirmationDialog({ open, title, description, confirmLabel, onCancel, onConfirm }: {
+  open: boolean; title: string; description: React.ReactNode; confirmLabel: string;
+  onCancel: () => void; onConfirm: () => void;
+}) {
+  const cancel = React.useRef<HTMLButtonElement>(null);
+  return <AlertDialog open={open} onOpenChange={(next) => { if (!next) onCancel(); }}>
+    <AlertDialogContent initialFocus={cancel} onOverlayClick={onCancel}>
+      <AlertDialogHeader>
+        <AlertDialogTitle>{title}</AlertDialogTitle>
+        <AlertDialogDescription>{description}</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel ref={cancel} variant="ghost">취소</AlertDialogCancel>
+        <AlertDialogAction type="button" variant="destructive" onClick={onConfirm}>{confirmLabel}</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>;
+}
+
+export { ConfirmationDialog };

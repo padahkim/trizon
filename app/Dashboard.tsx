@@ -22,11 +22,26 @@ import {
 import { loadSaved, serializeSaved, type LoadResult, type SavedV1 } from "@/lib/portfolio/saved";
 import { importSbiFiles, type FileResult } from "@/lib/sbi/import";
 import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
-import { holdingsFromTrades } from "@/lib/sbi/us-trades";
+import { holdingsFromTrades, usPositionKey, type UsBaselineInput, type UsHoldingBaseline, type UsPosition } from "@/lib/sbi/us-trades";
 import PortfolioView, { Delta } from "./PortfolioView";
 import Uploader from "./Uploader";
+import SbiCard from "./SbiCard";
+import UsBaselineEditor from "./UsBaselineEditor";
 import { useQuotes } from "./useQuotes";
 import ClearDataDialog from "./ClearDataDialog";
+
+type BaselineChange = { position: UsPosition; value: UsHoldingBaseline | null };
+
+function withBaselineChanges(saved: SavedV1, changes: BaselineChange[]): SavedV1 {
+  if (!changes.length) return saved;
+  const baselines = new Map(saved.sbiUsBaselines?.map((baseline) => [usPositionKey(baseline), baseline]));
+  for (const change of changes) {
+    const key = usPositionKey(change.position);
+    if (change.value) baselines.set(key, change.value);
+    else baselines.delete(key);
+  }
+  return { ...saved, sbiUsBaselines: [...baselines.values()] };
+}
 
 function renderWithJa(text: string) {
   const parts = text.split(/(ポートフォリオ|約定履歴|特定|NISA)/g);
@@ -41,9 +56,22 @@ function renderWithJa(text: string) {
 
 export default function Dashboard() {
   const [unsaved, setUnsaved] = useState<SavedV1>();
-  const subscribe = useCallback((onChange: () => void) => subscribeSaved(() => {
-    // A new stored snapshot supersedes this tab's temporary, unsaved import.
+  const [pendingBaselines, setPendingBaselines] = useState<BaselineChange[]>([]);
+  const [now, setNow] = useState(() => new Date());
+  const [uploaderOpen, setUploaderOpen] = useState(false);
+  const [results, setResults] = useState<FileResult[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [baselineTarget, setBaselineTarget] = useState<{ position?: UsPosition } | null>(null);
+  const subscribe = useCallback((onChange: () => void) => subscribeSaved((reason) => {
+    // A stored snapshot replaces a temporary CSV import; manual changes are overlaid separately.
     setUnsaved(undefined);
+    if (reason === "clear") {
+      setPendingBaselines([]);
+      setBaselineTarget(null);
+      setResults([]);
+      setError(null);
+    }
     onChange();
   }), []);
   const raw = useSyncExternalStore(subscribe, getSavedSnapshot, getServerSnapshot);
@@ -56,19 +84,21 @@ export default function Dashboard() {
     if (typeof raw !== "string" || loaded?.status !== "unreadable") return;
     try { recoverSavedSnapshot(); } catch { /* Keep the original if backing up or removing it fails. */ }
   }, [raw, loaded]);
-  const [now, setNow] = useState(() => new Date());
-  const [uploaderOpen, setUploaderOpen] = useState(false);
-  const [results, setResults] = useState<FileResult[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const storageError = unsaved ? "저장되지 않았습니다. 새로고침하면 다시 올려야 합니다."
+  const sourceSaved = unsaved ?? (loaded?.status === "ok" ? loaded.saved : undefined);
+  const saved = useMemo(() => {
+    if (!sourceSaved && !pendingBaselines.length) return undefined;
+    return withBaselineChanges(sourceSaved ?? { version: 1 }, pendingBaselines);
+  }, [sourceSaved, pendingBaselines]);
+  const storageError = unsaved || pendingBaselines.length > 0 ? "저장되지 않았습니다. 새로고침하면 저장하지 못한 변경사항이 사라집니다."
     : loaded?.status === "unreadable" ? "저장된 데이터를 읽지 못했습니다. 기존 데이터는 보관하고 CSV를 다시 올려 주세요."
       : raw === STORAGE_UNAVAILABLE ? "저장된 데이터를 읽지 못했습니다. 브라우저의 저장 설정을 확인해 주세요." : null;
-  const saved = unsaved ?? (loaded?.status === "ok" ? loaded.saved : undefined);
   const usHoldings = useMemo(
-    () => holdingsFromTrades(saved?.sbiUsTrades?.trades ?? []),
-    [saved?.sbiUsTrades?.trades],
+    () => holdingsFromTrades(saved?.sbiUsTrades?.trades ?? [], saved?.sbiUsBaselines),
+    [saved?.sbiUsTrades?.trades, saved?.sbiUsBaselines],
   );
+  const positions = useMemo(() => [...new Map([
+    ...saved?.sbiUsTrades?.trades ?? [], ...saved?.sbiUsBaselines ?? [],
+  ].map((position) => [usPositionKey(position), position])).values()], [saved?.sbiUsTrades?.trades, saved?.sbiUsBaselines]);
   const holdings = useMemo(
     () => [...saved?.sbiPortfolio?.holdings ?? [], ...usHoldings.holdings],
     [saved?.sbiPortfolio?.holdings, usHoldings.holdings],
@@ -84,6 +114,44 @@ export default function Dashboard() {
     .filter((date): date is string => date !== undefined).sort().at(-1);
   const hasData = holdings.length > 0 || saved?.sbiPortfolio !== undefined;
 
+  function updateSaved(transform: (current: SavedV1) => SavedV1, changedPosition?: UsPosition): SavedV1 {
+    // Read immediately before writing so another tab's unrelated sources are retained.
+    const latest = getSavedSnapshot();
+    const current = loadSaved(typeof latest === "string" ? latest : null);
+    const source = unsaved && latest === raw ? unsaved : current.status === "ok" ? current.saved : { version: 1 as const };
+    const base = withBaselineChanges(source, pendingBaselines);
+    const next = transform(base);
+    if (next === base) return next;
+    try {
+      if (latest === STORAGE_UNAVAILABLE) throw new Error("storage unavailable");
+      if (current.status === "unreadable" && typeof latest === "string") backupSavedSnapshot(latest);
+      writeSavedSnapshot(serializeSaved(next));
+      setUnsaved(undefined);
+      setPendingBaselines([]);
+    } catch {
+      setUnsaved(next);
+      if (changedPosition) {
+        const key = usPositionKey(changedPosition);
+        const change = { position: changedPosition, value: next.sbiUsBaselines?.find((baseline) => usPositionKey(baseline) === key) ?? null };
+        setPendingBaselines((changes) => [...changes.filter((item) => usPositionKey(item.position) !== key), change]);
+      }
+    }
+    return next;
+  }
+
+  function saveBaseline(input: UsBaselineInput) {
+    updateSaved((current) => {
+      const baseline: UsHoldingBaseline = { ...input, includedTradeKeys: (current.sbiUsTrades?.trades ?? [])
+        .filter((trade) => usPositionKey(trade) === usPositionKey(input)).map((trade) => trade.key) };
+      return withBaselineChanges(current, [{ position: input, value: baseline }]);
+    }, input);
+  }
+
+  function deleteBaseline(position: UsPosition) {
+    const change = { position, value: null };
+    updateSaved((current) => withBaselineChanges(current, [change]), position);
+  }
+
   async function upload(files: File[]) {
     if (!files.length || busy) return;
     setBusy(true);
@@ -93,29 +161,16 @@ export default function Dashboard() {
         name: file.name,
         bytes: new Uint8Array(await file.arrayBuffer()),
       })));
-      // Read again immediately before writing so another tab's source is retained.
-      const latest = getSavedSnapshot();
-      const current = loadSaved(typeof latest === "string" ? latest : null);
       const date = new Date();
-      const imported = importSbiFiles(
-        incoming,
-        unsaved && latest === raw ? unsaved : current.status === "ok" ? current.saved : { version: 1 },
-        date,
-      );
-      if (imported.files.some((file) => !file.error)) {
-        try {
-          // Never overwrite an unreadable original unless its backup succeeded.
-          if (latest === STORAGE_UNAVAILABLE) throw new Error("storage unavailable");
-          if (current.status === "unreadable" && typeof latest === "string") backupSavedSnapshot(latest);
-          writeSavedSnapshot(serializeSaved(imported.saved));
-          setUnsaved(undefined);
-        } catch {
-          setUnsaved(imported.saved);
-        }
-      }
+      let filesResult: FileResult[] = [];
+      const next = updateSaved((current) => {
+        const imported = importSbiFiles(incoming, current, date);
+        filesResult = imported.files;
+        return imported.saved;
+      });
       setNow(date);
-      setResults(imported.files);
-      if (imported.saved.sbiPortfolio !== undefined || imported.saved.sbiUsTrades?.trades.length) setUploaderOpen(false);
+      setResults(filesResult);
+      if (next.sbiPortfolio !== undefined || next.sbiUsTrades?.trades.length) setUploaderOpen(false);
     } catch {
       setError("파일을 읽지 못했습니다. CSV를 다시 골라 주세요.");
     } finally {
@@ -126,6 +181,8 @@ export default function Dashboard() {
   function clearData() {
     clearSavedSnapshot();
     setUnsaved(undefined);
+    setPendingBaselines([]);
+    setBaselineTarget(null);
     setResults([]);
     setError(null);
     setUploaderOpen(false);
@@ -215,7 +272,7 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-            <Card role="region" aria-labelledby="sbi-broker">
+            <SbiCard onFiles={upload} busy={busy}>
               <CardHeader className="flex flex-wrap items-start justify-between gap-4">
                 <div className="grid gap-1">
                   <CardTitle><h3 id="sbi-broker">SBI증권</h3></CardTitle>
@@ -256,17 +313,15 @@ export default function Dashboard() {
                     </ul>
                   </div>
                 )}
-                {(saved?.sbiPortfolio || saved?.sbiUsTrades) && (
-                  <PortfolioView
-                    portfolio={portfolio}
-                    hasPortfolio={Boolean(saved?.sbiPortfolio)}
-                    hasUsTrades={Boolean(saved.sbiUsTrades)}
-                    usNotices={usHoldings.notices}
-                    jpNotices={saved?.sbiPortfolio?.notices ?? []}
-                  />
-                )}
+                <PortfolioView portfolio={portfolio} hasPortfolio={Boolean(saved?.sbiPortfolio)} jpNotices={saved?.sbiPortfolio?.notices ?? []} us={{ hasTrades: Boolean(saved?.sbiUsTrades), baselines: saved?.sbiUsBaselines ?? [], issues: usHoldings.issues, onEdit: (position) => setBaselineTarget({ position }) }}>
+                  {baselineTarget && <UsBaselineEditor
+                    key={baselineTarget.position ? usPositionKey(baselineTarget.position) : "new"}
+                    positions={positions} baselines={saved?.sbiUsBaselines ?? []} holdings={usHoldings.holdings} issues={usHoldings.issues} initialPosition={baselineTarget.position}
+                    onSave={saveBaseline} onDelete={deleteBaseline} onClose={() => setBaselineTarget(null)}
+                  />}
+                </PortfolioView>
               </CardContent>
-            </Card>
+            </SbiCard>
           </section>
           <section aria-labelledby="korea-brokers" className="flex items-center gap-4 rounded-lg bg-surface-sunken px-6 py-4">
             <h2 id="korea-brokers" className="shrink-0 text-title-sm">한국 증권사</h2>
