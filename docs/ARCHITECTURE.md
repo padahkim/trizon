@@ -17,6 +17,7 @@
 app/
   page.tsx                  첫 화면. Dashboard를 그린다
   Dashboard.tsx             1단계 셸 (client): localStorage 읽기·쓰기, 파일 받기, /api/quotes 호출, evaluate
+  SbiCard.tsx               SBI 카드 전체 파일 드롭·중첩 진입 추적·강조 안내·읽는 중 차단
   ClearDataDialog.tsx       데이터 지우기 확인: 취소에 포커스, 2년 경고, 지우기 실패 안내
   PortfolioView.tsx         표시 전용: Portfolio → 증권사 국가 › 증권사 › 시장 › 종목 표
   UsBaselineEditor.tsx      미국주식 기준 보유정보 입력·목록 관리·삭제 확인
@@ -195,6 +196,7 @@ function evaluate(holdings: Holding[], quotes: Partial<Record<QuoteKey, Quote>>)
 - 1,000건에 닿은 파일은 파일당 한도에 걸려 잘렸을 수 있다. 기간을 나눠 다시 받으라고 경고한다.
 
 ## 상태 관리
+- SBI 카드 전체 드롭은 `SbiCard` 한 곳에서 처리한다. `Uploader`는 파일 선택과 다운로드 안내를 맡으며 둘 다 `Dashboard.upload`를 사용한다. 파일 드래그만 강조하고, 중첩된 진입·이탈을 세어 하위 요소 사이 이동에도 안내를 유지한다. 드롭·카드 이탈 시 강조를 해제하고 읽는 중에는 추가 드롭을 막는다.
 - 저장한 데이터(`SavedV1`)는 localStorage에 둔다. 시세는 저장하지 않는다. 1단계는 서버에 아무것도 저장하지 않는다.
 - `Dashboard`는 `useSyncExternalStore`로 localStorage를 읽는다. 서버 렌더 값은 "불러오는 중"이라, 데이터가 있는데도 빈 화면(U1)이 잠깐 보이는 일이 없다. subscribe는 `storage` 이벤트를 들어서 다른 탭의 변경도 받는다.
 - 쓰기 직전에 localStorage를 다시 읽고 그 위에 합친다. 탭 두 개에서 올려도 앞 탭의 거래가 지워지지 않는다.
@@ -302,6 +304,7 @@ erDiagram
 | 확인할 것 | 확인하는 테스트 |
 |---|---|
 | 완료 기준 1. 첫 화면 = 대시보드, 빈 상태 | e2e |
+| U2a 접힌 SBI 카드 전체 드롭·중첩 이동·여러 파일·취소·읽는 중 차단 | `e2e/sbi-drop.spec.ts` |
 | 완료 기준 2. 4종목, 수량·취득단가, 시장 구분, 증권사 아래 배치 | `sbi/*` 단위 + e2e |
 | 완료 기준 3. 평가액·평가손익·전일 대비, +/−, 소수 보존 | `evaluate` · `format` 단위 + e2e |
 | 완료 기준 4. 시장별 합계(전일 대비 포함) | `evaluate` 단위 + e2e |

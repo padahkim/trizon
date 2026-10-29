@@ -33,6 +33,9 @@ export const SBI_GUIDES = [
 
 export const SBI_UPLOAD_GUIDANCE = {
   introduction: "일본주식 보유목록과 미국주식 거래내역 CSV를 함께 올릴 수 있습니다. 파일별 내용과 받는 방법을 확인하세요.",
-  reopen: "CSV 올리기 버튼으로 파일 선택과 다운로드 안내를 다시 열 수 있습니다.",
+  reopen: "SBI 카드에 CSV 파일을 끌어다 놓을 수 있습니다. CSV 올리기 버튼으로 파일 선택과 다운로드 안내를 다시 열 수 있습니다.",
+  selection: "여러 파일을 고르거나 SBI 카드에 끌어다 놓습니다.",
+  dropPrompt: "CSV 파일을 여기에 놓으세요.",
+  dropHelp: "여러 파일을 함께 놓을 수 있습니다.",
   usTradesEmpty: " CSV를 올리면 보입니다.",
 } as const;

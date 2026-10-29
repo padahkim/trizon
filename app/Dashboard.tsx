@@ -25,6 +25,7 @@ import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
 import { holdingsFromTrades, usPositionKey, type UsBaselineInput, type UsHoldingBaseline, type UsPosition } from "@/lib/sbi/us-trades";
 import PortfolioView, { Delta } from "./PortfolioView";
 import Uploader from "./Uploader";
+import SbiCard from "./SbiCard";
 import UsBaselineEditor from "./UsBaselineEditor";
 import { useQuotes } from "./useQuotes";
 import ClearDataDialog from "./ClearDataDialog";
@@ -259,7 +260,7 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-            <Card role="region" aria-labelledby="sbi-broker">
+            <SbiCard onFiles={upload} busy={busy}>
               <CardHeader className="flex flex-wrap items-start justify-between gap-4">
                 <div className="grid gap-1">
                   <CardTitle><h3 id="sbi-broker">SBI증권</h3></CardTitle>
@@ -308,7 +309,7 @@ export default function Dashboard() {
                   />}
                 </PortfolioView>
               </CardContent>
-            </Card>
+            </SbiCard>
           </section>
           <section aria-labelledby="korea-brokers" className="flex items-center gap-4 rounded-lg bg-surface-sunken px-6 py-4">
             <h2 id="korea-brokers" className="shrink-0 text-title-sm">한국 증권사</h2>

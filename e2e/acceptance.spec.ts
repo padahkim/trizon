@@ -84,7 +84,7 @@ test("가짜 ポートフォリオ를 올리면 일본주식의 수량·가격·
   const reopen = sbi.getByRole("button", { name: "CSV 올리기", exact: true });
   await expect(reopen).toHaveAttribute("aria-expanded", "false");
   await expect(sbi.getByRole("heading", { name: "CSV 올리기 안내" })).toHaveCount(0);
-  await expect(sbi.getByText("CSV 올리기 버튼으로 파일 선택과 다운로드 안내를 다시 열 수 있습니다.", { exact: true })).toBeVisible();
+  await expect(sbi.getByText("SBI 카드에 CSV 파일을 끌어다 놓을 수 있습니다. CSV 올리기 버튼으로 파일 선택과 다운로드 안내를 다시 열 수 있습니다.", { exact: true })).toBeVisible();
   await expect(sbi.getByRole("region", { name: "미국주식", exact: true })).toContainText("約定履歴 CSV를 올리면 보입니다.");
   await reopen.click();
   await expect(reopen).toHaveAttribute("aria-expanded", "true");
