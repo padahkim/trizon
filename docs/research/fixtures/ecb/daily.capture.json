@@ -1,0 +1,17 @@
+{
+  "sourceUrl": "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
+  "requestMethod": "GET",
+  "authentication": "none; no API key or Cookie/Authorization request header",
+  "collectedAt": "2026-10-29T18:04:05.512Z",
+  "collectedAtMethod": "local file-write completion timestamp of the captured response body",
+  "httpStatus": 200,
+  "contentType": "text/xml",
+  "bytes": 1547,
+  "sha256": "c10ec20c4122808b96c0eb3b835f489b7653dfbcc3169efba143255003dc3870",
+  "observationDate": "2026-10-29",
+  "unitsPerEur": {
+    "USD": "1.1130",
+    "JPY": "175.92",
+    "KRW": "1488.40"
+  }
+}

@@ -228,6 +228,7 @@ erDiagram
   - 1단계 `evaluate`는 거래통화 기준이므로 3단계에서 바뀐다.
 - 테이블을 더한다: `broker_connections`(증권사 연결, 키는 Vault), `profiles`(표시 통화).
 - 환율 provider를 QuoteProvider 옆에 둔다(`asOf`와 폴백 포함).
+  - ECB 공급 경로·관측일/수집시각·TARGET 발표 달력·한 발표 유예의 계약과 재현 예시는 [ECB 환율 spike](research/ecb-reference-rate-contract.md)에 있다(#54). 실제 provider·캐시·화면 연결은 #57·#58에서 구현한다.
 - 한국 종목의 Yahoo 접미사(`.KS`·`.KQ`)는 증권사 API가 주는 시장 구분으로 정한다(spike에서 확인).
 - 데이터 흐름이 서버 중심으로 바뀐다. 동기화 결과도 `sources`·`holdings`에 같은 규칙으로 쓴다(U27: 실패하면 마지막 성공을 유지).
 
