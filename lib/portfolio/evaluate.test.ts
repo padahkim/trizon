@@ -22,6 +22,12 @@ it("adds Japanese stocks and funds, then converts the US dollar value once to pr
   expect(evaluate(holdings.slice(0, 2), quotes, now).yenSummary.total).toBe(24500);
 });
 
+it("requires a rate whenever US holdings exist, even when their current dollar value is zero", () => {
+  const holdings: Holding[] = [{ broker: "SBI", account: "特定", market: "US", code: "TSTA", name: "US-A", quantity: 1, avgCost: 0 }];
+  expect(evaluate(holdings, {}, now).yenSummary.total).toBeUndefined();
+  expect(evaluate(holdings, {}, now, { yenPerDollar: 150, asOf: now.toISOString() }).yenSummary.total).toBe(0);
+});
+
 it("values fund units per 10,000 using the CSV price, separately from stocks in the yen total", () => {
   const fund: Holding = { broker: "SBI", account: "NISA(つみたて投資枠)", market: "JP", assetType: "fund", code: "架空ファンドA", name: "架空ファンドA", quantity: 12500, avgCost: 8000, csvQuote: { price: 10000, asOf: now.toISOString() } };
   const result = evaluate([...parsePortfolio(portfolioUtf8, now).holdings.slice(0, 1), fund], {

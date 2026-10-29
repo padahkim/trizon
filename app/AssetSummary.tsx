@@ -1,4 +1,5 @@
 import { TriangleAlert } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,10 +57,13 @@ export default function AssetSummary({ portfolio, rate, rateLoading, rateFailed,
           <span>Yahoo Finance</span>
           <span>환율 시각 <time dateTime={rate.asOf}>{new Date(rate.asOf).toLocaleString("ko-KR", { timeZone: "Asia/Tokyo" })}</time> (일본)</span>
         </div>}
-        {us && rateFailed && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-warning-soft p-4 text-body-sm text-warning-text">
-          <p className="flex items-center gap-2"><TriangleAlert className="size-5 shrink-0" aria-hidden="true" />환율을 받지 못했습니다. 미국주식은 달러로 표시합니다.</p>
-          <Button type="button" variant="outline" size="sm" disabled={rateLoading} onClick={onRetryRate}>환율 다시 조회</Button>
-        </div>}
+        {us && rateFailed && <Alert variant="warning">
+          <TriangleAlert strokeWidth={1.75} aria-hidden="true" />
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>환율을 받지 못했습니다. 미국주식은 달러로 표시합니다.</span>
+            <Button type="button" variant="outline" size="sm" disabled={rateLoading} onClick={onRetryRate}>환율 다시 조회</Button>
+          </AlertDescription>
+        </Alert>}
         <div className="flex flex-wrap items-center gap-4 text-caption text-ink-3">
           {markets.map((market) => market.marketTime && <span key={market.market}>{formatMarketTime(market.market, market.marketTime)}</span>)}
           {uploadedAt && <p>마지막 업로드 <time dateTime={uploadedAt}>{formatUploadedAt(uploadedAt, now)}</time></p>}

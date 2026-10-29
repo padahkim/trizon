@@ -57,6 +57,6 @@ export function evaluate(holdings: Holding[], quotes: Quotes = {}, now = new Dat
   const japan = japaneseStocks + funds;
   const usDollars = portfolio.totals.USD?.value ?? 0;
   const rate = currentUsdJpyRate(exchangeRate, now);
-  const usYen = usDollars === 0 ? 0 : rate ? usDollars * rate.yenPerDollar : undefined;
+  const usYen = portfolio.totals.USD === undefined ? 0 : rate ? usDollars * rate.yenPerDollar : undefined;
   return { ...portfolio, yenSummary: { japaneseStocks, funds, japan, usDollars, usYen, total: usYen === undefined ? undefined : japan + usYen } };
 }
