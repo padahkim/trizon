@@ -21,7 +21,7 @@ export function TableHead({ className, ...props }: ComponentProps<"th">) {
   return <th data-slot="table-head" className={cn("px-3 py-3 text-right align-middle whitespace-nowrap first:text-left", className)} {...props} />;
 }
 export function TableCell({ className, ...props }: ComponentProps<"td">) {
-  return <td data-slot="table-cell" className={cn("px-3 py-0.5 text-right align-middle first:text-left", className)} {...props} />;
+  return <td data-slot="table-cell" className={cn("px-3 py-0.5 text-right align-top first:text-left", className)} {...props} />;
 }
 export function TableCaption({ className, ...props }: ComponentProps<"caption">) {
   return <caption data-slot="table-caption" className={cn("text-caption text-ink-2", className)} {...props} />;

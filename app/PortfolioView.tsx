@@ -18,7 +18,7 @@ export function Delta({ value, base, currency, large = false }: {
   const text = formatMoney(value, currency, true);
   const color = text.startsWith("+") ? "text-rise" : text.startsWith("-") ? "text-fall" : "text-flat";
   return (
-    <span className={`flex flex-col tabular-nums ${color}`}>
+    <span className={`flex flex-col gap-0.5 tabular-nums ${color}`}>
       <span className={large ? "text-figure-lg" : "text-body-sm"}>{text}</span>
       <span className="text-caption">{formatPercent(base === 0 ? 0 : value / base * 100)}</span>
     </span>
@@ -107,7 +107,7 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
                 <TableCell>{row.holding.quantity.toLocaleString("en-US")}</TableCell>
                 <TableCell>{formatMoney(row.holding.avgCost, currency)}</TableCell>
                 <TableCell>
-                  <div className="grid justify-items-end">
+                  <div className="grid justify-items-end gap-0.5">
                     <span>{row.priceSource === "cost" ? "—" : formatMoney(row.price, currency)}</span>
                     {row.priceSource !== "quote" && (
                       <Badge variant="warning" className="py-0">
