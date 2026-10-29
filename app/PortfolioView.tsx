@@ -107,14 +107,18 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
                 <TableCell>{row.holding.quantity.toLocaleString("en-US")}</TableCell>
                 <TableCell>{formatMoney(row.holding.avgCost, currency)}</TableCell>
                 <TableCell>
-                  <div className="grid justify-items-end gap-0.5">
-                    <span>{row.priceSource === "cost" ? "—" : formatMoney(row.price, currency)}</span>
-                    {row.priceSource !== "quote" && (
-                      <Badge variant="warning" className="py-0">
-                        {row.priceSource === "csv" ? <>CSV <span lang="ja" className="ml-1">現在値</span></> : "시세 없음"}
-                      </Badge>
-                    )}
-                  </div>
+                  {row.priceSource === "cost" ? (
+                    <div className="flex min-h-5 items-center justify-end">
+                      <Badge variant="warning" className="py-0">시세 없음</Badge>
+                    </div>
+                  ) : (
+                    <div className="grid justify-items-end gap-0.5">
+                      <span>{formatMoney(row.price, currency)}</span>
+                      {row.priceSource === "csv" && (
+                        <Badge variant="warning" className="py-0">CSV <span lang="ja" className="ml-1">現在値</span></Badge>
+                      )}
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell>{formatMoney(row.value, currency)}</TableCell>
                 <TableCell><Delta value={row.pnl} base={row.holding.avgCost * row.holding.quantity} currency={currency} /></TableCell>
