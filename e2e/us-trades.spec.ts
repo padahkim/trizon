@@ -28,10 +28,10 @@ test("두 CSV와 가짜 시세로 네 종목의 평가·시장별 합계·엔·�
   await expect(jp.getByRole("row").filter({ hasText: "JP-B" }).getByRole("cell").nth(2)).toHaveText("¥900");
   await expect(jp.getByRole("row").filter({ hasText: "JP-B" }).getByRole("cell").nth(1)).toHaveText("10");
   await expect(us.getByRole("row").filter({ hasText: "US-A" }).getByRole("cell")).toHaveText([
-    "US-ATSTA特定", "4", "$50.00", "$45.50", "$182.00", "-$18.00-9.00%", "-$2.00-1.09%",
+    "特定US-ATSTA", "4", "$50.00", "$45.50", "$182.00", "-$18.00-9.00%", "-$2.00-1.09%",
   ]);
   await expect(us.getByRole("row").filter({ hasText: "US-B" }).getByRole("cell")).toHaveText([
-    "US-BTSTB特定", "2", "$20.00", "$25.00", "$50.00", "+$10.00+25.00%", "+$1.00+2.04%",
+    "特定US-BTSTB", "2", "$20.00", "$25.00", "$50.00", "+$10.00+25.00%", "+$1.00+2.04%",
   ]);
   await expect(sbi.getByText("約定履歴으로 추정한 값", { exact: true })).toBeVisible();
   await expect(us.getByRole("row").filter({ hasText: "미국주식 합계" }).getByRole("cell")).toHaveText([

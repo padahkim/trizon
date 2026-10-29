@@ -11,9 +11,9 @@ test("receives fake quotes, shows market times, and refreshes without replacing 
   await page.getByLabel("SBI CSV 파일").setInputFiles({ name: "fake.txt", mimeType: "text/plain", buffer: Buffer.from(portfolioUtf8) });
   const table = page.getByRole("table", { name: "일본주식 보유 종목" });
   const a = table.getByRole("row").filter({ hasText: "JP-A" });
-  await expect(a.getByRole("cell")).toHaveText(["JP-A1111特定", "10", "¥1,000", "¥1,200", "¥12,000", "+¥2,000+20.00%", "+¥500+4.35%"]);
+  await expect(a.getByRole("cell")).toHaveText(["特定JP-A1111", "10", "¥1,000", "¥1,200", "¥12,000", "+¥2,000+20.00%", "+¥500+4.35%"]);
   await expect(table.getByRole("row").filter({ hasText: "JP-B" }).getByRole("cell")).toHaveText([
-    "JP-B999A特定", "10", "¥900", "¥800", "¥8,000", "-¥1,000-11.11%", "-¥200-2.44%",
+    "特定JP-B999A", "10", "¥900", "¥800", "¥8,000", "-¥1,000-11.11%", "-¥200-2.44%",
   ]);
   await expect(table.getByRole("row").filter({ hasText: "일본주식 합계" }).getByRole("cell")).toHaveText([
     "일본주식 합계", "¥20,000", "+¥1,000+5.26%", "+¥300+1.52%",
@@ -66,7 +66,7 @@ test("keeps missing and invalid quotes in totals using CSV then cost", async ({ 
   const table = page.getByRole("table");
   await expect(table.getByRole("row").filter({ hasText: "JP-A" })).toContainText("¥1,200CSV 現在値");
   await expect(table.getByRole("row").filter({ hasText: "JP-B" }).getByRole("cell")).toHaveText([
-    "JP-B999A特定", "10", "¥900", "—시세 없음", "¥9,000", "00.00%", "00.00%",
+    "特定JP-B999A", "10", "¥900", "—시세 없음", "¥9,000", "00.00%", "00.00%",
   ]);
   await expect(table.getByRole("row").filter({ hasText: "JP-C" })).toContainText("—시세 없음");
   await expect(page.getByRole("region", { name: "자산 요약" })).toContainText("¥21,100");
@@ -98,7 +98,7 @@ for (const failure of ["server", "offline", "timeout"]) {
     await expect(summary).toContainText("¥19,000");
     await expect(page.getByRole("table").getByText("시세 없음", { exact: true })).toHaveCount(2);
     await expect(page.getByRole("table").getByRole("row").filter({ hasText: "JP-A" }).getByRole("cell")).toHaveText([
-      "JP-A1111特定", "10", "¥1,000", "—시세 없음", "¥10,000", "00.00%", "00.00%",
+      "特定JP-A1111", "10", "¥1,000", "—시세 없음", "¥10,000", "00.00%", "00.00%",
     ]);
     await expect(page.getByText("CSV 現在値", { exact: true })).toHaveCount(0);
     await page.unroute("**/api/quotes?*");
