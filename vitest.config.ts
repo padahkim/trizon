@@ -6,6 +6,6 @@ export default defineConfig({
   test: {
     setupFiles: ["./vitest.setup.ts"],
     // e2e/ 는 Playwright 가 돌린다
-    include: ["lib/**/*.test.ts", "app/**/*.test.ts"],
+    include: ["lib/**/*.test.ts", "app/**/*.test.ts", "spikes/**/*.test.ts"],
   },
 });
