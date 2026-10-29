@@ -85,7 +85,7 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
           <TableHeader>
             <TableRow>
               {["종목", "보유수량", "취득단가", "현재가", "평가액", "평가손익", "전일 대비"].map((label) => (
-                <TableHead key={label} scope="col">{label}</TableHead>
+                <TableHead key={label} scope="col" className={label === "현재가" ? "text-center" : undefined}>{label}</TableHead>
               ))}
             </TableRow>
           </TableHeader>
@@ -108,7 +108,7 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
                 <TableCell>{formatMoney(row.holding.avgCost, currency)}</TableCell>
                 <TableCell>
                   {row.priceSource === "cost" ? (
-                    <div className="flex min-h-5 items-center justify-end">
+                    <div className="flex min-h-5 items-center justify-center">
                       <Badge variant="warning" className="py-0">시세 없음</Badge>
                     </div>
                   ) : (
