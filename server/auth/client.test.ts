@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
-import { authRequest, config, json, session, sidA, sidB, uidA, uidB, user } from "../../tests/auth/fixtures";
+import { config, json, session, sidA, sidB, uidA, uidB, user } from "../../tests/auth/fixtures";
+import { authRequest } from "../../tests/auth/server-fixtures";
 import { createServerAuth, verifyServerAuth, verifyBoundServerAuth } from "./client";
 
 describe("server authentication boundary using the official SDK", () => {

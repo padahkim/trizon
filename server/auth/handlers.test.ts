@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { authRequest, config, json, session, sidA, uidA, user } from "../../tests/auth/fixtures";
+import { config, json, session, sidA, uidA, user } from "../../tests/auth/fixtures";
+import { authRequest } from "../../tests/auth/server-fixtures";
 import { AUTH_MUTATION_HEADERS } from "../../lib/auth/http";
 import { handleAuthCallback, handleGoogleLogin, handleLocalLogout } from "./handlers";
 

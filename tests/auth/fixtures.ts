@@ -1,5 +1,4 @@
 import type { Session, User } from "@supabase/supabase-js";
-import { NextRequest } from "next/server";
 
 export const config = { url: "https://auth.test", publishableKey: "sb_publishable_synthetic" };
 export const uidA = "11111111-1111-4111-8111-111111111111";
@@ -17,11 +16,6 @@ export function jwt(uid = uidA, sessionId = sidA, exp = Math.floor(Date.now() / 
 export function session(uid = uidA, sessionId = sidA, expired = false): Session {
   const expires_at = Math.floor(Date.now() / 1000) + (expired ? -60 : 3600);
   return { access_token: jwt(uid, sessionId, expires_at), refresh_token: "synthetic-refresh", token_type: "bearer", expires_in: 3600, expires_at, user: user(uid) };
-}
-export function authRequest(value: Session | null = session(), url = "http://localhost:3000/", init?: RequestInit) {
-  const headers = new Headers(init?.headers);
-  if (value) headers.set("Cookie", `sb-auth-auth-token=base64-${Buffer.from(JSON.stringify(value)).toString("base64url")}`);
-  return new NextRequest(url, { ...init, headers, signal: init?.signal ?? undefined });
 }
 export const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "X-Supabase-Api-Version": "2024-01-01" } });
 
