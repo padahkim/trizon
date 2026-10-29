@@ -104,7 +104,8 @@ export default function Dashboard() {
     [saved?.sbiPortfolio?.holdings, usHoldings.holdings],
   );
   const quotes = useQuotes(holdings);
-  const portfolio = evaluate(quotes.failed ? holdings.map((holding) => ({ ...holding, csvQuote: undefined })) : holdings, quotes.quotes);
+  const hasFunds = holdings.some((holding) => holding.assetType === "fund");
+  const portfolio = evaluate(quotes.failed ? holdings.map((holding) => holding.assetType === "fund" ? holding : { ...holding, csvQuote: undefined }) : holdings, quotes.quotes);
   const markets = portfolio.countries.flatMap((country) => country.brokers.flatMap((broker) => broker.markets));
   const totals = (["JPY", "USD"] as const).flatMap((currency) => {
     const total = portfolio.totals[currency];
@@ -217,7 +218,7 @@ export default function Dashboard() {
             <div role="alert" className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-warning-soft px-4 py-3 text-body-sm">
               <div className="flex items-center gap-2">
                 <TriangleAlert className="size-5 shrink-0 text-warning" strokeWidth={1.75} aria-hidden="true" />
-                <p>시세를 받지 못했습니다. 모든 종목을 취득가로 표시합니다.</p>
+                <p>{hasFunds ? "주식 시세를 받지 못했습니다. 주식은 취득가로 표시하고, 투자신탁은 CSV 기준가를 유지합니다." : "시세를 받지 못했습니다. 모든 종목을 취득가로 표시합니다."}</p>
               </div>
               <Button type="button" variant="outline" size="sm" disabled={quotes.loading} onClick={quotes.refresh}>
                 {quotes.loading ? "받는 중" : "시세 새로고침"}
@@ -227,7 +228,7 @@ export default function Dashboard() {
           {totals.length > 0 && (
             <Card role="region" aria-label="자산 요약" className="bg-surface-summary">
               <CardHeader>
-                <CardTitle>주식 자산</CardTitle>
+                <CardTitle>{hasFunds ? "주식·투자신탁 자산" : "주식 자산"}</CardTitle>
                 <CardDescription><Badge>현금 제외</Badge></CardDescription>
               </CardHeader>
               <CardContent className="grid gap-6">
@@ -279,7 +280,7 @@ export default function Dashboard() {
                   <CardDescription>
                     {uploadedAt ? (
                       <>마지막 업로드 <time dateTime={uploadedAt}>{formatUploadedAt(uploadedAt, now)}</time></>
-                    ) : "SBI증권에서 받은 CSV로 보유 주식을 확인합니다."}
+                    ) : "SBI증권에서 받은 CSV로 주식·투자신탁 보유를 확인합니다."}
                   </CardDescription>
                 </div>
                 {hasData && (
@@ -306,7 +307,7 @@ export default function Dashboard() {
                         <li key={`${file.fileName}-${index}`} className="flex flex-wrap items-center gap-2 text-body-sm">
                           <Badge variant={file.error ? "error" : "success"}>{file.error ? "읽지 못함" : "반영됨"}</Badge>
                           <span>{file.fileName}</span>
-                          <span className="text-ink-2">{renderWithJa(file.error ?? (file.kind === "usTrades" ? "미국주식 거래를 누적했습니다." : "일본주식 보유를 교체했습니다."))}</span>
+                          <span className="text-ink-2">{renderWithJa(file.error ?? (file.kind === "usTrades" ? "미국주식 거래를 누적했습니다." : "일본주식·투자신탁 보유를 교체했습니다."))}</span>
                           {file.notices.map((notice) => <span key={notice} className="text-ink-2">{renderWithJa(notice)}</span>)}
                         </li>
                       ))}

@@ -69,7 +69,7 @@ test("1단계 완료 기준: 빈 대시보드 → 두 CSV·가짜 시세 평가 
     await expect(us.getByText("US-A", { exact: true })).toBeVisible();
     await expect(us.getByText("US-B", { exact: true })).toBeVisible();
     await expect(sbi.getByRole("status").getByRole("listitem")).toHaveCount(2);
-    await expect(sbi.getByRole("status")).toContainText("일본주식 보유를 교체했습니다.");
+    await expect(sbi.getByRole("status")).toContainText("일본주식·투자신탁 보유를 교체했습니다.");
     await expect(sbi.getByRole("status")).toContainText("미국주식 거래를 누적했습니다.");
     await expect(sbi.getByText("約定履歴으로 추정한 값", { exact: true })).toBeVisible();
   });
@@ -134,7 +134,7 @@ test("두 CSV의 지원 범위와 SBI 다운로드 순서를 안내한다", asyn
 
   const portfolio = files.filter({ has: page.getByRole("heading", { name: "ポートフォリオ", exact: true }) });
   await expect(portfolio.getByRole("heading", { name: "ポートフォリオ", exact: true })).toHaveAttribute("lang", "ja");
-  await expect(portfolio.getByText("일본주식의 보유수량과 취득단가가 들어 있습니다.", { exact: true })).toBeVisible();
+  await expect(portfolio.getByText("일본주식·투자신탁의 보유수량과 취득단가가 들어 있습니다.", { exact: true })).toBeVisible();
   await expect(portfolio.getByText("지금 올릴 수 있음", { exact: true })).toBeVisible();
   const portfolioLocation = portfolio.getByRole("link", { name: "SBI 공식 다운로드 도움말 (새 창)", exact: true });
   await expect(portfolioLocation).toBeVisible();

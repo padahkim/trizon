@@ -2,7 +2,48 @@ import { expect, it } from "vitest";
 import { importSbiFiles } from "./import";
 import { portfolioShiftJis, portfolioUtf8, usTradesCsv, usTradesUtf8 } from "./fixtures";
 import { holdingsFromTrades } from "./us-trades";
+import { loadSaved, serializeSaved } from "../portfolio/saved";
 import type { SavedV1 } from "../portfolio/saved";
+import { evaluate } from "../portfolio/evaluate";
+
+it("keeps the CSV fund valuation and day change when displayed unit prices have been rounded", () => {
+  const result = importSbiFiles([{ name: "fund.csv", bytes: new TextEncoder().encode(`ポートフォリオ一覧
+投資信託(金額/NISA預り(つみたて投資枠))
+ファンド名,数量,取得単価,現在値,前日比,損益,評価額
+架空ファンドA,12500,8000,10000,100,2500.49,12500.49
+`) }], { version: 1 }, new Date("2026-10-30T00:00:00Z"));
+  const restored = loadSaved(serializeSaved(result.saved));
+  expect(restored.status).toBe("ok");
+  if (restored.status !== "ok") throw new Error("expected saved portfolio");
+  const portfolio = evaluate(restored.saved.sbiPortfolio!.holdings);
+  expect(portfolio.totals.JPY).toEqual({ value: 12500.49, pnl: 2500.49, dayChange: 125, noQuote: 0 });
+});
+
+it("imports investment trusts in both NISA buckets and restores them with the other holdings", () => {
+  const csv = `ポートフォリオ一覧
+株式(現物/特定預り)
+銘柄(コード),数量,取得単価,現在値
+1111 JP-A,10,1000,1200
+投資信託(金額/NISA預り(成長投資枠))
+ファンド名,数量,取得単価,現在値
+架空ファンドA,12500,8000,10000
+投資信託(金額/NISA預り(つみたて投資枠))
+ファンド名,数量,取得単価,現在値
+架空ファンドA,25000,9000,10000
+`;
+  const result = importSbiFiles([
+    { name: "funds.csv", bytes: new TextEncoder().encode(csv) },
+    { name: "trades.csv", bytes: usTradesUtf8 },
+  ], { version: 1 }, new Date("2026-10-30T00:00:00Z"));
+  expect(result.files[0]).toEqual({ fileName: "funds.csv", kind: "portfolio", notices: [] });
+  expect(result.saved.sbiPortfolio?.holdings).toMatchObject([
+    { code: "1111", account: "特定" },
+    { assetType: "fund", name: "架空ファンドA", account: "NISA(成長投資枠)", quantity: 12500, avgCost: 8000, csvQuote: { price: 10000 } },
+    { assetType: "fund", name: "架空ファンドA", account: "NISA(つみたて投資枠)", quantity: 25000, avgCost: 9000, csvQuote: { price: 10000 } },
+  ]);
+  expect(result.saved.sbiUsTrades?.trades).toHaveLength(2);
+  expect(loadSaved(serializeSaved(result.saved))).toEqual({ status: "ok", saved: result.saved });
+});
 
 it("imports both CSV kinds together and accumulates overlapping trades without replacing either source", () => {
   const first = importSbiFiles([

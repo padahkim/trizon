@@ -9,7 +9,8 @@ const responseSchema = z.object({ quotes: z.record(quoteKeySchema, quoteSchema) 
 type QuoteState = { quotes: Quotes; loading: boolean; failed: boolean };
 
 export function useQuotes(holdings: Holding[]) {
-  const keys = useMemo(() => [...new Set(holdings.map((holding): QuoteKey => `${holding.market}:${holding.code}`))].sort(), [holdings]);
+  const keys = useMemo(() => [...new Set(holdings.filter((holding) => holding.assetType !== "fund")
+    .map((holding): QuoteKey => `${holding.market}:${holding.code}`))].sort(), [holdings]);
   const active = useRef<AbortController | null>(null);
   const [state, setState] = useState<QuoteState>({ quotes: {}, loading: false, failed: false });
 

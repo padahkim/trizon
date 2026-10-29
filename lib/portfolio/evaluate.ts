@@ -5,7 +5,7 @@ export type PriceSource = "quote" | "csv" | "cost";
 export type Row = { holding: Holding; price: number; priceSource: PriceSource; value: number; pnl: number; dayChange: number; marketTime?: string };
 export type Total = { value: number; pnl: number; dayChange: number; noQuote: number };
 export type Totals = Partial<Record<Currency, Total>>;
-type MarketGroup = { market: Market; totals: Totals; rows: Row[]; marketTime?: string };
+type MarketGroup = { market: Market; assetType: "stock" | "fund"; totals: Totals; rows: Row[]; marketTime?: string };
 type BrokerGroup = { broker: Broker; totals: Totals; markets: MarketGroup[] };
 type CountryGroup = { country: "JP" | "KR"; totals: Totals; brokers: BrokerGroup[] };
 export type Portfolio = { totals: Totals; countries: CountryGroup[] };
@@ -26,17 +26,20 @@ export function evaluate(holdings: Holding[], quotes: Quotes = {}, now = new Dat
     if (!country) { country = { country: countryId, totals: {}, brokers: [] }; portfolio.countries.push(country); }
     let broker = country.brokers.find((entry) => entry.broker === holding.broker);
     if (!broker) { broker = { broker: holding.broker, totals: {}, markets: [] }; country.brokers.push(broker); }
-    let market = broker.markets.find((entry) => entry.market === holding.market);
-    if (!market) { market = { market: holding.market, totals: {}, rows: [] }; broker.markets.push(market); }
-    const candidate = quotes[`${holding.market}:${holding.code}`];
+    const assetType = holding.assetType ?? "stock";
+    let market = broker.markets.find((entry) => entry.market === holding.market && entry.assetType === assetType);
+    if (!market) { market = { market: holding.market, assetType, totals: {}, rows: [] }; broker.markets.push(market); }
+    const candidate = assetType === "fund" ? undefined : quotes[`${holding.market}:${holding.code}`];
     const quote = candidate && candidate.currency === marketCurrency[holding.market]
       && new Date(candidate.marketTime).getTime() >= now.getTime() - 7 * 86_400_000
       ? candidate : undefined;
     const price = quote?.price ?? holding.csvQuote?.price ?? holding.avgCost;
+    const units = holding.quantity / (assetType === "fund" ? 10000 : 1);
+    const csvValuation = assetType === "fund" && holding.csvQuote ? holding.csvValuation : undefined;
     const row: Row = {
       holding, price, priceSource: quote ? "quote" : holding.csvQuote ? "csv" : "cost",
-      value: price * holding.quantity, pnl: (price - holding.avgCost) * holding.quantity,
-      dayChange: quote?.previousClose === undefined ? 0 : (price - quote.previousClose) * holding.quantity,
+      value: csvValuation?.value ?? price * units, pnl: csvValuation?.pnl ?? (price - holding.avgCost) * units,
+      dayChange: csvValuation?.dayChange ?? (quote?.previousClose === undefined ? 0 : (price - quote.previousClose) * units),
       marketTime: quote?.marketTime,
     };
     // Show the oldest valid timestamp so the market label never overstates freshness.

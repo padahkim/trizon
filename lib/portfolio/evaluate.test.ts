@@ -8,6 +8,20 @@ import type { Quote } from "../quotes/types";
 const now = new Date("2026-10-28T09:00:00Z");
 const recent: Quote = { price: 1200, previousClose: 1150, currency: "JPY", marketTime: "2026-10-28T06:00:00Z" };
 
+it("values fund units per 10,000 using the CSV price, separately from stocks in the yen total", () => {
+  const fund: Holding = { broker: "SBI", account: "NISA(つみたて投資枠)", market: "JP", assetType: "fund", code: "架空ファンドA", name: "架空ファンドA", quantity: 12500, avgCost: 8000, csvQuote: { price: 10000, asOf: now.toISOString() } };
+  const result = evaluate([...parsePortfolio(portfolioUtf8, now).holdings.slice(0, 1), fund], {
+    "JP:1111": recent,
+    "JP:架空ファンドA": { ...recent, price: 99999 },
+  }, now);
+  const markets = result.countries[0].brokers[0].markets;
+  expect(markets).toHaveLength(2);
+  expect(markets[1].rows[0]).toMatchObject({ priceSource: "csv", price: 10000, value: 12500, pnl: 2500, dayChange: 0 });
+  expect(result.totals.JPY).toEqual({ value: 24500, pnl: 4500, dayChange: 500, noQuote: 0 });
+  const withoutPrice = evaluate([{ ...fund, csvQuote: undefined }], {}, now);
+  expect(withoutPrice.totals.JPY).toEqual({ value: 10000, pnl: 0, dayChange: 0, noQuote: 1 });
+});
+
 it("uses current and previous-close quotes for the PRD Japanese holdings", () => {
   const now = new Date("2026-10-28T09:00:00Z");
   const result = evaluate(parsePortfolio(portfolioUtf8, now).holdings, {

@@ -3,7 +3,8 @@ import { decodeCsv, findColumn, parseAmount, parseCsv } from "./csv";
 
 function accountOf(title: string): string {
   // Preserve nested tax-bucket details; old つみたてNISA and current NISA must differ.
-  const bucket = title.match(/現物\/(.+)\)$/)?.[1];
+  const bucket = title.match(/(?:現物|金額|口数)\/(.+)\)$/)?.[1]
+    ?? title.match(/^投資信託\((.+)\)$/)?.[1];
   return (bucket ?? title).replaceAll("預り", "");
 }
 
@@ -22,7 +23,8 @@ export function parsePortfolio(bytes: Uint8Array, now: Date): { holdings: Holdin
   const notices: string[] = [];
   let title = "";
   let header: string[] | null = null;
-  let foundCashHeader = false;
+  let isFund = false;
+  let foundHoldingsHeader = false;
   let skippedTables = 0;
   let declaredCount: number | null = null;
   let selectedRange: [number, number] | null = null;
@@ -63,35 +65,49 @@ export function parsePortfolio(bytes: Uint8Array, now: Date): { holdings: Holdin
       const missing = ["数量", "取得単価", "現在値"].filter((name) => findColumn(cells, name) < 0);
       if (missing.length) throw new Error(`${line}행: ${missing.join("·")} 머리글이 없습니다`);
       header = cells;
-      foundCashHeader = true;
+      isFund = false;
+      foundHoldingsHeader = true;
       continue;
     }
 
     if (cells[0] === "ファンド名") {
-      skippedTables++;
-      header = null;
+      const missing = ["数量", "取得単価", "現在値"].filter((name) => findColumn(cells, name) < 0);
+      if (missing.length) throw new Error(`${line}행: ${missing.join("·")} 머리글이 없습니다`);
+      header = cells;
+      isFund = true;
+      foundHoldingsHeader = true;
       continue;
     }
 
     if (!header) continue;
 
-    const security = cells[0].match(/^([0-9A-Z]{4})\s+(.+)$/);
-    if (!security) throw new Error(`${line}행: 종목 코드와 이름을 읽지 못했습니다`);
+    const stock = cells[0].match(/^([0-9A-Z]{4})\s+(.+)$/);
+    if (!cells[0] || (!isFund && !stock)) throw new Error(`${line}행: 종목 코드와 이름을 읽지 못했습니다`);
+    const code = isFund ? cells[0] : stock![1];
+    const name = isFund ? cells[0] : stock![2];
     const numberAt = (name: string, optional = false) => {
       const index = findColumn(header!, name);
-      const parsed = parseAmount(cells[index] ?? "", line);
+      const value = cells[index] ?? "";
+      const parsed = parseAmount(isFund && name === "数量" ? value.replace(/口$/, "") : value, line);
       if (!optional && (parsed === null || parsed.amount < 0)) throw new Error(`${line}행: ${name}을 읽지 못했습니다`);
       return parsed?.amount;
     };
     const price = numberAt("現在値", true);
+    const quantity = numberAt("数量")!;
+    const priceChange = isFund ? numberAt("前日比", true) : undefined;
     holdings.push({
-      broker: "SBI", account: accountOf(title), market: "JP", code: security[1], name: security[2],
-      quantity: numberAt("数量")!, avgCost: numberAt("取得単価")!,
+      broker: "SBI", account: accountOf(title), market: "JP", code, name,
+      ...(isFund ? { assetType: "fund" as const } : {}),
+      quantity, avgCost: numberAt("取得単価")!,
       ...(price !== undefined ? { csvQuote: { price, asOf: now.toISOString() } } : {}),
+      ...(isFund ? { csvValuation: {
+        value: numberAt("評価額", true), pnl: numberAt("損益", true),
+        dayChange: priceChange === undefined ? undefined : priceChange * quantity / 10000,
+      } } : {}),
     });
   }
 
-  if (!foundCashHeader && skippedTables === 0) throw new Error("일본주식 現物 표의 머리글을 찾지 못했습니다");
+  if (!foundHoldingsHeader && skippedTables === 0) throw new Error("일본주식 現物·투자신탁 표의 머리글을 찾지 못했습니다");
 
   if (skippedTables > 0) {
     notices.push(`건너뛴 표 ${skippedTables}개`);

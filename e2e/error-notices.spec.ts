@@ -81,7 +81,7 @@ test("0행 ポートフォリオ는 실패가 아니고 일본주식 칸에 '보
   await expect(sbi.getByText("보유 없음", { exact: true })).toBeVisible();
 });
 
-test("信用·投資信託 표는 건너뛰고 건너뛴 표 N개로 알린다 (U13)", async ({ page }) => {
+test("信用 표만 건너뛰고 투자신탁은 보유에 포함한다 (U13)", async ({ page }) => {
   await page.goto("/");
   const portfolioWithSkipped = `ポートフォリオ一覧
 株式(現物/特定預り)
@@ -99,6 +99,7 @@ test("信用·投資信託 표는 건너뛰고 건너뛴 표 N개로 알린다 (
   ]);
 
   const sbi = page.getByRole("region", { name: "SBI증권", exact: true });
-  await expect(sbi.getByRole("status")).toContainText("건너뛴 표 2개");
-  await expect(sbi.getByLabel("일본주식 계산 안내")).toContainText("건너뛴 표 2개");
+  await expect(sbi.getByRole("status")).toContainText("건너뛴 표 1개");
+  await expect(sbi.getByLabel("일본주식 계산 안내")).toContainText("건너뛴 표 1개");
+  await expect(sbi.getByRole("table", { name: "투자신탁 보유 종목" })).toContainText("架空ファンド");
 });

@@ -29,32 +29,39 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
   portfolio: Portfolio; hasPortfolio: boolean; jpNotices?: string[]; children?: ReactNode;
   us: { hasTrades: boolean; baselines: UsHoldingBaseline[]; issues: UsHoldingIssue[]; onEdit: (position?: UsPosition) => void };
 }) {
-  const markets = portfolio.countries.flatMap((country) => country.brokers.flatMap((broker) => broker.markets.map((market) => ({ key: `${country.country}-${broker.broker}-${market.market}`, market }))));
-  if (hasPortfolio && !markets.some(({ market }) => market.market === "JP")) {
-    markets.unshift({ key: "JP-SBI-JP", market: { market: "JP", totals: {}, rows: [] } });
+  const markets = portfolio.countries.flatMap((country) => country.brokers.flatMap((broker) => broker.markets.map((market) => ({ key: `${country.country}-${broker.broker}-${market.market}-${market.assetType}`, market }))));
+  if (hasPortfolio && !markets.some(({ market }) => market.market === "JP" && market.assetType === "stock")) {
+    markets.unshift({ key: "JP-SBI-JP-stock", market: { market: "JP", assetType: "stock", totals: {}, rows: [] } });
   }
   // Keep the US block visible for upload guidance and uncomputable positions too.
   if (!markets.some(({ market }) => market.market === "US")) {
-    markets.push({ key: "JP-SBI-US", market: { market: "US", totals: {}, rows: [] } });
+    markets.push({ key: "JP-SBI-US-stock", market: { market: "US", assetType: "stock", totals: {}, rows: [] } });
   }
   return markets.map(({ key, market }) => {
     const currency = marketCurrency[market.market];
-    const title = { JP: "일본주식", US: "미국주식", KR: "한국주식" }[market.market];
+    const isFund = market.assetType === "fund";
+    const title = isFund ? "투자신탁" : { JP: "일본주식", US: "미국주식", KR: "한국주식" }[market.market];
+    const headingId = `market-${market.market}-${market.assetType}`;
+    const fundUploadedAt = isFund ? market.rows.find((row) => row.holding.csvQuote)?.holding.csvQuote?.asOf : undefined;
     const total = market.totals[currency];
     return (
-      <section key={key} aria-labelledby={`market-${market.market}`} className="grid gap-4">
+      <section key={key} aria-labelledby={headingId} className="grid gap-4">
         <div className="flex flex-wrap items-center gap-2">
-          <h4 id={`market-${market.market}`} className="text-title-sm">{title}</h4>
+          <h4 id={headingId} className="text-title-sm">{title}</h4>
           {market.market === "US" && us.hasTrades && (
             <Badge variant="warning"><span lang="ja">約定履歴</span>으로 추정한 값</Badge>
           )}
           {market.marketTime && <span className="text-caption text-ink-3">{formatMarketTime(market.market, market.marketTime)}</span>}
+          {fundUploadedAt && <span className="text-caption text-ink-3">CSV 업로드 <time dateTime={fundUploadedAt}>{new Date(fundUploadedAt).toLocaleString("ko-KR")}</time></span>}
           {market.rows.some((row) => row.priceSource === "csv") && (
-            <Badge variant="warning">CSV <span lang="ja" className="ml-1">現在値</span></Badge>
+            <Badge variant="warning">{isFund ? "CSV 기준가" : <>CSV <span lang="ja" className="ml-1">現在値</span></>}</Badge>
           )}
           {market.market === "US" && <Button type="button" variant="outline" className="ml-auto" onClick={() => us.onEdit()}>보유정보 입력·관리</Button>}
         </div>
-        {market.market === "JP" && jpNotices.length > 0 && (
+        {isFund && (
+          <p className="text-caption text-ink-2">투자신탁은 CSV 기준가로 평가합니다. 새 기준가는 <span lang="ja">ポートフォリオ</span> CSV를 다시 올려 반영합니다.</p>
+        )}
+        {market.market === "JP" && !isFund && jpNotices.length > 0 && (
           <ul aria-label="일본주식 계산 안내" className="grid gap-2 text-body-sm">
             {jpNotices.map((notice) => {
               const isWarning = notice.includes("만 들어 있습니다") || notice.includes("総件数") || notice.includes("잘린");
@@ -84,8 +91,8 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
           <TableCaption className="sr-only">{title} 보유 종목</TableCaption>
           <TableHeader>
             <TableRow>
-              {["종목", "보유수량", "취득단가", "현재가", "평가액", "평가손익", "전일 대비"].map((label) => (
-                <TableHead key={label} scope="col" className={label === "현재가" ? "text-center" : undefined}>{label}</TableHead>
+              {["종목", isFund ? "보유수량(口)" : "보유수량", isFund ? "취득단가(1만口)" : "취득단가", isFund ? "기준가(1만口)" : "현재가", "평가액", "평가손익", "전일 대비"].map((label, index) => (
+                <TableHead key={label} scope="col" className={index === 3 ? "text-center" : undefined}>{label}</TableHead>
               ))}
             </TableRow>
           </TableHeader>
@@ -99,12 +106,12 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
                       <Badge variant="outline" lang="ja" className="py-0">{row.holding.account}</Badge>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-caption text-ink-3">
-                      <span>{row.holding.code}</span>
+                      {!isFund && <span>{row.holding.code}</span>}
                       {market.market === "US" && us.baselines.some((baseline) => baseline.ticker === row.holding.code && baseline.account === row.holding.account) && <span>직접 입력</span>}
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>{row.holding.quantity.toLocaleString("en-US")}</TableCell>
+                <TableCell>{row.holding.quantity.toLocaleString("en-US")}{isFund && "口"}</TableCell>
                 <TableCell>{formatMoney(row.holding.avgCost, currency)}</TableCell>
                 <TableCell>
                   {row.priceSource === "cost" ? (
@@ -115,13 +122,13 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
                     <div className="grid justify-items-end gap-0.5">
                       <span>{formatMoney(row.price, currency)}</span>
                       {row.priceSource === "csv" && (
-                        <Badge variant="warning" className="py-0">CSV <span lang="ja" className="ml-1">現在値</span></Badge>
+                        <Badge variant="warning" className="py-0">{isFund ? "CSV 기준가" : <>CSV <span lang="ja" className="ml-1">現在値</span></>}</Badge>
                       )}
                     </div>
                   )}
                 </TableCell>
                 <TableCell>{formatMoney(row.value, currency)}</TableCell>
-                <TableCell><Delta value={row.pnl} base={row.holding.avgCost * row.holding.quantity} currency={currency} /></TableCell>
+                <TableCell><Delta value={row.pnl} base={row.value - row.pnl} currency={currency} /></TableCell>
                 <TableCell><Delta value={row.dayChange} base={row.value - row.dayChange} currency={currency} /></TableCell>
               </TableRow>
             ))}
