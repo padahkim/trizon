@@ -72,11 +72,15 @@ export default function PortfolioView({ portfolio, us, children }: {
             {market.rows.map((row) => (
               <TableRow key={`${row.holding.broker}-${row.holding.account}-${row.holding.market}-${row.holding.code}`}>
                 <TableCell>
-                  <div className="grid justify-items-start">
-                    <Badge variant="outline" lang="ja" className="mb-1 py-0">{row.holding.account}</Badge>
-                    <span lang="ja" className="text-name-ja">{row.holding.name}</span>
-                    {market.market === "US" && us.baselines.some((baseline) => baseline.ticker === row.holding.code && baseline.account === row.holding.account) && <span className="text-caption text-ink-3">직접 입력</span>}
-                    <span className="text-caption text-ink-3">{row.holding.code}</span>
+                  <div className="grid justify-items-start gap-0.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span lang="ja" className="text-name-ja">{row.holding.name}</span>
+                      <Badge variant="outline" lang="ja" className="py-0">{row.holding.account}</Badge>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-caption text-ink-3">
+                      <span>{row.holding.code}</span>
+                      {market.market === "US" && us.baselines.some((baseline) => baseline.ticker === row.holding.code && baseline.account === row.holding.account) && <span>직접 입력</span>}
+                    </div>
                   </div>
                 </TableCell>
                 <TableCell>{row.holding.quantity.toLocaleString("en-US")}</TableCell>
