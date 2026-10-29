@@ -6,7 +6,7 @@ import {
   Table, TableBody, TableCaption, TableCell, TableFooter,
   TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { formatMarketTime, formatMoney, formatPercent } from "@/lib/format";
+import { formatMarketTime, formatMoney, formatPercent, formatUploadedAt } from "@/lib/format";
 import type { Portfolio } from "@/lib/portfolio/evaluate";
 import { marketCurrency, type Currency } from "@/lib/portfolio/types";
 import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
@@ -25,8 +25,8 @@ export function Delta({ value, base, currency, large = false }: {
   );
 }
 
-export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [], us, children }: {
-  portfolio: Portfolio; hasPortfolio: boolean; jpNotices?: string[]; children?: ReactNode;
+export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [], us, children, now }: {
+  portfolio: Portfolio; hasPortfolio: boolean; jpNotices?: string[]; children?: ReactNode; now: Date;
   us: { hasTrades: boolean; baselines: UsHoldingBaseline[]; issues: UsHoldingIssue[]; onEdit: (position?: UsPosition) => void };
 }) {
   const markets = portfolio.countries.flatMap((country) => country.brokers.flatMap((broker) => broker.markets.map((market) => ({ key: `${country.country}-${broker.broker}-${market.market}-${market.assetType}`, market }))));
@@ -52,7 +52,7 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
             <Badge variant="warning"><span lang="ja">約定履歴</span>으로 추정한 값</Badge>
           )}
           {market.marketTime && <span className="text-caption text-ink-3">{formatMarketTime(market.market, market.marketTime)}</span>}
-          {fundUploadedAt && <span className="text-caption text-ink-3">CSV 업로드 <time dateTime={fundUploadedAt}>{new Date(fundUploadedAt).toLocaleString("ko-KR")}</time></span>}
+          {fundUploadedAt && <span className="text-caption text-ink-3">CSV 업로드 <time dateTime={fundUploadedAt}>{formatUploadedAt(fundUploadedAt, now)}</time></span>}
           {market.rows.some((row) => row.priceSource === "csv") && (
             <Badge variant="warning">{isFund ? "CSV 기준가" : <>CSV <span lang="ja" className="ml-1">現在値</span></>}</Badge>
           )}

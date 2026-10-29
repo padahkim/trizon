@@ -56,25 +56,17 @@ export function parsePortfolio(bytes: Uint8Array, now: Date): { holdings: Holdin
     }
     if (title.endsWith("合計")) continue;
 
-    if (cells[0] === "銘柄(コード)") {
-      if (findColumn(cells, "建単価") >= 0) {
-        skippedTables++;
-        header = null;
-        continue;
-      }
-      const missing = ["数量", "取得単価", "現在値"].filter((name) => findColumn(cells, name) < 0);
-      if (missing.length) throw new Error(`${line}행: ${missing.join("·")} 머리글이 없습니다`);
-      header = cells;
-      isFund = false;
-      foundHoldingsHeader = true;
+    if (cells[0] === "銘柄(コード)" && findColumn(cells, "建単価") >= 0) {
+      skippedTables++;
+      header = null;
       continue;
     }
 
-    if (cells[0] === "ファンド名") {
+    if (cells[0] === "銘柄(コード)" || cells[0] === "ファンド名") {
       const missing = ["数量", "取得単価", "現在値"].filter((name) => findColumn(cells, name) < 0);
       if (missing.length) throw new Error(`${line}행: ${missing.join("·")} 머리글이 없습니다`);
       header = cells;
-      isFund = true;
+      isFund = cells[0] === "ファンド名";
       foundHoldingsHeader = true;
       continue;
     }

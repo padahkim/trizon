@@ -314,7 +314,7 @@ export default function Dashboard() {
                     </ul>
                   </div>
                 )}
-                <PortfolioView portfolio={portfolio} hasPortfolio={Boolean(saved?.sbiPortfolio)} jpNotices={saved?.sbiPortfolio?.notices ?? []} us={{ hasTrades: Boolean(saved?.sbiUsTrades), baselines: saved?.sbiUsBaselines ?? [], issues: usHoldings.issues, onEdit: (position) => setBaselineTarget({ position }) }}>
+                <PortfolioView portfolio={portfolio} now={now} hasPortfolio={Boolean(saved?.sbiPortfolio)} jpNotices={saved?.sbiPortfolio?.notices ?? []} us={{ hasTrades: Boolean(saved?.sbiUsTrades), baselines: saved?.sbiUsBaselines ?? [], issues: usHoldings.issues, onEdit: (position) => setBaselineTarget({ position }) }}>
                   {baselineTarget && <UsBaselineEditor
                     key={baselineTarget.position ? usPositionKey(baselineTarget.position) : "new"}
                     positions={positions} baselines={saved?.sbiUsBaselines ?? []} holdings={usHoldings.holdings} issues={usHoldings.issues} initialPosition={baselineTarget.position}
