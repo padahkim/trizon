@@ -1,6 +1,6 @@
 import type { QuoteProvider, Quotes } from "./types";
 
-/** PRD fixtures: 1111 = JP-A, 999A = JP-B, TSTA = US-A, TSTB = US-B. */
+/** e2e/acceptance.spec.ts fixtures: 1111 = JP-A, 999A = JP-B, TSTA = US-A, TSTB = US-B. */
 export function createFakeProvider(now = () => new Date()): QuoteProvider {
   return {
     name: "fake",

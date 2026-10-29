@@ -1,9 +1,9 @@
-// PRD completion criteria: JP-A → 1111, JP-B → 999A. Entirely fake holdings.
+// e2e/acceptance.spec.ts completion criteria: JP-A → 1111, JP-B → 999A. Entirely fake holdings.
 export const portfolioCsv = "ポートフォリオ一覧\r\n株式(現物/特定預り)\r\n銘柄(コード),数量,取得単価,現在値\r\n1111 JP-A,10,\"1,000\",\"1,200\"\r\n999A JP-B,10,900,800\r\n株式(現物/特定預り)合計\r\n評価額,含み損益\r\n\"20,000\",\"1,000\"\r\n総合計\r\n評価額,含み損益\r\n\"20,000\",\"1,000\"\r\n";
 
 export const portfolioUtf8 = new TextEncoder().encode(portfolioCsv);
 
-// PRD completion criteria: US-A → TSTA, US-B → TSTB. Fake USD-settled buys.
+// e2e/acceptance.spec.ts completion criteria: US-A → TSTA, US-B → TSTB. Fake USD-settled buys.
 export const usTradesCsv = "約定履歴\r\n国内約定日,銘柄,銘柄コード,商品区分,取引,預り区分,約定数量,約定単価,国内受渡日,受渡金額/決済損益\r\n2026/10/01,US-A,TSTA,米国株式,現買,特定,4,50.00USD,2026/10/05,200.00USD\r\n2026/10/01,US-B,TSTB,米国株式,現買,特定,2,20.00USD,2026/10/05,40.00USD\r\n";
 export const usTradesUtf8 = new TextEncoder().encode(usTradesCsv);
 

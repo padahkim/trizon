@@ -1,6 +1,6 @@
 ## Read before UI work
 
-- Stack, folder layout, how to use shadcn: `docs/ARCHITECTURE.md` 「스택」「디렉토리 구조 (예정)」
+- Stack, folder layout, how to use shadcn: `docs/ARCHITECTURE.md` 「스택」「디렉토리 구조」
 - Colors, fonts, spacing, component look: `DESIGN.md`
 - How each screen behaves in each situation: `docs/PRD.md` 「상황별 동작」
 

@@ -1,4 +1,107 @@
 import { expect, test, type Page } from "@playwright/test";
+import { portfolioShiftJis, usTradesUtf8 } from "../lib/sbi/fixtures";
+
+test("1단계 완료 기준: 빈 대시보드 → 두 CSV·가짜 시세 평가 → 복원 → 데이터 지우기", async ({ page }) => {
+  const japan = page.getByRole("region", { name: "일본 증권사", exact: true });
+  const sbi = japan.getByRole("region", { name: "SBI증권", exact: true });
+  const korea = page.getByRole("region", { name: "한국 증권사", exact: true });
+  const jp = sbi.getByRole("region", { name: "일본주식", exact: true }).getByRole("table", { name: "일본주식 보유 종목" });
+  const us = sbi.getByRole("region", { name: "미국주식", exact: true }).getByRole("table", { name: "미국주식 보유 종목" });
+  const summary = page.getByRole("region", { name: "자산 요약" });
+
+  async function expectEmptyDashboard() {
+    await expect(page).toHaveURL("http://localhost:3000/");
+    await expect(page.getByRole("heading", { name: "대시보드", level: 1 })).toBeVisible();
+    await expect(sbi.getByRole("heading", { name: "CSV 올리기 안내" })).toBeVisible();
+    await expect(sbi.getByRole("heading", { name: "ポートフォリオ", exact: true })).toBeVisible();
+    await expect(sbi.getByRole("heading", { name: "約定履歴", exact: true })).toBeVisible();
+    await expect(korea.getByText("연결된 증권사 없음", { exact: true })).toBeVisible();
+    await expect(page.getByRole("table")).toHaveCount(0);
+    await expect(summary).toHaveCount(0);
+  }
+
+  async function expectHoldings() {
+    await expect(page.getByRole("table")).toHaveCount(2);
+    await expect(jp.getByRole("row")).toHaveCount(4); // Header, two holdings, total.
+    await expect(us.getByRole("row")).toHaveCount(4);
+    await expect(jp.getByRole("row").filter({ hasText: "JP-A" }).getByRole("cell")).toHaveText([
+      "JP-A特定1111", "10", "¥1,000", "¥1,200", "¥12,000", "+¥2,000+20.00%", "+¥500+4.35%",
+    ]);
+    await expect(jp.getByRole("row").filter({ hasText: "JP-B" }).getByRole("cell")).toHaveText([
+      "JP-B特定999A", "10", "¥900", "¥800", "¥8,000", "-¥1,000-11.11%", "-¥200-2.44%",
+    ]);
+    // $45.50 × 4 must retain the cents in the price: $182.00, not $180.00.
+    await expect(us.getByRole("row").filter({ hasText: "US-A" }).getByRole("cell")).toHaveText([
+      "US-A特定TSTA", "4", "$50.00", "$45.50", "$182.00", "-$18.00-9.00%", "-$2.00-1.09%",
+    ]);
+    await expect(us.getByRole("row").filter({ hasText: "US-B" }).getByRole("cell")).toHaveText([
+      "US-B特定TSTB", "2", "$20.00", "$25.00", "$50.00", "+$10.00+25.00%", "+$1.00+2.04%",
+    ]);
+  }
+
+  async function expectTotals() {
+    await expect(jp.getByRole("row").filter({ hasText: "일본주식 합계" }).getByRole("cell")).toHaveText([
+      "일본주식 합계", "¥20,000", "+¥1,000+5.26%", "+¥300+1.52%",
+    ]);
+    await expect(us.getByRole("row").filter({ hasText: "미국주식 합계" }).getByRole("cell")).toHaveText([
+      "미국주식 합계", "$232.00", "-$8.00-3.33%", "-$1.00-0.43%",
+    ]);
+    for (const text of ["엔 자산", "¥20,000", "+¥1,000", "+¥300", "달러 자산", "$232.00", "-$8.00", "-$1.00", "현금 제외"]) {
+      await expect(summary.getByText(text, { exact: true })).toBeVisible();
+    }
+    await expect(summary.getByText(/^일본 시세 /)).toBeVisible();
+    await expect(summary.getByText(/^미국 시세 /)).toBeVisible();
+    await expect(japan.getByLabel("일본 증권사 소계")).toHaveText("¥20,000$232.00");
+  }
+
+  await test.step("1. 처음 접속하면 CSV 안내와 접힌 한국 증권사가 있는 빈 대시보드가 열린다", async () => {
+    await page.goto("/");
+    await expectEmptyDashboard();
+  });
+
+  await test.step("2. 두 CSV를 함께 올리면 일본 증권사 › SBI증권 아래에 네 종목이 시장별로 나뉜다", async () => {
+    await page.getByLabel("SBI CSV 파일").setInputFiles([
+      { name: "holdings.txt", mimeType: "text/plain", buffer: Buffer.from(portfolioShiftJis) },
+      { name: "renamed.txt", mimeType: "text/plain", buffer: Buffer.from(usTradesUtf8) },
+    ]);
+    await expect(jp.getByText("JP-A", { exact: true })).toBeVisible();
+    await expect(jp.getByText("JP-B", { exact: true })).toBeVisible();
+    await expect(us.getByText("US-A", { exact: true })).toBeVisible();
+    await expect(us.getByText("US-B", { exact: true })).toBeVisible();
+    await expect(sbi.getByRole("status").getByRole("listitem")).toHaveCount(2);
+    await expect(sbi.getByRole("status")).toContainText("일본주식 보유를 교체했습니다.");
+    await expect(sbi.getByRole("status")).toContainText("미국주식 거래를 누적했습니다.");
+    await expect(sbi.getByText("約定履歴으로 추정한 값", { exact: true })).toBeVisible();
+  });
+
+  await test.step("3. 네 종목의 수량·가격·평가액·손익·전일 대비와 부호·달러 소수가 맞다", expectHoldings);
+
+  await test.step("4. 엔·달러 시장별 합계와 요약이 맞고 시세를 새로 받을 수 있다", async () => {
+    await expectTotals();
+    const refreshed = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/quotes");
+    await summary.getByRole("button", { name: "시세 새로고침" }).click();
+    const response = await refreshed;
+    expect(response.status()).toBe(200);
+    expect(new URL(response.url()).searchParams.get("keys")).toBe("JP:1111,JP:999A,US:TSTA,US:TSTB");
+    await expect(summary.getByRole("button", { name: "시세 새로고침" })).toBeEnabled();
+    await expectHoldings();
+    await expectTotals();
+  });
+
+  await test.step("5. 새로고침 뒤에도 네 종목과 합계가 남고 지우면 빈 대시보드가 유지된다", async () => {
+    await page.reload();
+    await expectHoldings();
+    await expectTotals();
+    await page.screenshot({ path: test.info().outputPath("acceptance.png"), fullPage: true });
+    await page.getByRole("button", { name: "데이터 지우기", exact: true }).click();
+    const dialog = page.getByRole("alertdialog", { name: "데이터를 지울까요?" });
+    await dialog.getByRole("button", { name: "데이터 지우기", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expectEmptyDashboard();
+    await page.reload();
+    await expectEmptyDashboard();
+  });
+});
 
 test("처음 접속하면 일본 증권사와 접힌 한국 증권사가 있는 빈 대시보드가 열린다", async ({
   page,

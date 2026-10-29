@@ -1,6 +1,6 @@
 # 아키텍처
 
-1단계 기준이다. 코드가 아직 없어서 디렉토리 구조·데이터 모델·인터페이스는 예정이다. 구현하면서 실제 구조로 고친다. 2단계 이후는 「2단계 이후」 절에 방향만 적는다.
+1단계의 현재 구현을 설명한다. 타입과 함수 정의의 원본은 아래에서 가리키는 코드 파일이다. 2단계 이후는 「2단계 이후」 절에 방향만 적는다.
 
 ## 스택
 - Next.js 16.4 (App Router) + React 19 + TypeScript, npm. Node 22.x·22.18 이상(`engines`), `"type": "module"`.
@@ -12,150 +12,86 @@
 - 1단계는 로컬 실행과 Vercel PR 미리보기 배포를 지원한다. 로그인·DB가 없다. 배포 연결과 리뷰 절차는 [DEPLOYMENT.md](DEPLOYMENT.md)를 따른다.
 - 2단계부터: Supabase(Postgres · Auth · RLS · Vault).
 
-## 디렉토리 구조 (예정)
-```
+## 디렉토리 구조
+```text
 app/
+  layout.tsx                문서 언어·메타데이터, globals.css 진입점
   page.tsx                  첫 화면. Dashboard를 그린다
-  Dashboard.tsx             1단계 셸 (client): localStorage 읽기·쓰기, 파일 받기, /api/quotes 호출, evaluate
+  Dashboard.tsx             1단계 셸 (client): 저장·업로드·평가·요약과 증권사 틀
   SbiCard.tsx               SBI 카드 전체 파일 드롭·중첩 진입 추적·강조 안내·읽는 중 차단
+  Uploader.tsx              여러 파일 선택, SBI CSV 다운로드 안내
+  useQuotes.ts              /api/quotes 호출·새로고침·취소·실패 상태
   ClearDataDialog.tsx       데이터 지우기 확인: 취소에 포커스, 2년 경고, 지우기 실패 안내
-  PortfolioView.tsx         표시 전용: Portfolio → 증권사 국가 › 증권사 › 시장 › 종목 표
+  PortfolioView.tsx         시장별 종목 표·합계·계산 안내, Delta(금액·퍼센트)
   UsBaselineEditor.tsx      미국주식 기준 보유정보 입력·목록 관리·삭제 확인
   error.tsx                 예상하지 못한 오류: "문제가 생겼습니다 · 새로고침"
   globals.css               Tailwind 진입점 + 디자인 토큰(CSS 변수)
-  api/quotes/route.ts       GET /api/quotes?keys=JP:7203,US:AAPL → QuoteProvider
-components/ui/              shadcn/ui 컴포넌트. CLI가 복사한 소스라 직접 고쳐 쓴다
-lib/                        Next 없이 도는 순수 모듈. 브라우저와 Vitest에서 같이 돈다
-  sbi/csv.ts                바이트 → 텍스트(UTF-8, 실패하면 Shift_JIS) → 행·셀, 열 이름으로 찾기, 숫자 읽기
+  api/quotes/route.ts       GET /api/quotes → 환경에 따라 Yahoo 또는 fake provider 선택
+components/ui/              shadcn/ui의 alert·alert-dialog·badge·button·card·input·label·table 소스
+lib/                        Next 없이 도는 모듈. 단위 테스트는 대상 옆의 *.test.ts
+  sbi/csv.ts                바이트 → 텍스트(UTF-8, 실패하면 Shift_JIS) → 행·셀, 열 이름·숫자 읽기
   sbi/detect.ts             내용으로 CSV 종류 판별
   sbi/portfolio.ts          ポートフォリオ → 일본주식 Holding[]
-  sbi/us-trades.ts          約定履歴 → UsTrade[], mergeTrades, holdingsFromTrades
+  sbi/us-trades.ts          約定履歴·기준 보유정보 스키마, 거래 누적·보유 계산
   sbi/import.ts             importSbiFiles: 파일들 + SavedV1 → 새 SavedV1 + 파일별 결과
   sbi/guide.ts              받을 CSV 이름과 SBI 메뉴 위치 (화면 안내 문구는 여기에만)
-  sbi/fixtures.ts           가짜 CSV 바이트 (PRD 「1단계 완료 기준」 값, Shift_JIS는 hex로)
-  quotes/types.ts           QuoteKey · Quote · QuoteProvider
+  sbi/fixtures.ts           완료 기준 e2e의 가짜 CSV 바이트 (Shift_JIS는 hex로)
+  quotes/types.ts           QuoteKey · Quote · Quotes · QuoteProvider, 시세 키·응답 검증 스키마
+  quotes/handler.ts         요청 키 검사, 중복 제거, provider 호출·10초 제한, HTTP 응답
   quotes/yahoo.ts           QuoteKey → Yahoo 심볼(JP는 "7203.T", US는 "." → "-"), 필드 요청
   quotes/fake.ts            고정 현재가·전일 종가 (TRIZON_QUOTES=fake)
   portfolio/types.ts        Broker · Market · Currency · Holding, 증권사 국가·거래통화 표
   portfolio/saved.ts        SavedV1 ↔ 문자열, 모양 전체 검사
   portfolio/browser-store.ts localStorage 읽기·쓰기·백업·지우기, 탭 사이 변경 알림
-  portfolio/evaluate.ts     Holding[] + 시세 → Portfolio
-  format.ts                 통화별 자릿수, 부호(반올림한 뒤에 부호를 정한다), "N일 전"(now 주입)
-  utils.ts                  cn(): 클래스 합치기 (shadcn init이 만든다, cn 패키지에 globals.css의 글자 크기·그림자 이름을 알려 준다)
-e2e/acceptance.spec.ts      PRD 「1단계 완료 기준」 1~5
+  portfolio/evaluate.ts     Holding[] + 시세 → Portfolio (종목 행·통화별 합계·국가·증권사·시장 묶음)
+  format.ts                 통화별 자릿수·부호, 시장별 시세 시각, 업로드 상대 시간
+  utils.ts                  cn(): 토큰 클래스 합치기
+scripts/
+  review-fixtures.ts        로컬·PR 미리보기 확인용 가짜 CSV를 임시 디렉토리에 생성
+  quote-smoke.ts            실제 Yahoo 시세를 따로 확인
+e2e/
+  acceptance.spec.ts        1단계 완료 기준 1~5의 한 흐름, 첫 화면·일본주식·저장 복구
+  us-trades.spec.ts         미국 거래 누적·중복 제거·계산 불가·파일 실패
+  us-baselines.spec.ts      기준 보유정보 입력·수정·삭제·반영된 거래·저장 실패
+  sbi-drop.spec.ts          SBI 카드 전체 파일 드롭·중첩 이동·읽는 중 차단
+  quotes.spec.ts            시세 실패·누락·새로고침·응답 경합
+  storage.spec.ts           삭제 확인·저장과 삭제 실패·탭 사이 반영
+  error-notices.spec.ts     파일별 실패·건너뛴 표·잘린 페이지 안내
+docs/                      PRD·아키텍처·배포 절차, agents/의 작업 지침, adr/의 결정 기록
+GLOSSARY.md                기준 보유정보·반영된 거래 등 도메인 용어
+next.config.ts             서버 전용 패키지 설정
+playwright.config.ts       localhost:3000, TRIZON_QUOTES=fake로 e2e 서버 실행
+vitest.config.ts           lib/·API route 단위 테스트 설정
+vitest.setup.ts            단위·route 테스트의 외부 네트워크 호출 차단
 ```
 
 ## 데이터 모델
 출처마다 저장 규칙이 다르다. `ポートフォリオ`는 스냅샷이라 통째로 교체하고, `約定履歴`은 거래 원장이라 쌓는다. 미국주식 기준 보유정보는 종목·계좌구분별 하나로 저장하고, 현재 보유정보를 입력할 때 이미 올린 해당 종목·계좌의 거래 키를 함께 저장한다. 이후 그 키에 없는 새 거래만 반영하며, 기준값이 없는 종목은 원장 전체에서 계산한다. 미국주식 보유와 안내는 저장된 기준값과 원장에서 매번 다시 계산하므로 새로고침 뒤에도 유지된다. 용어는 [GLOSSARY.md](../GLOSSARY.md), 현재 방식의 결정은 [ADR-0002](adr/0002-us-holdings-reflected-trades.md)에 있다.
 
-타입은 zod 스키마에서 뽑는다(열린 질문 「저장 형식 검증」). 아래는 그 모양이다.
+저장·시세 타입은 zod 스키마에서 뽑는다. 정의는 코드에서 확인한다.
 
-```ts
-// portfolio/types.ts
-type Broker = "SBI" | "KB" | "NH" | "TOSS";      // 증권사 국가: SBI → JP, 나머지 → KR
-type Market = "JP" | "US" | "KR";                  // 거래통화: JP → JPY, US → USD, KR → KRW
-type Currency = "JPY" | "USD" | "KRW";
-
-type Holding = {                                   // 식별 키: broker + account + market + code
-  broker: Broker;
-  account: string;      // 증권사 안의 칸. SBI는 預り区分(特定·一般·NISA), 한국 증권사(3단계)는 계좌
-  market: Market;
-  code: string;         // 거래소 표기 그대로 ("7203", "130A", "AAPL", "BRK.B")
-  name: string;
-  quantity: number;
-  avgCost: number;      // 거래통화 기준 1주당 취득단가
-  csvQuote?: { price: number; asOf: string };     // ポートフォリオ의 現在値 (일본주식 대체 시세)
-};
-
-// sbi/us-trades.ts
-type UsTrade = {
-  key: string;          // 중복 제거 키: 거래 값 + 값이 완전히 같은 거래끼리의 출현 순번 (「v1 참고」)
-  tradeDate: string;    // YYYY-MM-DD
-  ticker: string;
-  name: string;
-  side: "buy" | "sell"; // 現買·現売만 담는다
-  account: string;      // 預り区分
-  quantity: number;
-  price: number;        // USD 約定単価
-  settlement?: { amount: number; currency: "JPY" | "USD" }; // 受渡金額. USD면 1단계 취득원가에, JPY면 3단계 엔화 취득가에 쓴다
-};
-
-// portfolio/saved.ts — localStorage 키 "trizon"
-type UsHoldingBaseline = {
-  ticker: string; name: string; account: string;
-  includedTradeKeys?: string[]; // 현재 보유정보에 이미 반영된 거래 키
-  asOf?: string;           // 이전 날짜 방식의 저장값 호환용. 두 방식 중 하나만 저장
-  quantity: number;       // 0 이상. 0주는 보유표에서 숨기되 관리 목록에 남음
-  avgCost: number;        // USD. 0주이면 0으로 정규화
-};
-type SavedV1 = {
-  version: 1;
-  sbiPortfolio?: { uploadedAt: string; holdings: Holding[]; notices: string[] }; // 통째 교체
-  sbiUsTrades?: { uploadedAt: string; trades: UsTrade[] };                       // 누적
-  sbiUsBaselines?: UsHoldingBaseline[];                                      // 종목·계좌별 현재 기준값
-};
-```
+| 모델 | 정의와 역할 |
+|---|---|
+| `Broker` · `Market` · `Currency` · `Holding` | [lib/portfolio/types.ts](../lib/portfolio/types.ts): 보유·검증 스키마, 증권사 국가·거래통화 대응. 보유 식별 키는 증권사·계좌구분·시장·코드다. |
+| `UsTrade` | [lib/sbi/us-trades.ts](../lib/sbi/us-trades.ts)의 `usTradeSchema`: 거래와 중복 제거 키, 결제금액·통화. |
+| `UsBaselineInput` · `UsHoldingBaseline` · `UsPosition` · `UsHoldingIssue` | [lib/sbi/us-trades.ts](../lib/sbi/us-trades.ts): 기준 보유정보 입력·저장 스키마, 종목·계좌구분 식별정보와 계산 불가 안내. |
+| `SavedV1` | [lib/portfolio/saved.ts](../lib/portfolio/saved.ts)의 `savedV1Schema`: localStorage `trizon`에 저장하는 출처별 데이터·업로드 시각·기준 보유정보. |
+| `QuoteKey` · `Quote` · `Quotes` | [lib/quotes/types.ts](../lib/quotes/types.ts): 시세 식별자·현재가·전일 종가·통화·시장 시각과 검증 스키마. |
+| `PriceSource` · `Row` · `Total` · `Totals` · `Portfolio` | [lib/portfolio/evaluate.ts](../lib/portfolio/evaluate.ts): 평가 결과, 통화별 합계와 증권사 국가 › 증권사 › 시장 묶음. |
 
 ## 인터페이스
-실패 규칙이 PRD 상황별 동작(U번호)과 이어진다.
+실패 규칙이 PRD 「상황별 동작」의 U번호와 이어진다. 인자·반환 타입과 함수 정의는 코드가 원본이다.
 
-```ts
-// sbi/import.ts — 브라우저에서 돈다
-type FileResult = { fileName: string; kind: "portfolio" | "usTrades" | null; error?: string; notices: string[] };
-function importSbiFiles(
-  files: { name: string; bytes: Uint8Array }[], saved: SavedV1, now: Date,
-): { saved: SavedV1; files: FileResult[] };
-// - 파일은 전부 반영하거나 하나도 반영하지 않는다. 실패한 종류는 이전 데이터를 그대로 둔다 (U4).
-// - 5MB를 넘는 파일은 읽지 않는다 (U4).
-// - 머리글을 알아보면 0행도 정상이다 (U45).
-// - 約定履歴은 現買·現売만 읽고, 나머지는 notices에 "건너뛴 거래 N건" (U48).
-
-// sbi/us-trades.ts
-function mergeTrades(stored: UsTrade[], incoming: UsTrade[]): UsTrade[];   // key로 중복 제거 (U41)
-type UsHoldingIssue = { ticker: string; name: string; account: string; message: string };
-function holdingsFromTrades(trades: UsTrade[], baselines?: UsHoldingBaseline[]): {
-  holdings: Holding[]; notices: string[]; issues: UsHoldingIssue[];
-};
-// - 날짜순으로 계산하고, 같은 날은 매수를 먼저 계산한다. 취득단가는 이동평균이고(취득원가에 넣는 값은 PRD 「핵심 기능」 2), 수량이 0이 되면 새로 시작한다.
-// - 기준값이 있으면 수량과 수량 × 단가에서 시작하고 includedTradeKeys에 없는 거래만 반영한다. 원장은 지우지 않는다.
-// - 기존 asOf 저장값은 다시 저장할 때까지 tradeDate > asOf 규칙으로 계산한다. 새 입력은 날짜를 받지 않는다.
-// - 수량이 0인 종목은 뺀다. 매도가 계산상 보유보다 많으면 계산 불가 안내와 입력 대상 식별정보(issues)를 반환한다 (U11).
-
-// portfolio/saved.ts
-type LoadResult = { status: "empty" } | { status: "ok"; saved: SavedV1 } | { status: "unreadable" };
-function loadSaved(raw: string | null): LoadResult;                        // unreadable이면 그리지 않는다 (U16)
-function serializeSaved(saved: SavedV1): string;
-
-// quotes/types.ts
-type QuoteKey = `${Market}:${string}`;      // "JP:7203", "JP:130A"(JP는 영숫자 4자리), "US:AAPL"
-type Quote = { price: number; previousClose?: number; currency: Currency; marketTime: string };
-interface QuoteProvider {
-  readonly name: string;
-  /** 못 찾은 종목은 결과에서 빠진다. 네트워크·서버 오류는 throw한다. */
-  fetchQuotes(keys: QuoteKey[]): Promise<Partial<Record<QuoteKey, Quote>>>;
-}
-// GET /api/quotes?keys=…
-//   200 { quotes } — 빠진 키는 못 찾은 종목 (U8)
-//   400 { error }  — 형식이 틀린 키
-//   502 { error }  — provider가 throw했거나 10초 안에 답이 없을 때. 화면은 모든 종목을 취득가로 보이고 맨 위에 안내 (U44)
-
-// portfolio/evaluate.ts
-type PriceSource = "quote" | "csv" | "cost";                               // cost = 시세 없음 → 취득가로 평가 (U8)
-type Row = {
-  holding: Holding; price: number; priceSource: PriceSource;
-  value: number; pnl: number; dayChange: number; marketTime?: string;     // marketTime: 시장별 시세 시각 (U10)
-};
-type Totals = Partial<Record<Currency, { value: number; pnl: number; dayChange: number; noQuote: number }>>;
-type Portfolio = {
-  totals: Totals;                                                          // 1단계는 통화별. 3단계에 표시 통화 합계를 더한다
-  countries: { country: "JP" | "KR"; totals: Totals;
-    brokers: { broker: Broker; totals: Totals;
-      markets: { market: Market; totals: Totals; marketTime?: string; rows: Row[] }[] }[] }[];
-};
-function evaluate(holdings: Holding[], quotes: Partial<Record<QuoteKey, Quote>>): Portfolio;
-// - 시세 통화가 거래통화와 다르거나 marketTime이 7일보다 오래되면 시세 없음으로 다룬다.
-// - previousClose가 없거나, csv·cost 행이면 dayChange는 0이다.
-```
+| 경계 | 코드와 동작 |
+|---|---|
+| CSV 반영 | [lib/sbi/import.ts](../lib/sbi/import.ts)의 `importSbiFiles` · `FileResult`: 파일들과 기존 저장값을 받아 새 저장값·파일별 결과를 돌려준다. 5MB 제한(U4), 정상 머리글의 0행(U45), 같은 종류의 실패 시 이전 데이터 유지. |
+| 미국 거래 누적·보유 계산 | [lib/sbi/us-trades.ts](../lib/sbi/us-trades.ts)의 `parseUsTrades` · `mergeTrades` · `holdingsFromTrades`: 現買·現売만 반영(U48), 키로 중복 제거(U41), 날짜순·같은 날 매수 우선·이동평균. 기준 보유정보가 있으면 반영된 거래를 제외하고 새 거래만 계산한다. 수량 0이면 원가를 새로 시작하고 보유에서 빼며, 매도 초과 종목도 빼고 입력 대상 식별정보와 함께 안내한다(U11). 기존 날짜 방식 저장값은 다시 저장할 때까지 다음 날짜부터 반영한다. |
+| 기준 보유정보 검증·식별 | [lib/sbi/us-trades.ts](../lib/sbi/us-trades.ts)의 `usBaselineInputSchema` · `usHoldingBaselineSchema` · `usPositionKey`: 종목·계좌구분별 기준값을 검사하고 0주의 취득단가를 0으로 정규화한다(U49~U51). |
+| 저장 형식 | [lib/portfolio/saved.ts](../lib/portfolio/saved.ts)의 `LoadResult` · `loadSaved` · `serializeSaved`: 빈 값·정상·읽지 못함을 구분하고 스키마로 검사한다(U16). |
+| 브라우저 저장 | [lib/portfolio/browser-store.ts](../lib/portfolio/browser-store.ts): 저장값 읽기·쓰기·구독, 복구 백업·삭제. 실패 시 화면 처리와 탭 사이 반영은 「상태 관리」를 따른다. |
+| 시세 공급자 | [lib/quotes/types.ts](../lib/quotes/types.ts)의 `QuoteProvider`: 못 찾은 종목은 결과에서 빠지고, 네트워크·서버 오류는 예외가 된다. |
+| 시세 HTTP API | [app/api/quotes/route.ts](../app/api/quotes/route.ts)와 [lib/quotes/handler.ts](../lib/quotes/handler.ts)의 `createQuoteHandler`: `GET /api/quotes?keys=JP:7203,US:AAPL`. 200은 시세 결과(빠진 키는 U8), 400은 잘못된 키, 502는 공급자 오류·10초 제한(U44). |
+| 보유 평가 | [lib/portfolio/evaluate.ts](../lib/portfolio/evaluate.ts)의 `evaluate`: 시세 통화가 다르거나 7일보다 오래되면 시세 없음(U8). 전일 종가가 없거나 CSV·취득가를 쓰면 전일 대비는 0이다. |
 
 ## 데이터 흐름
 ```
@@ -216,7 +152,7 @@ function evaluate(holdings: Holding[], quotes: Partial<Record<QuoteKey, Quote>>)
 2. 파일은 전부 반영하거나 하나도 반영하지 않는다. 실패하면 이전 데이터를 그대로 둔다.
 3. 예상하지 못한 오류는 `app/error.tsx`가 받는다.
 
-하지 않는 것: 재시도·백오프(사용자가 「시세 새로고침」을 누른다), 사용자용 백업·내보내기, 보정 UI, 분할 자동 보정(PRD 열린 질문 「주식 분할·티커 변경」의 조건이 맞을 때까지).
+하지 않는 것: 재시도·백오프(사용자가 「시세 새로고침」을 누른다), 사용자용 백업·내보내기, 분할 자동 보정(PRD 열린 질문 「주식 분할·티커 변경」의 조건이 맞을 때까지).
 
 ## 보안
 - 1단계
@@ -296,20 +232,22 @@ erDiagram
 - 데이터 흐름이 서버 중심으로 바뀐다. 동기화 결과도 `sources`·`holdings`에 같은 규칙으로 쓴다(U27: 실패하면 마지막 성공을 유지).
 
 ## 테스트
+- 1단계 완료 기준은 `TRIZON_QUOTES=fake npm run test:e2e -- e2e/acceptance.spec.ts --grep "1단계 완료 기준"`으로 확인한다. [playwright.config.ts](../playwright.config.ts)가 서버에도 가짜 시세 환경을 적용한다.
 - `lib/`는 Next 없이 Vitest로 돈다. 외부 시세는 QuoteProvider 뒤에 두고, 테스트는 가짜 provider를 쓴다. 테스트는 네트워크를 쓰지 않는다.
 - 실제 시세는 `npm test`에 넣지 않고 `npm run quote:smoke`로 따로 확인한다.
 - Shift_JIS fixture는 hex 바이트로 둔다. `TextEncoder`는 UTF-8만 만든다.
-- 가짜 종목은 형식이 맞는 가짜 코드를 쓴다. PRD 표의 JP-A 등과의 대응은 `fixtures.ts`에 둔다.
+- 가짜 종목은 형식이 맞는 가짜 코드를 쓴다. [lib/sbi/fixtures.ts](../lib/sbi/fixtures.ts)에 CSV와 코드 대응을, [lib/quotes/fake.ts](../lib/quotes/fake.ts)에 현재가·전일 종가를 둔다. 기대 금액의 원본은 [e2e/acceptance.spec.ts](../e2e/acceptance.spec.ts)의 「1단계 완료 기준」 테스트다.
 - "N일 전"은 `now`를 주입해 테스트한다. `format`은 반올림한 뒤에 부호를 정한다(`-0.00` 방지).
 
 | 확인할 것 | 확인하는 테스트 |
 |---|---|
-| 완료 기준 1. 첫 화면 = 대시보드, 빈 상태 | e2e |
-| U2a 접힌 SBI 카드 전체 드롭·중첩 이동·여러 파일·취소·읽는 중 차단 | `e2e/sbi-drop.spec.ts` |
-| 완료 기준 2. 4종목, 수량·취득단가, 시장 구분, 증권사 아래 배치 | `sbi/*` 단위 + e2e |
-| 완료 기준 3. 평가액·평가손익·전일 대비, +/−, 소수 보존 | `evaluate` · `format` 단위 + e2e |
-| 완료 기준 4. 시장별 합계(전일 대비 포함) | `evaluate` 단위 + e2e |
-| 완료 기준 5. 새로고침 뒤 유지, 데이터 지우기 | `saved` · `browser-store` 단위 + e2e |
+| 첫 화면 = 대시보드, 빈 상태 | [acceptance.spec.ts](../e2e/acceptance.spec.ts) 1번 단계 |
+| U2a 접힌 SBI 카드 전체 드롭·중첩 이동·여러 파일·취소·읽는 중 차단 | [sbi-drop.spec.ts](../e2e/sbi-drop.spec.ts) |
+| U49~U51 기준 보유정보 입력·수정·삭제·0주·반영된 거래·저장 실패 | [us-baselines.spec.ts](../e2e/us-baselines.spec.ts) + `sbi/us-trades` · `saved` 단위 |
+| 4종목, 수량·취득단가, 시장 구분, 증권사 아래 배치 | [acceptance.spec.ts](../e2e/acceptance.spec.ts) 2·3번 단계 + `sbi/*` 단위 |
+| 평가액·평가손익·전일 대비, +/−, 달러 소수 보존 | [acceptance.spec.ts](../e2e/acceptance.spec.ts) 3번 단계 + `evaluate` · `format` 단위 |
+| 시장별 합계(전일 대비 포함), 엔·달러 요약 | [acceptance.spec.ts](../e2e/acceptance.spec.ts) 4번 단계 + `evaluate` 단위 |
+| 새로고침 뒤 네 종목·합계 유지, 데이터 지우기 | [acceptance.spec.ts](../e2e/acceptance.spec.ts) 5번 단계 + `saved` · `browser-store` 단위 |
 | U4 파일별 실패: 인코딩(`fatal`), 숫자 규칙, 전부 아니면 반영 안 함, 5MB | `sbi/csv` · `sbi/import` 단위 |
 | U5 교체·누적, U41 중복 제거(같은 값끼리 출현 순번), U48 現買·現売 밖 건너뜀 | `sbi/import` · `sbi/us-trades` 단위 |
 | U11 매도 > 매수는 빼고 안내, 같은 날 매수 먼저, 수량 0 뒤 취득단가 새로 시작 | `sbi/us-trades` 단위 |
@@ -327,18 +265,6 @@ erDiagram
   - `lib/quotes/yahoo.ts`, `next.config.ts`(`serverExternalPackages`), `lib/portfolio/fx.ts`(3단계 계좌통화 환산)
 - 결정 기록: `docs/decisions/001-local-only.md`(로컬 전용), `002-manual-input.md`(한국 3사 API 조사, 2026-09), `003-broker-screen-returns.md`(계좌통화 기준 수익률).
 - 1단계에 필요한 부분만 새로 쓴다. 信用·投信·実現損益·配当 파서, 보정 UI, 로컬 파일 저장은 가져오지 않는다.
-
-## 1단계 구현 순서
-1. Next.js 스캐폴드: `create-next-app`, TS, App Router, ESLint, `src/` 없음, Tailwind 포함. 이어서 `shadcn init`으로 `components.json`·`lib/utils.ts`·`app/globals.css`를 만들고, `DESIGN.md`의 토큰 값을 `globals.css`의 CSS 변수로 옮긴다. 옮긴 뒤 `DESIGN.md` 토큰 표의 값 열은 CSS 변수 이름으로 바꾼다. 「스택」의 Node·`"type": "module"`·`serverExternalPackages`, Vitest 설정과 dev 주소 고정을 함께 한다. `.gitignore`는 지금 항목을 유지하고, Next 기본 항목과 `*.csv`를 더한다.
-2. 나머지는 화면 동작 단위로 자른 이슈로 진행한다. 무엇을 먼저 할지는 각 이슈의 선행 관계(GitHub 이슈 의존성)를 따른다.
-   - [#17](https://github.com/padahkim/trizon/issues/17) 빈 대시보드 첫 화면
-   - [#18](https://github.com/padahkim/trizon/issues/18) `ポートフォリオ` 올리기 → 일본주식 표
-   - [#19](https://github.com/padahkim/trizon/issues/19) 시세 받기 → 현재가·전일 대비
-   - [#20](https://github.com/padahkim/trizon/issues/20) `約定履歴` 올리기 → 미국주식 표
-   - [#21](https://github.com/padahkim/trizon/issues/21) 읽지 못한 파일과 건너뛴 표 알리기
-   - [#22](https://github.com/padahkim/trizon/issues/22) 데이터 지우기와 저장 실패
-   - [#23](https://github.com/padahkim/trizon/issues/23) 1단계 완료 기준 전체 e2e와 문서를 실제 구조로
-   - [#24](https://github.com/padahkim/trizon/issues/24) 실제 SBI CSV로 숫자 대조
 
 ## 열린 질문
 기본값으로 진행한다. 정해지면 해당 절로 옮기고 여기서 지운다.
