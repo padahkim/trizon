@@ -61,6 +61,7 @@ export default function Uploader({ onFiles, busy }: {
           ref={input}
           id="sbi-csv"
           type="file"
+          accept=".csv"
           multiple
           className="sr-only"
           tabIndex={-1}

@@ -3,6 +3,8 @@ import { portfolioShiftJis, portfolioUtf8 } from "../lib/sbi/fixtures";
 
 test("업로드 영역에 파일을 끌어다 놓는 중에는 테두리가 ink로 바뀐다", async ({ page }) => {
   await page.goto("/");
+  const input = page.getByLabel("SBI CSV 파일");
+  await expect(input).toHaveAttribute("accept", ".csv");
   const uploader = page.locator("#sbi-uploader");
   await expect(uploader).toBeVisible();
   await expect(uploader).toHaveClass(/border-line-strong/);
