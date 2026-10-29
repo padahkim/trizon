@@ -29,6 +29,18 @@ Codex에서 Vercel 계정을 연결한 뒤에도 팀 조회가 권한 부족(403
 
 연결 후에는 PR 브랜치의 push가 Preview 배포를 만들고, `development`의 push·merge는 Production 배포를 갱신한다. 실제 프로젝트 연결·보호 설정과 검증 결과는 [#43](https://github.com/padahkim/trizon/issues/43)에 기록한다.
 
+## Production 브랜치 설정과 검증
+
+GitHub 기본 브랜치와 Vercel의 Production Branch는 따로 확인한다. GitHub 기본 브랜치가 `development`여도 Vercel이 `main`을 추적하면 `development`의 push·merge는 Preview 배포가 된다.
+
+1. [Production 환경 설정](https://vercel.com/padahkim-gmailcoms-projects/trizon/settings/environments/production)의 **Branch Tracking**에서 브랜치를 `development`로 지정하고 Save를 누른다. **Auto-assign Custom Production Domains**도 활성화한다.
+2. 새로고침 후 `development`가 유지되는지 확인한다. 배포 접근 보호는 **Vercel Authentication · All Deployments**를 유지한다.
+3. 설정을 저장해도 기존 Preview 배포가 Production으로 바뀌지는 않는다. 이후 `development`에 push·merge된 커밋으로 자동 배포를 확인한다.
+4. 배포 상세에서 Git 자동 배포(`source=git`), 브랜치 `development`, 대상 커밋 SHA, 환경 Production(`target=production`), Ready 상태를 확인한다. 기본 주소 [trizon-rho.vercel.app](https://trizon-rho.vercel.app)도 해당 배포를 가리켜야 한다.
+5. 인증 없는 세션에서 기본 주소의 화면과 `/api/quotes`가 모두 Vercel 로그인으로 이동하는지 확인하고, 허용된 계정에서는 앱과 시세 API가 열리는지 확인한다.
+
+일회성 `--prod` 배포나 Preview의 수동 승격은 Git 자동 배포 검증을 대신하지 않는다. 설정 저장과 자동 배포 확인을 구분해 [#43](https://github.com/padahkim/trizon/issues/43)에 대상 커밋과 결과를 남긴다.
+
 ## PR에서 리뷰하기
 
 1. PR에 표시된 Vercel 배포 상태가 성공인지 확인하고, 연결된 커밋이 리뷰할 커밋과 같은지 확인한다.
@@ -44,6 +56,7 @@ CSV와 보유 내역은 브라우저의 주소별 저장소에 있다. 로컬 �
 
 - 테스트 PR의 최초 배포와 추가 push가 모두 성공하고, PR 링크에서 최신 변경이 보인다.
 - 다른 PR은 별도 링크와 커밋을 가리킨다.
+- `development`의 새 push·merge가 Production 자동 배포를 만들고 기본 주소를 갱신한다. 위 「Production 브랜치 설정과 검증」의 커밋·환경·접근 보호를 함께 확인한다.
 - 가짜 CSV 업로드와 같은 주소에서의 새로고침 복원이 동작한다.
 - 배포한 주소에서 `/api/quotes?keys=JP%3A7203%2CUS%3AAAPL`을 열어 두 공개 종목의 시세가 반환되는지 확인한다. 정상 조회와 외부 서비스 실패를 구분하고, 실패했다면 원인과 해결 여부를 기록한다.
 - 시세 조회 실패 시에는 기존 실패 안내와 대체 평가가 유지된다. 결정적인 회귀 검증에는 기존 가짜 시세·오류 주입 테스트를 사용한다.
@@ -57,3 +70,4 @@ CSV와 보유 내역은 브라우저의 주소별 저장소에 있다. 로컬 �
 - [GitHub 연동과 PR 미리보기](https://vercel.com/docs/git/vercel-for-github)
 - [배포 접근 보호](https://vercel.com/docs/deployment-protection)
 - [Preview·Production과 최초 배포](https://vercel.com/docs/deployments/environments)
+- [Production Branch 설정](https://vercel.com/docs/git#production-branch)
