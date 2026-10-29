@@ -109,7 +109,7 @@ export default function PortfolioView({ portfolio, hasPortfolio, jpNotices = [],
                 <TableCell>
                   {row.priceSource === "cost" ? (
                     <div className="flex min-h-5 items-center justify-center">
-                      <Badge variant="warning" className="py-0">시세 없음</Badge>
+                      <Badge variant="warning" className="py-0 text-body-sm">시세 없음</Badge>
                     </div>
                   ) : (
                     <div className="grid justify-items-end gap-0.5">
