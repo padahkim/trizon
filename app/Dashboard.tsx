@@ -5,8 +5,8 @@ import { TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatMarketTime, formatMoney, formatUploadedAt } from "@/lib/format";
+import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatUploadedAt } from "@/lib/format";
 import { evaluate } from "@/lib/portfolio/evaluate";
 import {
   backupSavedSnapshot,
@@ -23,7 +23,10 @@ import { loadSaved, serializeSaved, type LoadResult, type SavedV1 } from "@/lib/
 import { importSbiFiles, type FileResult } from "@/lib/sbi/import";
 import { SBI_UPLOAD_GUIDANCE } from "@/lib/sbi/guide";
 import { holdingsFromTrades, usPositionKey, type UsBaselineInput, type UsHoldingBaseline, type UsPosition } from "@/lib/sbi/us-trades";
-import PortfolioView, { Delta } from "./PortfolioView";
+import PortfolioView from "./PortfolioView";
+import AssetSummary from "./AssetSummary";
+import SbiTotal from "./SbiTotal";
+import { useExchangeRate } from "./useExchangeRate";
 import Uploader from "./Uploader";
 import SbiCard from "./SbiCard";
 import UsBaselineEditor from "./UsBaselineEditor";
@@ -63,6 +66,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [baselineTarget, setBaselineTarget] = useState<{ position?: UsPosition } | null>(null);
+  const [preferUsInYen, setPreferUsInYen] = useState(false);
   const subscribe = useCallback((onChange: () => void) => subscribeSaved((reason) => {
     // A stored snapshot replaces a temporary CSV import; manual changes are overlaid separately.
     setUnsaved(undefined);
@@ -104,12 +108,11 @@ export default function Dashboard() {
     [saved?.sbiPortfolio?.holdings, usHoldings.holdings],
   );
   const quotes = useQuotes(holdings);
-  const portfolio = evaluate(quotes.failed ? holdings.map((holding) => ({ ...holding, csvQuote: undefined })) : holdings, quotes.quotes);
-  const markets = portfolio.countries.flatMap((country) => country.brokers.flatMap((broker) => broker.markets));
-  const totals = (["JPY", "USD"] as const).flatMap((currency) => {
-    const total = portfolio.totals[currency];
-    return total ? [{ currency, total }] : [];
-  });
+  const exchangeRate = useExchangeRate(holdings.some((holding) => holding.market === "US"));
+  const showUsInYen = preferUsInYen && exchangeRate.rate !== undefined;
+  const hasFunds = holdings.some((holding) => holding.assetType === "fund");
+  const portfolio = evaluate(quotes.failed ? holdings.map((holding) => holding.assetType === "fund" ? holding : { ...holding, csvQuote: undefined }) : holdings, quotes.quotes, new Date(), exchangeRate.rate);
+  const hasTotals = Object.keys(portfolio.totals).length > 0;
   const uploadedAt = [saved?.sbiPortfolio?.uploadedAt, saved?.sbiUsTrades?.uploadedAt]
     .filter((date): date is string => date !== undefined).sort().at(-1);
   const hasData = holdings.length > 0 || saved?.sbiPortfolio !== undefined;
@@ -186,6 +189,12 @@ export default function Dashboard() {
     setResults([]);
     setError(null);
     setUploaderOpen(false);
+    setPreferUsInYen(false);
+  }
+
+  function refreshPrices() {
+    void quotes.refresh();
+    void exchangeRate.refresh();
   }
 
   return (
@@ -217,69 +226,29 @@ export default function Dashboard() {
             <div role="alert" className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-warning-soft px-4 py-3 text-body-sm">
               <div className="flex items-center gap-2">
                 <TriangleAlert className="size-5 shrink-0 text-warning" strokeWidth={1.75} aria-hidden="true" />
-                <p>시세를 받지 못했습니다. 모든 종목을 취득가로 표시합니다.</p>
+                <p>{hasFunds ? "주식 시세를 받지 못했습니다. 주식은 취득가로 표시하고, 투자신탁은 CSV 기준가를 유지합니다." : "시세를 받지 못했습니다. 모든 종목을 취득가로 표시합니다."}</p>
               </div>
-              <Button type="button" variant="outline" size="sm" disabled={quotes.loading} onClick={quotes.refresh}>
+              <Button type="button" variant="outline" size="sm" disabled={quotes.loading || exchangeRate.loading} onClick={refreshPrices}>
                 {quotes.loading ? "받는 중" : "시세 새로고침"}
               </Button>
             </div>
           )}
-          {totals.length > 0 && (
-            <Card role="region" aria-label="자산 요약" className="bg-surface-summary">
-              <CardHeader>
-                <CardTitle>주식 자산</CardTitle>
-                <CardDescription><Badge>현금 제외</Badge></CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-6">
-                <div className="grid gap-6 desktop:grid-cols-2">
-                  {totals.map(({ currency, total }) => (
-                    <div key={currency} className="grid gap-4">
-                      <p className="text-label text-ink-2">{currency === "JPY" ? "엔" : "달러"} 자산</p>
-                      <p className="text-figure-xl tabular-nums">{formatMoney(total.value, currency)}</p>
-                      <dl className="grid grid-cols-2 gap-6 desktop:max-w-120">
-                        <div className="grid gap-1">
-                          <dt className="text-label text-ink-2">평가손익</dt>
-                          <dd><Delta value={total.pnl} base={total.value - total.pnl} currency={currency} large /></dd>
-                        </div>
-                        <div className="grid gap-1">
-                          <dt className="text-label text-ink-2">전일 대비</dt>
-                          <dd><Delta value={total.dayChange} base={total.value - total.dayChange} currency={currency} large /></dd>
-                        </div>
-                      </dl>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex flex-wrap items-center gap-4 text-caption text-ink-3">
-                  {markets.map((market) => market.marketTime && (
-                    <span key={market.market}>{formatMarketTime(market.market, market.marketTime)}</span>
-                  ))}
-                  {uploadedAt && (
-                    <p>마지막 업로드 <time dateTime={uploadedAt}>{formatUploadedAt(uploadedAt, now)}</time></p>
-                  )}
-                  <Button type="button" variant="outline" className="ml-auto" disabled={quotes.loading} onClick={quotes.refresh}>
-                    {quotes.loading ? "받는 중" : "시세 새로고침"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {hasTotals && <AssetSummary portfolio={portfolio} rate={exchangeRate.rate} rateLoading={exchangeRate.loading} rateFailed={exchangeRate.failed}
+            onRetryRate={exchangeRate.refresh} showUsInYen={showUsInYen} onToggleUsCurrency={() => setPreferUsInYen((previous) => !previous)}
+            loading={quotes.loading || exchangeRate.loading} onRefresh={refreshPrices} uploadedAt={uploadedAt} now={now} />}
           <section aria-labelledby="japan-brokers" className="grid gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <h2 id="japan-brokers" className="text-title-lg">일본 증권사</h2>
-              {totals.length > 0 && (
-                <div aria-label="일본 증권사 소계" className="flex flex-wrap gap-6 text-figure-md tabular-nums">
-                  {totals.map(({ currency, total }) => <span key={currency}>{formatMoney(total.value, currency)}</span>)}
-                </div>
-              )}
-            </div>
+            <h2 id="japan-brokers" className="text-title-lg">일본 증권사</h2>
             <SbiCard onFiles={upload} busy={busy}>
               <CardHeader className="flex flex-wrap items-start justify-between gap-4">
                 <div className="grid gap-1">
-                  <CardTitle><h3 id="sbi-broker">SBI증권</h3></CardTitle>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <CardTitle><h3 id="sbi-broker">SBI증권</h3></CardTitle>
+                    {hasData && <SbiTotal summary={portfolio.yenSummary} rate={exchangeRate.rate} loading={exchangeRate.loading} />}
+                  </div>
                   <CardDescription>
                     {uploadedAt ? (
                       <>마지막 업로드 <time dateTime={uploadedAt}>{formatUploadedAt(uploadedAt, now)}</time></>
-                    ) : "SBI증권에서 받은 CSV로 보유 주식을 확인합니다."}
+                    ) : "SBI증권에서 받은 CSV로 주식·투자신탁 보유를 확인합니다."}
                   </CardDescription>
                 </div>
                 {hasData && (
@@ -306,14 +275,14 @@ export default function Dashboard() {
                         <li key={`${file.fileName}-${index}`} className="flex flex-wrap items-center gap-2 text-body-sm">
                           <Badge variant={file.error ? "error" : "success"}>{file.error ? "읽지 못함" : "반영됨"}</Badge>
                           <span>{file.fileName}</span>
-                          <span className="text-ink-2">{renderWithJa(file.error ?? (file.kind === "usTrades" ? "미국주식 거래를 누적했습니다." : "일본주식 보유를 교체했습니다."))}</span>
+                          <span className="text-ink-2">{renderWithJa(file.error ?? (file.kind === "usTrades" ? "미국주식 거래를 누적했습니다." : "일본주식·투자신탁 보유를 교체했습니다."))}</span>
                           {file.notices.map((notice) => <span key={notice} className="text-ink-2">{renderWithJa(notice)}</span>)}
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
-                <PortfolioView portfolio={portfolio} hasPortfolio={Boolean(saved?.sbiPortfolio)} jpNotices={saved?.sbiPortfolio?.notices ?? []} us={{ hasTrades: Boolean(saved?.sbiUsTrades), baselines: saved?.sbiUsBaselines ?? [], issues: usHoldings.issues, onEdit: (position) => setBaselineTarget({ position }) }}>
+                <PortfolioView portfolio={portfolio} now={now} exchangeRate={exchangeRate.rate} showUsInYen={showUsInYen} hasPortfolio={Boolean(saved?.sbiPortfolio)} jpNotices={saved?.sbiPortfolio?.notices ?? []} us={{ hasTrades: Boolean(saved?.sbiUsTrades), baselines: saved?.sbiUsBaselines ?? [], issues: usHoldings.issues, onEdit: (position) => setBaselineTarget({ position }) }}>
                   {baselineTarget && <UsBaselineEditor
                     key={baselineTarget.position ? usPositionKey(baselineTarget.position) : "new"}
                     positions={positions} baselines={saved?.sbiUsBaselines ?? []} holdings={usHoldings.holdings} issues={usHoldings.issues} initialPosition={baselineTarget.position}

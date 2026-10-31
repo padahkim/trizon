@@ -7,11 +7,17 @@ export const holdingSchema = z.object({
   broker: brokerSchema,
   account: z.string(),
   market: marketSchema,
+  assetType: z.enum(["stock", "fund"]).optional(),
   code: z.string().min(1),
   name: z.string().min(1),
   quantity: z.number().finite().nonnegative(),
   avgCost: z.number().finite().nonnegative(),
   csvQuote: z.object({ price: z.number().finite().nonnegative(), asOf: z.iso.datetime() }).optional(),
+  csvValuation: z.object({
+    value: z.number().finite().nonnegative().optional(),
+    pnl: z.number().finite().optional(),
+    dayChange: z.number().finite().optional(),
+  }).optional(),
 });
 export type Broker = z.infer<typeof brokerSchema>;
 export type Market = z.infer<typeof marketSchema>;

@@ -19,6 +19,10 @@ export function formatPercent(value: number): string {
   return `${amount > 0 ? "+" : ""}${amount.toFixed(2)}%`;
 }
 
+export function formatUsdJpyRate(yenPerDollar: number): string {
+  return `1 USD = ${yenPerDollar.toLocaleString("en-US", { maximumFractionDigits: 4 })} JPY`;
+}
+
 export function formatUploadedAt(uploadedAt: string, now: Date): string {
   const days = Math.max(0, Math.floor((now.getTime() - new Date(uploadedAt).getTime()) / 86_400_000));
   return days <= 7 ? `${days}일 전` : uploadedAt.slice(0, 10).replaceAll("-", ".");

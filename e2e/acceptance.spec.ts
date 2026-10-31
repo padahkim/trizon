@@ -46,12 +46,12 @@ test("1단계 완료 기준: 빈 대시보드 → 두 CSV·가짜 시세 평가 
     await expect(us.getByRole("row").filter({ hasText: "미국주식 합계" }).getByRole("cell")).toHaveText([
       "미국주식 합계", "$232.00", "-$8.00-3.33%", "-$1.00-0.43%",
     ]);
-    for (const text of ["엔 자산", "¥20,000", "+¥1,000", "+¥300", "달러 자산", "$232.00", "-$8.00", "-$1.00", "현금 제외"]) {
+    for (const text of ["일본 엔 총자산", "¥20,000", "+¥1,000", "+¥300", "미국주식 · 달러", "$232.00", "-$8.00", "-$1.00", "현금 제외"]) {
       await expect(summary.getByText(text, { exact: true })).toBeVisible();
     }
     await expect(summary.getByText(/^일본 시세 /)).toBeVisible();
     await expect(summary.getByText(/^미국 시세 /)).toBeVisible();
-    await expect(japan.getByLabel("일본 증권사 소계")).toHaveText("¥20,000$232.00");
+    await expect(sbi.getByRole("button", { name: /SBI증권 엔화 총액/ })).toContainText("¥54,800");
   }
 
   await test.step("1. 처음 접속하면 CSV 안내와 접힌 한국 증권사가 있는 빈 대시보드가 열린다", async () => {
@@ -69,7 +69,7 @@ test("1단계 완료 기준: 빈 대시보드 → 두 CSV·가짜 시세 평가 
     await expect(us.getByText("US-A", { exact: true })).toBeVisible();
     await expect(us.getByText("US-B", { exact: true })).toBeVisible();
     await expect(sbi.getByRole("status").getByRole("listitem")).toHaveCount(2);
-    await expect(sbi.getByRole("status")).toContainText("일본주식 보유를 교체했습니다.");
+    await expect(sbi.getByRole("status")).toContainText("일본주식·투자신탁 보유를 교체했습니다.");
     await expect(sbi.getByRole("status")).toContainText("미국주식 거래를 누적했습니다.");
     await expect(sbi.getByText("約定履歴으로 추정한 값", { exact: true })).toBeVisible();
   });
@@ -134,7 +134,7 @@ test("두 CSV의 지원 범위와 SBI 다운로드 순서를 안내한다", asyn
 
   const portfolio = files.filter({ has: page.getByRole("heading", { name: "ポートフォリオ", exact: true }) });
   await expect(portfolio.getByRole("heading", { name: "ポートフォリオ", exact: true })).toHaveAttribute("lang", "ja");
-  await expect(portfolio.getByText("일본주식의 보유수량과 취득단가가 들어 있습니다.", { exact: true })).toBeVisible();
+  await expect(portfolio.getByText("일본주식·투자신탁의 보유수량과 취득단가가 들어 있습니다.", { exact: true })).toBeVisible();
   await expect(portfolio.getByText("지금 올릴 수 있음", { exact: true })).toBeVisible();
   const portfolioLocation = portfolio.getByRole("link", { name: "SBI 공식 다운로드 도움말 (새 창)", exact: true });
   await expect(portfolioLocation).toBeVisible();
@@ -181,7 +181,7 @@ test("가짜 ポートフォリオ를 올리면 일본주식의 수량·가격·
   await expect(summary).toContainText("+¥1,000");
   await expect(summary.getByText("현금 제외", { exact: true })).toBeVisible();
   await expect(summary).toContainText("마지막 업로드 0일 전");
-  await expect(japan.getByLabel("일본 증권사 소계")).toHaveText("¥20,000");
+  await expect(sbi.getByRole("button", { name: /SBI증권 엔화 총액/ })).toContainText("¥20,000");
   await expect(sbi.getByRole("status")).toContainText("반영됨");
   await expect(sbi.getByRole("status")).toContainText("arbitrary-name.txt");
   const reopen = sbi.getByRole("button", { name: "CSV 올리기", exact: true });

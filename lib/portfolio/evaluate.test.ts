@@ -8,6 +8,40 @@ import type { Quote } from "../quotes/types";
 const now = new Date("2026-10-28T09:00:00Z");
 const recent: Quote = { price: 1200, previousClose: 1150, currency: "JPY", marketTime: "2026-10-28T06:00:00Z" };
 
+it("adds Japanese stocks and funds, then converts the US dollar value once to produce total assets in yen", () => {
+  const holdings: Holding[] = [
+    { broker: "SBI", account: "特定", market: "JP", code: "1111", name: "JP-A", quantity: 10, avgCost: 1000 },
+    { broker: "SBI", account: "NISA", market: "JP", assetType: "fund", code: "架空ファンド", name: "架空ファンド", quantity: 12500, avgCost: 8000, csvQuote: { price: 10000, asOf: now.toISOString() } },
+    { broker: "SBI", account: "特定", market: "US", code: "TSTA", name: "US-A", quantity: 4, avgCost: 50 },
+  ];
+  const quotes = { "JP:1111": recent, "US:TSTA": { ...recent, currency: "USD" as const, price: 45.5 } };
+  const result = evaluate(holdings, quotes, now, { yenPerDollar: 150.25, asOf: now.toISOString() });
+  expect(result.yenSummary).toEqual({ japaneseStocks: 12000, funds: 12500, japan: 24500, usDollars: 182, usYen: 27345.5, total: 51845.5 });
+  expect(result.totals.USD?.value).toBe(182);
+  expect(evaluate(holdings, quotes, now).yenSummary.total).toBeUndefined();
+  expect(evaluate(holdings.slice(0, 2), quotes, now).yenSummary.total).toBe(24500);
+});
+
+it("requires a rate whenever US holdings exist, even when their current dollar value is zero", () => {
+  const holdings: Holding[] = [{ broker: "SBI", account: "特定", market: "US", code: "TSTA", name: "US-A", quantity: 1, avgCost: 0 }];
+  expect(evaluate(holdings, {}, now).yenSummary.total).toBeUndefined();
+  expect(evaluate(holdings, {}, now, { yenPerDollar: 150, asOf: now.toISOString() }).yenSummary.total).toBe(0);
+});
+
+it("values fund units per 10,000 using the CSV price, separately from stocks in the yen total", () => {
+  const fund: Holding = { broker: "SBI", account: "NISA(つみたて投資枠)", market: "JP", assetType: "fund", code: "架空ファンドA", name: "架空ファンドA", quantity: 12500, avgCost: 8000, csvQuote: { price: 10000, asOf: now.toISOString() } };
+  const result = evaluate([...parsePortfolio(portfolioUtf8, now).holdings.slice(0, 1), fund], {
+    "JP:1111": recent,
+    "JP:架空ファンドA": { ...recent, price: 99999 },
+  }, now);
+  const markets = result.countries[0].brokers[0].markets;
+  expect(markets).toHaveLength(2);
+  expect(markets[1].rows[0]).toMatchObject({ priceSource: "csv", price: 10000, value: 12500, pnl: 2500, dayChange: 0 });
+  expect(result.totals.JPY).toEqual({ value: 24500, pnl: 4500, dayChange: 500, noQuote: 0 });
+  const withoutPrice = evaluate([{ ...fund, csvQuote: undefined }], {}, now);
+  expect(withoutPrice.totals.JPY).toEqual({ value: 10000, pnl: 0, dayChange: 0, noQuote: 1 });
+});
+
 it("uses current and previous-close quotes for the PRD Japanese holdings", () => {
   const now = new Date("2026-10-28T09:00:00Z");
   const result = evaluate(parsePortfolio(portfolioUtf8, now).holdings, {

@@ -12,7 +12,7 @@ it.each([portfolioUtf8, portfolioShiftJis])("reads only cash holdings, preservin
   });
 });
 
-it("keeps the same code in separate accounts, finds named columns, and excludes margin, funds and total blocks (U13)", () => {
+it("keeps securities and funds in separate accounts, finds named columns, and excludes margin and total blocks (U13)", () => {
   const bytes = new TextEncoder().encode(`ポートフォリオ一覧
 株式(現物/特定預り)
 銘柄(コード),現在値(円),取得単価(円),数量(株)
@@ -38,8 +38,9 @@ it("keeps the same code in separate accounts, finds named columns, and excludes 
     { account: "特定", code: "1111", quantity: 10, avgCost: 1000 },
     { account: "NISA(成長投資枠)", code: "1111", quantity: 10, avgCost: 1000 },
     { account: "NISA(つみたて投資枠)", code: "999A", quantity: 10, avgCost: 900 },
+    { account: "投資信託", code: "架空ファンド", quantity: 10, avgCost: 1000 },
   ]);
-  expect(result.notices).toEqual(["건너뛴 표 2개"]);
+  expect(result.notices).toEqual(["건너뛴 표 1개"]);
 });
 
 it("does not merge legacy and current NISA account buckets for the same security", () => {
